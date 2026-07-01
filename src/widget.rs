@@ -22,7 +22,7 @@ use iced_widget::text_input as iced_text_input;
 use iced_widget::toggler as iced_toggler;
 use iced_widget::tooltip as iced_tooltip;
 use iced_widget::{
-    Button, Container, PickList, ProgressBar, Rule, Slider, Text,
+    Button, Container, ProgressBar, Rule, Slider, Text,
     TextInput as IcedTextInput, TextEditor as IcedTextEditor, Tooltip,
 };
 
@@ -39,6 +39,7 @@ mod support;
 pub mod badge;
 pub mod combo_box;
 pub mod list;
+pub mod select;
 
 use support::{
     AnimatedScalar, SelectionState, TextFieldState, alpha_border, alpha_color, bool_value,
@@ -627,7 +628,7 @@ pub mod pick_list {
         options: L,
         selected: Option<V>,
         on_select: impl Fn(T) -> Message + 'a,
-    ) -> PickList<'a, T, L, V, Message, Theme, Renderer>
+    ) -> select::Select<'a, T, L, V, Message, Renderer>
     where
         T: ToString + PartialEq + Clone + 'a,
         L: Borrow<[T]> + 'a,
@@ -635,13 +636,14 @@ pub mod pick_list {
         Message: Clone + 'a,
         Renderer: core_text::Renderer + 'a,
     {
-        PickList::new(options, selected, on_select)
+        select::Select::new(options, selected, on_select)
             .padding(Padding {
                 top: tokens::component::text_field::TOP_SPACE,
                 right: tokens::component::text_field::TRAILING_SPACE,
                 bottom: tokens::component::text_field::BOTTOM_SPACE,
                 left: tokens::component::text_field::LEADING_SPACE,
             })
+            .option_padding(select::menu_option_padding())
             .text_size(tokens::component::text_field::INPUT_TEXT_SIZE)
             .text_line_height(absolute_line_height(
                 tokens::component::text_field::INPUT_TEXT_LINE_HEIGHT,
