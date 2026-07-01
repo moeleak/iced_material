@@ -24,9 +24,9 @@ const MAX_VISIBLE_OPTIONS: usize = 5;
 const DIRECTION_EPSILON: f32 = 0.5;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-struct MenuAnchor {
-    position: Point,
-    target_height: f32,
+pub(crate) struct MenuAnchor {
+    pub(crate) position: Point,
+    pub(crate) target_height: f32,
 }
 
 /// A Material select field.
@@ -674,7 +674,11 @@ pub(crate) fn material_menu_height(option_count: usize) -> Length {
     Length::Fixed(tokens::component::select::MENU_LIST_ITEM_CONTAINER_HEIGHT * visible_options)
 }
 
-fn resolved_menu_height(menu_height: Length, intrinsic_height: f32, viewport_height: f32) -> f32 {
+pub(crate) fn resolved_menu_height(
+    menu_height: Length,
+    intrinsic_height: f32,
+    viewport_height: f32,
+) -> f32 {
     match menu_height {
         Length::Fixed(height) => height,
         Length::Shrink => intrinsic_height,
@@ -682,7 +686,7 @@ fn resolved_menu_height(menu_height: Length, intrinsic_height: f32, viewport_hei
     }
 }
 
-fn prefer_down_when_menu_fits(
+pub(crate) fn prefer_down_when_menu_fits(
     position: Point,
     viewport: Rectangle,
     target_height: f32,
@@ -705,9 +709,7 @@ fn prefer_down_when_menu_fits(
         };
     }
 
-    let adjusted_y = position
-        .y
-        .min((space_below - DIRECTION_EPSILON).max(0.0));
+    let adjusted_y = position.y.min((space_below - DIRECTION_EPSILON).max(0.0));
 
     MenuAnchor {
         position: Point::new(position.x, adjusted_y),
