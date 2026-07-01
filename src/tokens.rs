@@ -194,6 +194,17 @@ pub mod elevation {
 }
 
 pub mod component {
+    pub mod badge {
+        pub const SMALL_SIZE: f32 = 6.0;
+        pub const LARGE_CONTAINER_HEIGHT: f32 = 16.0;
+        pub const LARGE_CONTAINER_MIN_WIDTH: f32 = 16.0;
+        pub const LARGE_CONTAINER_MAX_WIDTH: f32 = 34.0;
+        pub const LARGE_CONTAINER_SHAPE: f32 = 8.0;
+        pub const LARGE_HORIZONTAL_SPACE: f32 = 4.0;
+        pub const LABEL_TEXT: super::super::typography::TypeScale =
+            super::super::typography::LABEL_SMALL;
+    }
+
     pub mod button {
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         pub struct ElevationLevels {
@@ -624,6 +635,13 @@ mod tests {
 
     #[test]
     fn m3_component_sizing_tokens_match_google_values() {
+        assert_eq!(component::badge::SMALL_SIZE, 6.0);
+        assert_eq!(component::badge::LARGE_CONTAINER_HEIGHT, 16.0);
+        assert_eq!(component::badge::LARGE_CONTAINER_MIN_WIDTH, 16.0);
+        assert_eq!(component::badge::LARGE_CONTAINER_MAX_WIDTH, 34.0);
+        assert_eq!(component::badge::LARGE_CONTAINER_SHAPE, 8.0);
+        assert_eq!(component::badge::LARGE_HORIZONTAL_SPACE, 4.0);
+        assert_eq!(component::badge::LABEL_TEXT, typography::LABEL_SMALL);
         assert_eq!(component::button::CONTAINER_HEIGHT, 40.0);
         assert_eq!(component::button::LABEL_TEXT_SIZE, 14.0);
         assert_eq!(component::button::LABEL_TEXT_LINE_HEIGHT, 20.0);

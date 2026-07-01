@@ -36,6 +36,7 @@ use crate::{
 };
 
 mod support;
+pub mod badge;
 pub mod combo_box;
 pub mod list;
 
@@ -3058,6 +3059,13 @@ mod tests {
         let _: TestElement<'_> = button::assist_chip("Assist")
             .on_press(Message::Pressed)
             .into();
+    }
+
+    #[test]
+    fn material_badge_constructors_compile_to_elements() {
+        let _: TestElement<'_> = badge::small().into();
+        let _: TestElement<'_> = badge::large("3").into();
+        let _: TestElement<'_> = badge::large("99+").into();
     }
 
     #[test]

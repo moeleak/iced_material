@@ -7,6 +7,7 @@ use iced_widget::core::{
 };
 use utils::{lightness, mix};
 
+pub mod badge;
 pub mod button;
 pub mod checkbox;
 pub mod combo_box;
