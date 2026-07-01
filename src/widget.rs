@@ -38,6 +38,7 @@ use crate::{
 mod support;
 pub mod badge;
 pub mod combo_box;
+pub mod data_table;
 pub mod list;
 pub mod select;
 
@@ -3149,6 +3150,56 @@ mod tests {
             list::two_line_with_trailing("Inventory", "In stock", "42").into();
         let _: TestElement<'_> =
             list::three_line("Three line", "Supporting text", "Second supporting line").into();
+    }
+
+    #[test]
+    fn material_data_table_constructors_compile_to_elements() {
+        #[derive(Clone)]
+        struct Row {
+            name: &'static str,
+            quantity: u32,
+        }
+
+        let rows = [Row {
+            name: "Assist",
+            quantity: 24,
+        }];
+        let columns: [iced_widget::table::Column<
+            '_,
+            '_,
+            Row,
+            Message,
+            Theme,
+            iced_widget::Renderer,
+        >; 2] = [
+            data_table::column("Name", |row: Row| row.name),
+            data_table::numeric_column("Quantity", |row: Row| row.quantity.to_string()),
+        ];
+
+        let _: TestElement<'_> = data_table::standard(columns, rows).into();
+    }
+
+    #[test]
+    fn material_data_table_cells_use_token_heights() {
+        let header: Container<'_, Message, Theme, iced_widget::Renderer> =
+            data_table::header_cell("Name");
+        let body: Container<'_, Message, Theme, iced_widget::Renderer> =
+            data_table::body_cell("Assist");
+
+        assert_eq!(
+            Widget::<Message, Theme, iced_widget::Renderer>::size(&header),
+            Size {
+                width: Length::Shrink,
+                height: Length::Fixed(tokens::component::data_table::HEADER_CONTAINER_HEIGHT),
+            }
+        );
+        assert_eq!(
+            Widget::<Message, Theme, iced_widget::Renderer>::size(&body),
+            Size {
+                width: Length::Shrink,
+                height: Length::Fixed(tokens::component::data_table::ROW_ITEM_CONTAINER_HEIGHT),
+            }
+        );
     }
 
     #[test]
