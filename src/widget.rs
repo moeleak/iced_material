@@ -75,6 +75,21 @@ where
         .line_height(absolute_line_height(line_height))
 }
 
+fn centered_icon_text<'a, Renderer>(
+    icon: impl text::IntoFragment<'a>,
+    size: f32,
+) -> Text<'a, Theme, Renderer>
+where
+    Renderer: core_text::Renderer,
+{
+    Text::new(icon)
+        .size(size)
+        .line_height(absolute_line_height(size))
+        .width(Length::Fixed(size))
+        .height(Length::Fixed(size))
+        .center()
+}
+
 fn checkbox_checkmark_svg(mark_progress: f32) -> Vec<u8> {
     let progress = mark_progress.clamp(0.0, 1.0);
     let short_height = lerp(
@@ -118,11 +133,7 @@ where
     Message: 'a,
     Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
 {
-    let icon = Text::new(icon)
-        .size(tokens::component::icon_button::ICON_SIZE)
-        .line_height(absolute_line_height(
-            tokens::component::icon_button::ICON_SIZE,
-        ));
+    let icon = centered_icon_text(icon, tokens::component::icon_button::ICON_SIZE);
 
     Container::new(icon)
         .center_x(Length::Fixed(
@@ -140,9 +151,7 @@ where
     Message: 'a,
     Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
 {
-    let icon = Text::new(icon)
-        .size(tokens::component::fab::ICON_SIZE)
-        .line_height(absolute_line_height(tokens::component::fab::ICON_SIZE));
+    let icon = centered_icon_text(icon, tokens::component::fab::ICON_SIZE);
 
     Container::new(icon)
         .center_x(Length::Fixed(tokens::component::fab::CONTAINER_WIDTH))
@@ -3046,6 +3055,20 @@ mod tests {
 
     fn toggled(_: bool) -> Message {
         Message::Toggled
+    }
+
+    #[test]
+    fn centered_icon_text_uses_square_icon_bounds() {
+        let icon: Text<'_, Theme, iced_widget::Renderer> =
+            centered_icon_text("+", tokens::component::fab::ICON_SIZE);
+
+        assert_eq!(
+            Widget::<Message, Theme, iced_widget::Renderer>::size(&icon),
+            Size {
+                width: Length::Fixed(tokens::component::fab::ICON_SIZE),
+                height: Length::Fixed(tokens::component::fab::ICON_SIZE),
+            }
+        );
     }
 
     #[test]
