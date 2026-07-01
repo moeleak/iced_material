@@ -560,10 +560,18 @@ pub mod component {
     }
 
     pub mod tooltip {
+        pub const SPACING_BETWEEN_TOOLTIP_AND_ANCHOR: f32 = 4.0;
+        pub const PLAIN_MIN_HEIGHT: f32 = 24.0;
+        pub const PLAIN_MIN_WIDTH: f32 = 40.0;
+        pub const PLAIN_MAX_WIDTH: f32 = 200.0;
+        pub const PLAIN_HORIZONTAL_SPACE: f32 = 8.0;
+        pub const PLAIN_VERTICAL_SPACE: f32 = 4.0;
         pub const PLAIN_CONTAINER_SHAPE: f32 = super::super::shape::CORNER_EXTRA_SMALL;
         pub const PLAIN_SUPPORTING_TEXT: super::super::typography::TypeScale =
             super::super::typography::BODY_SMALL;
 
+        pub const RICH_MAX_WIDTH: f32 = 320.0;
+        pub const RICH_HORIZONTAL_SPACE: f32 = 16.0;
         pub const RICH_CONTAINER_SHAPE: f32 = super::super::shape::CORNER_MEDIUM;
         pub const RICH_CONTAINER_ELEVATION_LEVEL: u8 = 2;
         pub const RICH_SUBHEAD_TEXT: super::super::typography::TypeScale =
@@ -772,8 +780,16 @@ mod tests {
         assert_eq!(component::chip::ELEVATED_ELEVATION.active, 1);
         assert_eq!(component::chip::ELEVATED_ELEVATION.hovered, 2);
         assert_eq!(component::chip::SELECTED_FLAT_ELEVATION.hovered, 1);
+        assert_eq!(component::tooltip::SPACING_BETWEEN_TOOLTIP_AND_ANCHOR, 4.0);
+        assert_eq!(component::tooltip::PLAIN_MIN_HEIGHT, 24.0);
+        assert_eq!(component::tooltip::PLAIN_MIN_WIDTH, 40.0);
+        assert_eq!(component::tooltip::PLAIN_MAX_WIDTH, 200.0);
+        assert_eq!(component::tooltip::PLAIN_HORIZONTAL_SPACE, 8.0);
+        assert_eq!(component::tooltip::PLAIN_VERTICAL_SPACE, 4.0);
         assert_eq!(component::tooltip::PLAIN_CONTAINER_SHAPE, 4.0);
         assert_eq!(component::tooltip::PLAIN_SUPPORTING_TEXT.size, 12.0);
+        assert_eq!(component::tooltip::RICH_MAX_WIDTH, 320.0);
+        assert_eq!(component::tooltip::RICH_HORIZONTAL_SPACE, 16.0);
         assert_eq!(component::tooltip::RICH_CONTAINER_SHAPE, 12.0);
         assert_eq!(component::tooltip::RICH_CONTAINER_ELEVATION_LEVEL, 2);
         assert_eq!(component::tooltip::RICH_SUBHEAD_TEXT.size, 14.0);

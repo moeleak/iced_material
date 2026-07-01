@@ -18,13 +18,17 @@ use iced_widget::radio as iced_radio;
 use iced_widget::text::{self, LineHeight};
 use iced_widget::text_input as iced_text_input;
 use iced_widget::toggler as iced_toggler;
-use iced_widget::{Button, Container, ProgressBar, Slider, Text, TextInput as IcedTextInput};
+use iced_widget::tooltip as iced_tooltip;
+use iced_widget::{
+    Button, Container, ProgressBar, Slider, Text, TextInput as IcedTextInput, Tooltip,
+};
 
 use crate::utils::mix;
 use crate::{Theme, tokens};
 use crate::{
     button as button_style, checkbox as checkbox_style, progress_bar as progress_bar_style,
     slider as slider_style, text_input as text_input_style, toggler as toggler_style,
+    tooltip as tooltip_style,
 };
 
 const SWITCH_ON_ICON_SVG: &[u8] = br##"
@@ -585,6 +589,50 @@ pub mod progress_bar {
 
     pub fn vertical_linear<'a>(range: RangeInclusive<f32>, value: f32) -> ProgressBar<'a, Theme> {
         linear(range, value).vertical()
+    }
+}
+
+pub mod tooltip {
+    //! Material 3 tooltip constructors with token-backed layout defaults.
+
+    use super::*;
+
+    pub use iced_tooltip::Position;
+
+    pub fn plain<'a, Message, Renderer>(
+        content: impl Into<Element<'a, Message, Theme, Renderer>>,
+        supporting_text: impl text::IntoFragment<'a>,
+        position: Position,
+    ) -> Tooltip<'a, Message, Theme, Renderer>
+    where
+        Message: 'a,
+        Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    {
+        let type_scale = tokens::component::tooltip::PLAIN_SUPPORTING_TEXT;
+        let inner_horizontal_padding = (tokens::component::tooltip::PLAIN_HORIZONTAL_SPACE
+            - tokens::component::tooltip::PLAIN_VERTICAL_SPACE)
+            .max(0.0);
+
+        let tooltip = Container::new(
+            text_with_metrics(supporting_text, type_scale.size, type_scale.line_height)
+                .width(Length::Fill)
+                .wrapping(text::Wrapping::Word),
+        )
+        .padding(Padding {
+            top: 0.0,
+            right: inner_horizontal_padding,
+            bottom: 0.0,
+            left: inner_horizontal_padding,
+        })
+        .max_width(
+            tokens::component::tooltip::PLAIN_MAX_WIDTH
+                - tokens::component::tooltip::PLAIN_VERTICAL_SPACE * 2.0,
+        );
+
+        Tooltip::new(content, tooltip, position)
+            .gap(tokens::component::tooltip::SPACING_BETWEEN_TOOLTIP_AND_ANCHOR)
+            .padding(tokens::component::tooltip::PLAIN_VERTICAL_SPACE)
+            .style(tooltip_style::plain)
     }
 }
 
@@ -2923,10 +2971,16 @@ mod tests {
 
     #[test]
     fn material_slider_and_progress_constructors_compile_to_elements() {
-        let _: TestElement<'_> =
-            slider::continuous(0.0..=100.0, 42.0, |_| Message::Pressed).into();
+        let _: TestElement<'_> = slider::continuous(0.0..=100.0, 42.0, |_| Message::Pressed).into();
         let _: TestElement<'_> = progress_bar::linear(0.0..=100.0, 42.0).into();
         let _: TestElement<'_> = progress_bar::vertical_linear(0.0..=100.0, 42.0).into();
+    }
+
+    #[test]
+    fn material_tooltip_constructor_compiles_to_element() {
+        let content = button::assist_chip("Hint").on_press(Message::Pressed);
+        let _: TestElement<'_> =
+            tooltip::plain(content, "Material 3 plain tooltip", tooltip::Position::Top).into();
     }
 
     #[test]
