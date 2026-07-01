@@ -317,6 +317,22 @@ where
         ))
 }
 
+fn fab_content<'a, Message, Renderer>(
+    icon: impl text::IntoFragment<'a>,
+) -> Container<'a, Message, Theme, Renderer>
+where
+    Message: 'a,
+    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+{
+    let icon = Text::new(icon)
+        .size(tokens::component::fab::ICON_SIZE)
+        .line_height(absolute_line_height(tokens::component::fab::ICON_SIZE));
+
+    Container::new(icon)
+        .center_x(Length::Fixed(tokens::component::fab::CONTAINER_WIDTH))
+        .center_y(Length::Fixed(tokens::component::fab::CONTAINER_HEIGHT))
+}
+
 pub mod button {
     //! Material 3 button constructors with token-backed layout defaults.
 
@@ -377,6 +393,21 @@ pub mod button {
             .height(Length::Fixed(
                 tokens::component::icon_button::CONTAINER_HEIGHT,
             ))
+            .padding(Padding::ZERO)
+            .style(style)
+    }
+
+    fn fab<'a, Message, Renderer>(
+        icon_content: impl text::IntoFragment<'a>,
+        style: fn(&Theme, iced_widget::button::Status) -> iced_widget::button::Style,
+    ) -> Button<'a, Message, Theme, Renderer>
+    where
+        Message: Clone + 'a,
+        Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    {
+        Button::new(fab_content(icon_content))
+            .width(Length::Fixed(tokens::component::fab::CONTAINER_WIDTH))
+            .height(Length::Fixed(tokens::component::fab::CONTAINER_HEIGHT))
             .padding(Padding::ZERO)
             .style(style)
     }
@@ -469,6 +500,36 @@ pub mod button {
         Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
     {
         icon(icon_content, button_style::outlined_icon)
+    }
+
+    pub fn primary_fab<'a, Message, Renderer>(
+        icon_content: impl text::IntoFragment<'a>,
+    ) -> Button<'a, Message, Theme, Renderer>
+    where
+        Message: Clone + 'a,
+        Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    {
+        fab(icon_content, button_style::fab_primary)
+    }
+
+    pub fn secondary_fab<'a, Message, Renderer>(
+        icon_content: impl text::IntoFragment<'a>,
+    ) -> Button<'a, Message, Theme, Renderer>
+    where
+        Message: Clone + 'a,
+        Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    {
+        fab(icon_content, button_style::fab_secondary)
+    }
+
+    pub fn surface_fab<'a, Message, Renderer>(
+        icon_content: impl text::IntoFragment<'a>,
+    ) -> Button<'a, Message, Theme, Renderer>
+    where
+        Message: Clone + 'a,
+        Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    {
+        fab(icon_content, button_style::fab_surface)
     }
 
     pub fn assist_chip<'a, Message, Renderer>(
@@ -2964,6 +3025,9 @@ mod tests {
             .on_press(Message::Pressed)
             .into();
         let _: TestElement<'_> = button::outlined_icon("+").on_press(Message::Pressed).into();
+        let _: TestElement<'_> = button::primary_fab("+").on_press(Message::Pressed).into();
+        let _: TestElement<'_> = button::secondary_fab("+").on_press(Message::Pressed).into();
+        let _: TestElement<'_> = button::surface_fab("+").on_press(Message::Pressed).into();
         let _: TestElement<'_> = button::assist_chip("Assist")
             .on_press(Message::Pressed)
             .into();
