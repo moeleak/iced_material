@@ -20,15 +20,16 @@ use iced_widget::text_input as iced_text_input;
 use iced_widget::toggler as iced_toggler;
 use iced_widget::tooltip as iced_tooltip;
 use iced_widget::{
-    Button, Container, ProgressBar, Slider, Text, TextInput as IcedTextInput, Tooltip,
+    Button, Container, PickList, ProgressBar, Slider, Text, TextInput as IcedTextInput, Tooltip,
 };
 
 use crate::utils::mix;
 use crate::{Theme, tokens};
 use crate::{
     button as button_style, checkbox as checkbox_style, container as container_style,
-    progress_bar as progress_bar_style, slider as slider_style, text_input as text_input_style,
-    toggler as toggler_style, tooltip as tooltip_style,
+    menu as menu_style, pick_list as pick_list_style, progress_bar as progress_bar_style,
+    slider as slider_style, text_input as text_input_style, toggler as toggler_style,
+    tooltip as tooltip_style,
 };
 
 const SWITCH_ON_ICON_SVG: &[u8] = br##"
@@ -777,6 +778,40 @@ pub mod container {
         Renderer: iced_widget::core::Renderer + 'a,
     {
         styled(content, container_style::outlined_card)
+    }
+}
+
+pub mod pick_list {
+    //! Material 3 select constructors with token-backed layout defaults.
+
+    use super::*;
+    use std::borrow::Borrow;
+
+    pub fn outlined<'a, T, L, V, Message, Renderer>(
+        options: L,
+        selected: Option<V>,
+        on_select: impl Fn(T) -> Message + 'a,
+    ) -> PickList<'a, T, L, V, Message, Theme, Renderer>
+    where
+        T: ToString + PartialEq + Clone + 'a,
+        L: Borrow<[T]> + 'a,
+        V: Borrow<T> + 'a,
+        Message: Clone + 'a,
+        Renderer: core_text::Renderer + 'a,
+    {
+        PickList::new(options, selected, on_select)
+            .padding(Padding {
+                top: tokens::component::text_field::TOP_SPACE,
+                right: tokens::component::text_field::TRAILING_SPACE,
+                bottom: tokens::component::text_field::BOTTOM_SPACE,
+                left: tokens::component::text_field::LEADING_SPACE,
+            })
+            .text_size(tokens::component::text_field::INPUT_TEXT_SIZE)
+            .text_line_height(absolute_line_height(
+                tokens::component::text_field::INPUT_TEXT_LINE_HEIGHT,
+            ))
+            .style(pick_list_style::default)
+            .menu_style(menu_style::outlined_select)
     }
 }
 
@@ -3173,6 +3208,15 @@ mod tests {
 
         let outlined = Text::new("Outlined card");
         let _: TestElement<'_> = container::outlined_card(outlined).into();
+    }
+
+    #[test]
+    fn material_pick_list_constructor_compiles_to_element() {
+        let options = ["Assist", "Suggestion", "Filter"];
+        let _: TestElement<'_> =
+            pick_list::outlined(options, Some("Assist"), |_| Message::Pressed)
+                .placeholder("Choose")
+                .into();
     }
 
     #[test]
