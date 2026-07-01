@@ -332,7 +332,17 @@ pub mod component {
 
     pub mod radio {
         pub const ICON_SIZE: f32 = 20.0;
+        pub const TARGET_SIZE: f32 = 48.0;
+        pub const OUTER_RING_WIDTH: f32 = 2.0;
+        pub const INNER_DOT_SIZE: f32 = 10.0;
         pub const STATE_LAYER_SIZE: f32 = 40.0;
+        pub const LABEL_TEXT_SIZE: f32 = super::super::typography::BODY_LARGE.size;
+        pub const LABEL_TEXT_LINE_HEIGHT: f32 = super::super::typography::BODY_LARGE.line_height;
+        pub const LABEL_TEXT_WEIGHT: u16 = super::super::typography::BODY_LARGE.weight;
+        pub const SELECT_TRANSITION_DURATION_MS: u16 = super::super::motion::DURATION_MEDIUM2_MS;
+        pub const ICON_COLOR_TRANSITION_DURATION_MS: u16 = super::super::motion::DURATION_SHORT1_MS;
+        pub const SELECT_TRANSITION_EASING: super::super::motion::CubicBezier =
+            super::super::motion::EASING_EMPHASIZED_DECELERATE;
         pub const DISABLED_SELECTED_ICON_OPACITY: f32 = 0.38;
         pub const DISABLED_UNSELECTED_ICON_OPACITY: f32 = 0.38;
     }
@@ -669,6 +679,19 @@ mod tests {
         assert_eq!(component::slider::HANDLE_WIDTH, 20.0);
         assert_eq!(component::linear_progress::TRACK_HEIGHT, 4.0);
         assert_eq!(component::radio::ICON_SIZE, 20.0);
+        assert_eq!(component::radio::TARGET_SIZE, 48.0);
+        assert_eq!(component::radio::STATE_LAYER_SIZE, 40.0);
+        assert_eq!(component::radio::OUTER_RING_WIDTH, 2.0);
+        assert_eq!(component::radio::INNER_DOT_SIZE, 10.0);
+        assert_eq!(component::radio::LABEL_TEXT_SIZE, 16.0);
+        assert_eq!(component::radio::LABEL_TEXT_LINE_HEIGHT, 24.0);
+        assert_eq!(component::radio::LABEL_TEXT_WEIGHT, 400);
+        assert_eq!(component::radio::SELECT_TRANSITION_DURATION_MS, 300);
+        assert_eq!(component::radio::ICON_COLOR_TRANSITION_DURATION_MS, 50);
+        assert_eq!(
+            component::radio::SELECT_TRANSITION_EASING,
+            motion::EASING_EMPHASIZED_DECELERATE
+        );
         assert_eq!(component::text_field::CONTAINER_HEIGHT, 56.0);
         assert_eq!(component::text_field::LEADING_SPACE, 16.0);
         assert_eq!(component::text_field::TRAILING_SPACE, 16.0);

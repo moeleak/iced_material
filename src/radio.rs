@@ -1,7 +1,9 @@
-use iced_widget::core::Color;
+use iced_widget::core::{Background, Color};
 use iced_widget::radio::{Catalog, Status, Style, StyleFn};
 
 use super::Theme;
+use crate::tokens;
+use crate::utils::{HOVERED_LAYER_OPACITY, state_layer};
 
 impl Catalog for Theme {
     type Class<'a> = StyleFn<'a, Self>;
@@ -22,7 +24,7 @@ pub fn default(theme: &Theme, status: Status) -> Style {
     let active = Style {
         background: Color::TRANSPARENT.into(),
         dot_color: primary.color,
-        border_width: 1.0,
+        border_width: tokens::component::radio::OUTER_RING_WIDTH,
         border_color: primary.color,
         text_color: None,
     };
@@ -37,7 +39,14 @@ pub fn default(theme: &Theme, status: Status) -> Style {
             ..active
         },
         Status::Hovered { is_selected } => Style {
-            background: Color::TRANSPARENT.into(),
+            background: Background::Color(state_layer(
+                if is_selected {
+                    primary.color
+                } else {
+                    surface.text
+                },
+                HOVERED_LAYER_OPACITY,
+            )),
             dot_color: primary.color,
             border_color: if is_selected {
                 primary.color
@@ -66,11 +75,18 @@ mod tests {
         assert_eq!(hovered_unselected.border_color, colors.surface.text);
         assert_eq!(
             hovered_unselected.background,
-            Background::Color(Color::TRANSPARENT)
+            Background::Color(crate::utils::state_layer(
+                colors.surface.text,
+                crate::tokens::state::HOVER_STATE_LAYER_OPACITY
+            ))
         );
 
         let hovered_selected = default(&theme, Status::Hovered { is_selected: true });
         assert_eq!(hovered_selected.border_color, colors.primary.color);
         assert_eq!(hovered_selected.dot_color, colors.primary.color);
+        assert_eq!(
+            active_unselected.border_width,
+            tokens::component::radio::OUTER_RING_WIDTH
+        );
     }
 }
