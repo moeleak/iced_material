@@ -37,6 +37,7 @@ use crate::{
 
 mod support;
 pub mod badge;
+pub mod card;
 pub mod combo_box;
 pub mod data_table;
 pub mod list;
@@ -604,7 +605,7 @@ pub mod container {
         Message: 'a,
         Renderer: iced_widget::core::Renderer + 'a,
     {
-        styled(content, container_style::elevated_card)
+        super::card::elevated(content)
     }
 
     pub fn filled_card<'a, Message, Renderer>(
@@ -614,7 +615,7 @@ pub mod container {
         Message: 'a,
         Renderer: iced_widget::core::Renderer + 'a,
     {
-        styled(content, container_style::filled_card)
+        super::card::filled(content)
     }
 
     pub fn outlined_card<'a, Message, Renderer>(
@@ -624,7 +625,7 @@ pub mod container {
         Message: 'a,
         Renderer: iced_widget::core::Renderer + 'a,
     {
-        styled(content, container_style::outlined_card)
+        super::card::outlined(content)
     }
 }
 
@@ -3098,15 +3099,21 @@ mod tests {
     fn material_container_constructors_compile_to_elements() {
         let surface = Text::new("Surface");
         let _: TestElement<'_> = container::surface_container_high(surface).into();
+    }
 
+    #[test]
+    fn material_card_constructors_compile_to_elements() {
         let elevated = Text::new("Elevated card");
-        let _: TestElement<'_> = container::elevated_card(elevated).into();
+        let _: TestElement<'_> = card::elevated(elevated).into();
 
         let filled = Text::new("Filled card");
-        let _: TestElement<'_> = container::filled_card(filled).into();
+        let _: TestElement<'_> = card::filled(filled).into();
 
         let outlined = Text::new("Outlined card");
-        let _: TestElement<'_> = container::outlined_card(outlined).into();
+        let _: TestElement<'_> = card::outlined(outlined).into();
+
+        let legacy = Text::new("Legacy path");
+        let _: TestElement<'_> = container::outlined_card(legacy).into();
     }
 
     #[test]
