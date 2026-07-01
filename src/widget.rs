@@ -5,6 +5,7 @@
 //! the Material 3 component metrics from [`crate::tokens`] at construction time.
 
 use iced_widget::checkbox as iced_checkbox;
+use iced_widget::combo_box as iced_combo_box;
 use iced_widget::core::svg as core_svg;
 use iced_widget::core::text as core_text;
 use iced_widget::core::time::{Duration, Instant};
@@ -20,7 +21,8 @@ use iced_widget::text_input as iced_text_input;
 use iced_widget::toggler as iced_toggler;
 use iced_widget::tooltip as iced_tooltip;
 use iced_widget::{
-    Button, Container, PickList, ProgressBar, Slider, Text, TextInput as IcedTextInput, Tooltip,
+    Button, ComboBox, Container, PickList, ProgressBar, Slider, Text, TextInput as IcedTextInput,
+    Tooltip,
 };
 
 use crate::utils::mix;
@@ -811,6 +813,40 @@ pub mod pick_list {
                 tokens::component::text_field::INPUT_TEXT_LINE_HEIGHT,
             ))
             .style(pick_list_style::default)
+            .menu_style(menu_style::outlined_select)
+    }
+}
+
+pub mod combo_box {
+    //! Material 3 searchable select constructors with token-backed layout defaults.
+
+    use super::*;
+
+    pub use iced_combo_box::State;
+
+    pub fn outlined<'a, T, Message, Renderer>(
+        state: &'a State<T>,
+        placeholder: &str,
+        selection: Option<&T>,
+        on_selected: impl Fn(T) -> Message + 'static,
+    ) -> ComboBox<'a, T, Message, Theme, Renderer>
+    where
+        T: std::fmt::Display + Clone + 'static,
+        Renderer: core_text::Renderer + 'a,
+    {
+        ComboBox::new(state, placeholder, selection, on_selected)
+            .padding(Padding {
+                top: tokens::component::text_field::TOP_SPACE,
+                right: tokens::component::text_field::TRAILING_SPACE,
+                bottom: tokens::component::text_field::BOTTOM_SPACE,
+                left: tokens::component::text_field::LEADING_SPACE,
+            })
+            .size(tokens::component::text_field::INPUT_TEXT_SIZE)
+            .line_height(absolute_line_height(
+                tokens::component::text_field::INPUT_TEXT_LINE_HEIGHT,
+            ))
+            .width(Length::Fill)
+            .input_style(text_input_style::default)
             .menu_style(menu_style::outlined_select)
     }
 }
@@ -3217,6 +3253,17 @@ mod tests {
             pick_list::outlined(options, Some("Assist"), |_| Message::Pressed)
                 .placeholder("Choose")
                 .into();
+    }
+
+    #[test]
+    fn material_combo_box_constructor_compiles_to_element() {
+        let selected = "Assist";
+        let options = combo_box::State::with_selection(
+            vec!["Assist", "Suggestion", "Filter"],
+            Some(&selected),
+        );
+        let _: TestElement<'_> =
+            combo_box::outlined(&options, "Choose", Some(&selected), |_| Message::Pressed).into();
     }
 
     #[test]
