@@ -1,0 +1,71 @@
+[package]
+name = "iced_material"
+description = "A Material3 inspired theme for `iced`"
+authors = ["pml68 <contact@pml68.dev>"]
+version = "0.14.2"
+edition = "2024"
+license = "MIT"
+repository = "https://git.pml68.dev/iced_material"
+categories = ["gui"]
+keywords = ["gui", "ui", "graphics", "interface", "widgets"]
+rust-version = "1.88"
+exclude = [
+  "examples/*",
+  "assets/*",
+  ".cargo/config.toml",
+  ".build.yml",
+  "rustfmt.toml",
+]
+
+[features]
+default = ["svg"]
+# Provides `serde` support.
+serde = ["serde/derive"]
+# Provides support for animating with `iced_anim`.
+animate = ["dep:iced_anim"]
+# Enables pixel snapping for crisp edges by default (can cause jitter!).
+crisp = ["iced_widget/crisp"]
+# Provides support for `iced_dialog`.
+dialog = ["dep:iced_dialog"]
+# Provides support for `iced_selection`.
+selection = ["dep:iced_selection"]
+# Provides support for the markdown widget.
+markdown = ["iced_widget/markdown"]
+# Provides support for the SVG widget.
+svg = ["iced_widget/svg"]
+# Provides support for the QR code widget.
+qr_code = ["iced_widget/qr_code"]
+
+[dependencies]
+iced_widget = "0.14"
+iced_winit = "0.14"
+iced_anim = { version = "0.3", optional = true, features = ["derive"] }
+iced_dialog = { version = "0.14", optional = true }
+iced_selection = { version = "0.5", optional = true }
+serde = { version = "1.0", optional = true }
+
+[dev-dependencies]
+iced = "0.14"
+
+[lints.rust]
+missing_debug_implementations = "deny"
+unsafe_code = "deny"
+unused_results = "deny"
+
+[lints.clippy]
+type-complexity = "allow"
+semicolon_if_nothing_returned = "deny"
+trivially-copy-pass-by-ref = "deny"
+default_trait_access = "deny"
+match-wildcard-for-single-variants = "deny"
+redundant-closure-for-method-calls = "deny"
+filter_map_next = "deny"
+manual_let_else = "deny"
+unused_async = "deny"
+from_over_into = "deny"
+needless_borrow = "deny"
+new_without_default = "deny"
+useless_conversion = "deny"
+
+[lints.rustdoc]
+broken_intra_doc_links = "forbid"
