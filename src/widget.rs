@@ -16,14 +16,15 @@ use iced_widget::core::{
     Rectangle, Shell, Size, Widget, alignment, border, layout, mouse, renderer, touch, window,
 };
 use iced_widget::radio as iced_radio;
+use iced_widget::rule as iced_rule;
 use iced_widget::text::{self, LineHeight};
 use iced_widget::text_editor as iced_text_editor;
 use iced_widget::text_input as iced_text_input;
 use iced_widget::toggler as iced_toggler;
 use iced_widget::tooltip as iced_tooltip;
 use iced_widget::{
-    Button, ComboBox, Container, PickList, ProgressBar, Slider, Text, TextInput as IcedTextInput,
-    TextEditor as IcedTextEditor, Tooltip,
+    Button, ComboBox, Container, PickList, ProgressBar, Rule, Slider, Text,
+    TextInput as IcedTextInput, TextEditor as IcedTextEditor, Tooltip,
 };
 
 use crate::utils::mix;
@@ -31,8 +32,8 @@ use crate::{Theme, tokens};
 use crate::{
     button as button_style, checkbox as checkbox_style, container as container_style,
     menu as menu_style, pick_list as pick_list_style, progress_bar as progress_bar_style,
-    slider as slider_style, text_editor as text_editor_style, text_input as text_input_style,
-    toggler as toggler_style, tooltip as tooltip_style,
+    rule as rule_style, slider as slider_style, text_editor as text_editor_style,
+    text_input as text_input_style, toggler as toggler_style, tooltip as tooltip_style,
 };
 
 const SWITCH_ON_ICON_SVG: &[u8] = br##"
@@ -654,6 +655,28 @@ pub mod progress_bar {
 
     pub fn vertical_linear<'a>(range: RangeInclusive<f32>, value: f32) -> ProgressBar<'a, Theme> {
         linear(range, value).vertical()
+    }
+}
+
+pub mod rule {
+    //! Material 3 divider constructors with token-backed thickness and insets.
+
+    use super::*;
+
+    pub fn horizontal_full_width<'a>() -> Rule<'a, Theme> {
+        iced_rule::horizontal(tokens::component::divider::THICKNESS).style(rule_style::full_width)
+    }
+
+    pub fn horizontal_inset<'a>() -> Rule<'a, Theme> {
+        iced_rule::horizontal(tokens::component::divider::THICKNESS).style(rule_style::inset)
+    }
+
+    pub fn vertical_full_height<'a>() -> Rule<'a, Theme> {
+        iced_rule::vertical(tokens::component::divider::THICKNESS).style(rule_style::full_width)
+    }
+
+    pub fn vertical_inset<'a>() -> Rule<'a, Theme> {
+        iced_rule::vertical(tokens::component::divider::THICKNESS).style(rule_style::inset)
     }
 }
 
@@ -3302,6 +3325,14 @@ mod tests {
         let _: TestElement<'_> = slider::continuous(0.0..=100.0, 42.0, |_| Message::Pressed).into();
         let _: TestElement<'_> = progress_bar::linear(0.0..=100.0, 42.0).into();
         let _: TestElement<'_> = progress_bar::vertical_linear(0.0..=100.0, 42.0).into();
+    }
+
+    #[test]
+    fn material_rule_constructors_compile_to_elements() {
+        let _: TestElement<'_> = rule::horizontal_full_width().into();
+        let _: TestElement<'_> = rule::horizontal_inset().into();
+        let _: TestElement<'_> = rule::vertical_full_height().into();
+        let _: TestElement<'_> = rule::vertical_inset().into();
     }
 
     #[test]
