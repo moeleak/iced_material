@@ -472,6 +472,7 @@ fn surfaces_page(_state: &Demo) -> Element<'static, Message, Theme> {
 
 fn navigation_page(state: &Demo) -> Element<'_, Message, Theme> {
     let selection = state.navigation_selection();
+    let rail_height = navigation_demo_rail_height();
     let bar = material::widget::navigation::navigation_bar(
         &NAV_DESTINATIONS,
         selection,
@@ -483,7 +484,7 @@ fn navigation_page(state: &Demo) -> Element<'_, Message, Theme> {
         Message::Navigate,
         Message::ToggleDrawer,
     )
-    .height(Length::Fixed(360.0));
+    .height(Length::Fixed(rail_height));
     let expanded_rail = material::widget::navigation::navigation_rail_expanded_with_menu(
         "Example",
         &NAV_DESTINATIONS,
@@ -491,7 +492,7 @@ fn navigation_page(state: &Demo) -> Element<'_, Message, Theme> {
         Message::Navigate,
         Message::ToggleDrawer,
     )
-    .height(Length::Fixed(360.0));
+    .height(Length::Fixed(rail_height));
 
     column![
         section("Navigation bar", bar.into()),
@@ -503,6 +504,10 @@ fn navigation_page(state: &Demo) -> Element<'_, Message, Theme> {
     .spacing(24)
     .width(Length::Fill)
     .into()
+}
+
+fn navigation_demo_rail_height() -> f32 {
+    material::widget::navigation::navigation_rail_min_height(NAV_DESTINATIONS.len(), true)
 }
 
 fn section<'a>(
@@ -966,6 +971,15 @@ mod tests {
         for destination in NAV_DESTINATIONS {
             assert!(material::fonts::material_symbol_codepoint(destination.icon).is_some());
         }
+    }
+
+    #[test]
+    fn navigation_demo_rail_height_fits_all_destinations() {
+        assert_eq!(navigation_demo_rail_height(), 468.0);
+        assert!(
+            navigation_demo_rail_height()
+                > material::widget::navigation::navigation_rail_min_height(4, true)
+        );
     }
 
     #[test]

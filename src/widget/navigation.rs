@@ -443,6 +443,22 @@ pub fn item_animation_duration_ms(layout: AdaptiveLayout) -> u16 {
     layout.item_animation_duration_ms()
 }
 
+pub fn navigation_rail_min_height(destination_count: usize, has_header: bool) -> f32 {
+    let header_height = if has_header {
+        navigation_rail_header_slot_height()
+    } else {
+        0.0
+    };
+    let child_count = destination_count + usize::from(has_header);
+    let spacing_count = child_count.saturating_sub(1);
+
+    tokens::component::navigation_rail::CONTENT_TOP_MARGIN
+        + header_height
+        + destination_count as f32 * navigation_rail_item_slot_height()
+        + spacing_count as f32 * tokens::component::navigation_rail::VERTICAL_PADDING
+        + tokens::component::navigation_rail::VERTICAL_PADDING
+}
+
 pub fn navigation_suite<'a, Id, Message, Renderer, F>(
     width: f32,
     height: f32,
@@ -2471,6 +2487,20 @@ mod tests {
     fn navigation_rail_header_geometry_matches_material_header_padding() {
         assert_eq!(navigation_rail_header_bottom_padding(), 40.0);
         assert_eq!(navigation_rail_header_slot_height(), 80.0);
+    }
+
+    #[test]
+    fn navigation_rail_min_height_fits_all_destinations_and_header() {
+        assert_eq!(navigation_rail_min_height(5, true), 468.0);
+        assert_eq!(navigation_rail_min_height(5, false), 384.0);
+        assert_eq!(
+            navigation_rail_min_height(1, true),
+            tokens::component::navigation_rail::CONTENT_TOP_MARGIN
+                + navigation_rail_header_slot_height()
+                + tokens::component::navigation_rail::VERTICAL_PADDING
+                + navigation_rail_item_slot_height()
+                + tokens::component::navigation_rail::VERTICAL_PADDING
+        );
     }
 
     #[test]
