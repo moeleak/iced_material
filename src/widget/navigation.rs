@@ -612,7 +612,7 @@ where
         .push(indicator_state_layer(
             tokens::component::navigation_drawer::ACTIVE_INDICATOR_WIDTH,
             tokens::component::navigation_drawer::ACTIVE_INDICATOR_HEIGHT,
-            progress,
+            NavigationStateLayer::Drawer { progress },
             message.clone(),
         ))
         .push(content);
@@ -654,7 +654,7 @@ where
         .push(indicator_state_layer(
             indicator_width,
             indicator_height,
-            progress,
+            NavigationStateLayer::BarOrRail,
             on_press,
         ))
         .push(
@@ -671,7 +671,7 @@ where
 fn indicator_state_layer<'a, Message, Renderer>(
     target_width: f32,
     height: f32,
-    progress: f32,
+    layer: NavigationStateLayer,
     on_press: Message,
 ) -> Button<'a, Message, Theme, Renderer>
 where
@@ -686,7 +686,7 @@ where
     .width(Length::Fixed(target_width))
     .height(Length::Fixed(height))
     .padding(Padding::ZERO)
-    .style(move |theme, status| indicator_state_layer_style(theme, status, progress))
+    .style(move |theme, status| indicator_state_layer_style(theme, status, layer))
     .on_press(on_press)
 }
 
@@ -717,9 +717,9 @@ where
 fn indicator_state_layer_style(
     theme: &Theme,
     status: button::Status,
-    progress: f32,
+    layer: NavigationStateLayer,
 ) -> button::Style {
-    let layer_color = navigation_state_layer_color(theme, progress);
+    let layer_color = navigation_state_layer_color(theme, layer);
     let opacity = match status {
         button::Status::Hovered => HOVERED_LAYER_OPACITY,
         button::Status::Pressed => PRESSED_LAYER_OPACITY,
@@ -733,6 +733,12 @@ fn indicator_state_layer_style(
         snap: cfg!(feature = "crisp"),
         ..button::Style::default()
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum NavigationStateLayer {
+    BarOrRail,
+    Drawer { progress: f32 },
 }
 
 fn animated_indicator_width(target_width: f32, progress: f32) -> f32 {
@@ -883,14 +889,20 @@ fn drawer_content_color(theme: &Theme, progress: f32) -> Color {
     )
 }
 
-fn navigation_state_layer_color(theme: &Theme, progress: f32) -> Color {
+fn navigation_state_layer_color(theme: &Theme, layer: NavigationStateLayer) -> Color {
     let colors = theme.colors();
 
-    mix(
-        colors.surface.text,
-        colors.secondary.container_text,
-        progress,
-    )
+    match layer {
+        // AndroidX Material3 applies the selectable interaction to the whole item, but remaps the
+        // ripple onto the active-indicator pill. Its ripple color comes from the navigation
+        // container content color, not from the active icon color.
+        NavigationStateLayer::BarOrRail => colors.surface.text,
+        NavigationStateLayer::Drawer { progress } => mix(
+            colors.surface.text,
+            colors.secondary.container_text,
+            progress,
+        ),
+    }
 }
 
 #[cfg(test)]
@@ -1027,10 +1039,18 @@ mod tests {
     fn indicator_state_layer_uses_material_state_opacity_on_pill_only() {
         let theme = Theme::Light;
 
-        let active = indicator_state_layer_style(&theme, button::Status::Active, 1.0);
+        let active = indicator_state_layer_style(
+            &theme,
+            button::Status::Active,
+            NavigationStateLayer::BarOrRail,
+        );
         assert_eq!(active.background, None);
 
-        let inactive_hover = indicator_state_layer_style(&theme, button::Status::Hovered, 0.0);
+        let inactive_hover = indicator_state_layer_style(
+            &theme,
+            button::Status::Hovered,
+            NavigationStateLayer::BarOrRail,
+        );
         assert_eq!(
             inactive_hover.background,
             Some(Background::Color(state_layer(
@@ -1039,9 +1059,26 @@ mod tests {
             )))
         );
 
-        let selected_pressed = indicator_state_layer_style(&theme, button::Status::Pressed, 1.0);
+        let selected_pressed = indicator_state_layer_style(
+            &theme,
+            button::Status::Pressed,
+            NavigationStateLayer::BarOrRail,
+        );
         assert_eq!(
             selected_pressed.background,
+            Some(Background::Color(state_layer(
+                theme.colors().surface.text,
+                PRESSED_LAYER_OPACITY
+            )))
+        );
+
+        let drawer_selected_pressed = indicator_state_layer_style(
+            &theme,
+            button::Status::Pressed,
+            NavigationStateLayer::Drawer { progress: 1.0 },
+        );
+        assert_eq!(
+            drawer_selected_pressed.background,
             Some(Background::Color(state_layer(
                 theme.colors().secondary.container_text,
                 PRESSED_LAYER_OPACITY

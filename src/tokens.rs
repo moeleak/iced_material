@@ -1,7 +1,7 @@
 pub mod state {
     pub const HOVER_STATE_LAYER_OPACITY: f32 = 0.08;
-    pub const FOCUS_STATE_LAYER_OPACITY: f32 = 0.12;
-    pub const PRESSED_STATE_LAYER_OPACITY: f32 = 0.12;
+    pub const FOCUS_STATE_LAYER_OPACITY: f32 = 0.10;
+    pub const PRESSED_STATE_LAYER_OPACITY: f32 = 0.10;
     pub const DRAGGED_STATE_LAYER_OPACITY: f32 = 0.16;
 
     pub const DISABLED_CONTAINER_OPACITY: f32 = 0.12;
@@ -668,8 +668,8 @@ mod tests {
     #[test]
     fn m3_state_tokens_match_google_values() {
         assert_eq!(state::HOVER_STATE_LAYER_OPACITY, 0.08);
-        assert_eq!(state::FOCUS_STATE_LAYER_OPACITY, 0.12);
-        assert_eq!(state::PRESSED_STATE_LAYER_OPACITY, 0.12);
+        assert_eq!(state::FOCUS_STATE_LAYER_OPACITY, 0.10);
+        assert_eq!(state::PRESSED_STATE_LAYER_OPACITY, 0.10);
         assert_eq!(state::DRAGGED_STATE_LAYER_OPACITY, 0.16);
     }
 

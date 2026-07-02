@@ -152,7 +152,7 @@ pub fn mix(color1: Color, color2: Color, p2: f32) -> Color {
 
 #[cfg(test)]
 mod tests {
-    use super::{mix, shadow_from_level, Color, HOVERED_LAYER_OPACITY, PRESSED_LAYER_OPACITY};
+    use super::{Color, HOVERED_LAYER_OPACITY, PRESSED_LAYER_OPACITY, mix, shadow_from_level};
 
     #[test]
     fn mixing() {
@@ -168,7 +168,7 @@ mod tests {
     #[test]
     fn state_layer_opacities_match_m3_tokens() {
         assert_eq!(HOVERED_LAYER_OPACITY, 0.08);
-        assert_eq!(PRESSED_LAYER_OPACITY, 0.12);
+        assert_eq!(PRESSED_LAYER_OPACITY, 0.10);
     }
 
     #[test]
