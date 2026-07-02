@@ -13,6 +13,10 @@ Sources:
 - `MaterialSymbolsRounded-Regular.ttf` was downloaded through Google Fonts CSS
   for `Material Symbols Rounded` with `opsz=24`, `wght=400`, `FILL=0`, and
   `GRAD=0`.
+- `MaterialSymbolsRounded-Filled.ttf` was downloaded through Google Fonts CSS
+  for `Material Symbols Rounded` with `opsz=24`, `wght=400`, `FILL=1`, and
+  `GRAD=0`, then renamed internally to `Material Symbols Rounded Filled` so the
+  renderer can select it independently from the outline face.
 
 Roboto and Material Symbols are Google font assets distributed under the Apache
 License, Version 2.0. The license text is included in

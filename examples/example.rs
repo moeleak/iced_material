@@ -22,6 +22,7 @@ pub fn main() -> iced::Result {
         .font(material::fonts::NOTO_SANS_CJK_SC_MEDIUM_BYTES)
         .font(material::fonts::NOTO_SANS_CJK_SC_BOLD_BYTES)
         .font(material::fonts::MATERIAL_SYMBOLS_ROUNDED_BYTES)
+        .font(material::fonts::MATERIAL_SYMBOLS_ROUNDED_FILLED_BYTES)
         .default_font(material::fonts::ROBOTO)
         .subscription(subscription)
         .theme(theme)
@@ -956,7 +957,7 @@ mod tests {
 
     #[test]
     fn navigation_uses_material_symbol_icon_names() {
-        assert_eq!(material::fonts::all().len(), 7);
+        assert_eq!(material::fonts::all().len(), 8);
         assert_eq!(
             NAV_DESTINATIONS.map(|destination| destination.icon),
             ["input", "tune", "info", "layers", "navigation"]

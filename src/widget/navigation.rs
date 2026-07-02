@@ -1257,7 +1257,7 @@ where
     let activation_progress = selection.activation_progress(destination.id);
     let scale = tokens::component::navigation_drawer::LABEL_TEXT;
     let message = on_select(destination.id);
-    let icon = destination_icon::<Renderer>(
+    let icon = destination_icon::<Message, Renderer>(
         destination.icon,
         tokens::component::navigation_drawer::ICON_SIZE,
         alpha_progress,
@@ -1940,7 +1940,7 @@ where
     Font: Into<Renderer::Font>,
 {
     let icon: Element<'a, Message, Theme, Renderer> =
-        destination_icon::<Renderer>(icon, size, progress, drawer).into();
+        destination_icon::<Message, Renderer>(icon, size, progress, drawer).into();
     let anchor = if let Some(badge) = badge {
         badge_widget::badged_box(
             icon,
@@ -1976,29 +1976,54 @@ fn destination_badge_placement(badge: Badge) -> badge_widget::BadgedBoxPlacement
     }
 }
 
-fn destination_icon<'a, Renderer>(
+fn destination_icon<'a, Message, Renderer>(
     icon: &'static str,
     size: f32,
     progress: f32,
     drawer: bool,
-) -> Text<'a, Theme, Renderer>
+) -> Stack<'a, Message, Theme, Renderer>
 where
-    Renderer: core_text::Renderer + 'a,
+    Message: 'a,
+    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
 {
-    fonts::icon(icon, size)
+    let outline = fonts::icon(icon, size)
         .width(Length::Fixed(size))
         .height(Length::Fixed(size))
         .center()
-        .style(move |theme| {
-            let color = if drawer {
-                drawer_content_color(theme, progress)
-            } else {
-                bar_or_rail_icon_color(theme, progress)
-            };
+        .style(move |theme| text::Style {
+            color: Some(destination_icon_outline_color(theme, progress)),
+        });
+    let filled = fonts::filled_icon(icon, size)
+        .width(Length::Fixed(size))
+        .height(Length::Fixed(size))
+        .center()
+        .style(move |theme| text::Style {
+            color: Some(destination_icon_filled_color(theme, progress, drawer)),
+        });
 
-            text::Style { color: Some(color) }
-        })
+    Stack::new()
+        .width(Length::Fixed(size))
+        .height(Length::Fixed(size))
+        .push(outline)
+        .push(filled)
+}
+
+fn destination_icon_outline_color(theme: &Theme, progress: f32) -> Color {
+    alpha_color(
+        theme.colors().surface.text_variant,
+        1.0 - progress.clamp(0.0, 1.0),
+    )
+}
+
+fn destination_icon_filled_color(theme: &Theme, progress: f32, drawer: bool) -> Color {
+    let color = if drawer {
+        drawer_content_color(theme, 1.0)
+    } else {
+        bar_or_rail_icon_color(theme, 1.0)
+    };
+
+    alpha_color(color, progress.clamp(0.0, 1.0))
 }
 
 fn type_text<'a, Renderer>(
@@ -2595,5 +2620,31 @@ mod tests {
         );
 
         assert_eq!(NavigationIndicatorPlacement::Full.bounds(bounds), bounds);
+    }
+
+    #[test]
+    fn destination_icons_crossfade_outline_and_filled_faces_for_selected_state() {
+        let theme = Theme::Light;
+
+        let outline_unselected = destination_icon_outline_color(&theme, 0.0);
+        let filled_unselected = destination_icon_filled_color(&theme, 0.0, false);
+
+        assert_eq!(outline_unselected, theme.colors().surface.text_variant);
+        assert_eq!(filled_unselected.a, 0.0);
+
+        let outline_selected = destination_icon_outline_color(&theme, 1.0);
+        let filled_selected = destination_icon_filled_color(&theme, 1.0, false);
+
+        assert_eq!(outline_selected.a, 0.0);
+        assert_eq!(filled_selected, theme.colors().secondary.container_text);
+
+        let outline_mid = destination_icon_outline_color(&theme, 0.5);
+        let filled_mid = destination_icon_filled_color(&theme, 0.5, true);
+
+        assert_eq!(outline_mid.a, theme.colors().surface.text_variant.a * 0.5);
+        assert_eq!(
+            filled_mid.a,
+            theme.colors().secondary.container_text.a * 0.5
+        );
     }
 }

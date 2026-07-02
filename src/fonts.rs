@@ -13,6 +13,7 @@ use std::borrow::Cow;
 pub const ROBOTO_FAMILY: &str = "Roboto";
 pub const NOTO_SANS_CJK_SC_FAMILY: &str = "Noto Sans CJK SC";
 pub const MATERIAL_SYMBOLS_ROUNDED_FAMILY: &str = "Material Symbols Rounded";
+pub const MATERIAL_SYMBOLS_ROUNDED_FILLED_FAMILY: &str = "Material Symbols Rounded Filled";
 
 pub const ROBOTO_REGULAR_BYTES: &[u8] = include_bytes!("fonts/Roboto-Regular.ttf");
 pub const ROBOTO_MEDIUM_BYTES: &[u8] = include_bytes!("fonts/Roboto-Medium.ttf");
@@ -22,6 +23,8 @@ pub const NOTO_SANS_CJK_SC_MEDIUM_BYTES: &[u8] = include_bytes!("fonts/NotoSansC
 pub const NOTO_SANS_CJK_SC_BOLD_BYTES: &[u8] = include_bytes!("fonts/NotoSansCJKsc-Bold.otf");
 pub const MATERIAL_SYMBOLS_ROUNDED_BYTES: &[u8] =
     include_bytes!("fonts/MaterialSymbolsRounded-Regular.ttf");
+pub const MATERIAL_SYMBOLS_ROUNDED_FILLED_BYTES: &[u8] =
+    include_bytes!("fonts/MaterialSymbolsRounded-Filled.ttf");
 
 pub const ROBOTO: Font = roboto_for_weight(tokens::typography::WEIGHT_REGULAR);
 pub const ROBOTO_MEDIUM: Font = roboto_for_weight(tokens::typography::WEIGHT_MEDIUM);
@@ -37,8 +40,14 @@ pub const MATERIAL_SYMBOLS_ROUNDED: Font = Font {
     stretch: Stretch::Normal,
     style: Style::Normal,
 };
+pub const MATERIAL_SYMBOLS_ROUNDED_FILLED: Font = Font {
+    family: Family::Name(MATERIAL_SYMBOLS_ROUNDED_FILLED_FAMILY),
+    weight: Weight::Normal,
+    stretch: Stretch::Normal,
+    style: Style::Normal,
+};
 
-pub fn all() -> [Cow<'static, [u8]>; 7] {
+pub fn all() -> [Cow<'static, [u8]>; 8] {
     [
         Cow::Borrowed(ROBOTO_REGULAR_BYTES),
         Cow::Borrowed(ROBOTO_MEDIUM_BYTES),
@@ -47,6 +56,7 @@ pub fn all() -> [Cow<'static, [u8]>; 7] {
         Cow::Borrowed(NOTO_SANS_CJK_SC_MEDIUM_BYTES),
         Cow::Borrowed(NOTO_SANS_CJK_SC_BOLD_BYTES),
         Cow::Borrowed(MATERIAL_SYMBOLS_ROUNDED_BYTES),
+        Cow::Borrowed(MATERIAL_SYMBOLS_ROUNDED_FILLED_BYTES),
     ]
 }
 
@@ -152,6 +162,21 @@ where
         .shaping(text::Shaping::Advanced)
 }
 
+pub fn filled_icon<'a, Renderer>(
+    name: impl text::IntoFragment<'a>,
+    size: f32,
+) -> Text<'a, Theme, Renderer>
+where
+    Renderer: core_text::Renderer,
+    Font: Into<Renderer::Font>,
+{
+    Text::new(material_symbol_fragment(name))
+        .font(MATERIAL_SYMBOLS_ROUNDED_FILLED)
+        .size(size)
+        .line_height(LineHeight::Absolute(size.into()))
+        .shaping(text::Shaping::Advanced)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -169,7 +194,8 @@ mod tests {
         assert!(is_font_asset(NOTO_SANS_CJK_SC_MEDIUM_BYTES));
         assert!(is_font_asset(NOTO_SANS_CJK_SC_BOLD_BYTES));
         assert!(is_font_asset(MATERIAL_SYMBOLS_ROUNDED_BYTES));
-        assert_eq!(all().len(), 7);
+        assert!(is_font_asset(MATERIAL_SYMBOLS_ROUNDED_FILLED_BYTES));
+        assert_eq!(all().len(), 8);
     }
 
     #[test]
@@ -188,6 +214,10 @@ mod tests {
         assert_eq!(
             MATERIAL_SYMBOLS_ROUNDED.family,
             Family::Name(MATERIAL_SYMBOLS_ROUNDED_FAMILY)
+        );
+        assert_eq!(
+            MATERIAL_SYMBOLS_ROUNDED_FILLED.family,
+            Family::Name(MATERIAL_SYMBOLS_ROUNDED_FILLED_FAMILY)
         );
     }
 
