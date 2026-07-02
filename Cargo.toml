@@ -56,6 +56,10 @@ svg = ["iced_widget/svg"]
 name = "iced_material"
 path = "src/lib.rs"
 
+[[example]]
+name = "example"
+path = "examples/example.rs"
+
 [dependencies.iced_anim]
 version = "0.3"
 features = ["derive"]

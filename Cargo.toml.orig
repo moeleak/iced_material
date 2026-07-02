@@ -47,6 +47,10 @@ serde = { version = "1.0", optional = true }
 [dev-dependencies]
 iced = "0.14"
 
+[[example]]
+name = "example"
+path = "examples/example.rs"
+
 [lints.rust]
 missing_debug_implementations = "deny"
 unsafe_code = "deny"
