@@ -5,6 +5,8 @@ use iced_widget::core::{Background, Border, Color, Rectangle};
 
 use crate::tokens;
 
+const MILLIS_PER_SECOND: f64 = 1000.0;
+
 pub(super) fn duration_ms(milliseconds: u16) -> Duration {
     Duration::from_millis(u64::from(milliseconds))
 }
@@ -46,7 +48,9 @@ pub(super) fn scaled_rect(bounds: Rectangle, width: f32, height: f32) -> Rectang
 #[derive(Debug, Clone, Copy)]
 pub(super) struct AnimatedScalar {
     pub(super) value: f32,
+    velocity: f32,
     from: f32,
+    initial_velocity: f32,
     pub(super) to: f32,
     started_at: Option<Instant>,
     spec: AnimationSpec,
@@ -60,7 +64,7 @@ enum AnimationSpec {
     },
     Spring {
         spring: tokens::motion::Spring,
-        settle_after: Duration,
+        duration: Duration,
     },
 }
 
@@ -68,7 +72,9 @@ impl AnimatedScalar {
     pub(super) fn new(value: f32) -> Self {
         Self {
             value,
+            velocity: 0.0,
             from: value,
+            initial_velocity: 0.0,
             to: value,
             started_at: None,
             spec: AnimationSpec::Cubic {
@@ -90,6 +96,8 @@ impl AnimatedScalar {
         }
 
         self.from = self.value;
+        self.initial_velocity = 0.0;
+        self.velocity = 0.0;
         self.to = to;
         self.started_at = Some(now);
         self.spec = AnimationSpec::Cubic { duration, easing };
@@ -101,16 +109,40 @@ impl AnimatedScalar {
         now: Instant,
         spring: tokens::motion::Spring,
     ) {
+        self.set_spring_target_with_threshold(
+            to,
+            now,
+            spring,
+            tokens::motion::SPRING_DEFAULT_DISPLACEMENT_THRESHOLD,
+        );
+    }
+
+    pub(super) fn set_spring_target_with_threshold(
+        &mut self,
+        to: f32,
+        now: Instant,
+        spring: tokens::motion::Spring,
+        visibility_threshold: f32,
+    ) {
         if (self.to - to).abs() <= f32::EPSILON {
             return;
         }
 
+        let _ = self.advance(now);
+
         self.from = self.value;
+        self.initial_velocity = self.velocity;
         self.to = to;
         self.started_at = Some(now);
         self.spec = AnimationSpec::Spring {
             spring,
-            settle_after: spring_settle_duration(spring),
+            duration: spring_duration(
+                spring,
+                self.from,
+                self.to,
+                self.initial_velocity,
+                visibility_threshold,
+            ),
         };
     }
 
@@ -124,6 +156,7 @@ impl AnimatedScalar {
             AnimationSpec::Cubic { duration, easing } => {
                 if duration.is_zero() {
                     self.value = self.to;
+                    self.velocity = 0.0;
                     self.started_at = None;
                     return false;
                 }
@@ -136,29 +169,32 @@ impl AnimatedScalar {
 
                 if progress >= 1.0 {
                     self.value = self.to;
+                    self.velocity = 0.0;
                     self.started_at = None;
                     false
                 } else {
                     true
                 }
             }
-            AnimationSpec::Spring {
-                spring,
-                settle_after,
-            } => {
+            AnimationSpec::Spring { spring, duration } => {
                 let elapsed = now.duration_since(started_at);
 
-                if elapsed >= settle_after {
+                if elapsed >= duration {
                     self.value = self.to;
+                    self.velocity = 0.0;
                     self.started_at = None;
                     return false;
                 }
 
-                self.value = lerp(
+                let (value, velocity) = spring_value_and_velocity(
                     self.from,
+                    self.initial_velocity,
                     self.to,
-                    spring_progress(elapsed.as_secs_f32(), spring),
+                    elapsed,
+                    spring,
                 );
+                self.value = value;
+                self.velocity = velocity;
 
                 true
             }
@@ -170,31 +206,294 @@ impl AnimatedScalar {
     }
 }
 
-fn spring_settle_duration(spring: tokens::motion::Spring) -> Duration {
-    let natural_frequency = spring.stiffness.sqrt();
-    let damping = (spring.damping_ratio * natural_frequency).max(1.0);
-    let seconds = (1000.0_f32.ln() / damping).clamp(0.05, 1.2);
+fn spring_duration(
+    spring: tokens::motion::Spring,
+    initial_value: f32,
+    target_value: f32,
+    initial_velocity: f32,
+    visibility_threshold: f32,
+) -> Duration {
+    let threshold = visibility_threshold.abs().max(f32::EPSILON);
+    let millis = estimate_spring_duration_millis(
+        f64::from(spring.stiffness),
+        f64::from(spring.damping_ratio),
+        f64::from(initial_velocity / threshold),
+        f64::from((initial_value - target_value) / threshold),
+        1.0,
+    );
 
-    Duration::from_secs_f32(seconds)
+    Duration::from_millis(millis)
 }
 
-fn spring_progress(seconds: f32, spring: tokens::motion::Spring) -> f32 {
-    let damping_ratio = spring.damping_ratio.max(0.0);
-    let natural_frequency = spring.stiffness.sqrt();
+fn spring_value_and_velocity(
+    initial_value: f32,
+    initial_velocity: f32,
+    target_value: f32,
+    elapsed: Duration,
+    spring: tokens::motion::Spring,
+) -> (f32, f32) {
+    let millis = elapsed.as_nanos() / 1_000_000;
+    let delta_t = millis as f64 / MILLIS_PER_SECOND;
+    let damping_ratio = f64::from(spring.damping_ratio.max(0.0));
+    let natural_frequency = f64::from(spring.stiffness.sqrt());
+    let adjusted_displacement = f64::from(initial_value - target_value);
+    let initial_velocity = f64::from(initial_velocity);
 
-    if damping_ratio < 1.0 {
-        let damped_frequency = natural_frequency * (1.0 - damping_ratio * damping_ratio).sqrt();
-        let envelope = (-damping_ratio * natural_frequency * seconds).exp();
-        let oscillation = (damped_frequency * seconds).cos()
-            + (damping_ratio / (1.0 - damping_ratio * damping_ratio).sqrt())
-                * (damped_frequency * seconds).sin();
+    let (displacement, velocity) = if damping_ratio > 1.0 {
+        let damping_ratio_squared = damping_ratio * damping_ratio;
+        let damped_frequency = natural_frequency * (damping_ratio_squared - 1.0).sqrt();
+        let gamma_plus = -damping_ratio * natural_frequency + damped_frequency;
+        let gamma_minus = -damping_ratio * natural_frequency - damped_frequency;
+        let coeff_b =
+            (gamma_plus * adjusted_displacement - initial_velocity) / (gamma_plus - gamma_minus);
+        let coeff_a = adjusted_displacement - coeff_b;
+        let displacement =
+            coeff_a * (gamma_minus * delta_t).exp() + coeff_b * (gamma_plus * delta_t).exp();
+        let velocity = coeff_a * gamma_minus * (gamma_minus * delta_t).exp()
+            + coeff_b * gamma_plus * (gamma_plus * delta_t).exp();
 
-        1.0 - envelope * oscillation
+        (displacement, velocity)
+    } else if (damping_ratio - 1.0).abs() <= f64::EPSILON {
+        let coeff_a = adjusted_displacement;
+        let coeff_b = initial_velocity + natural_frequency * adjusted_displacement;
+        let n_fdt = -natural_frequency * delta_t;
+        let exp = n_fdt.exp();
+        let displacement = (coeff_a + coeff_b * delta_t) * exp;
+        let velocity = displacement * -natural_frequency + coeff_b * exp;
+
+        (displacement, velocity)
     } else {
-        let envelope = (-natural_frequency * seconds).exp();
+        let damping_ratio_squared = damping_ratio * damping_ratio;
+        let damped_frequency = natural_frequency * (1.0 - damping_ratio_squared).sqrt();
+        let r = -damping_ratio * natural_frequency;
+        let cos_coeff = adjusted_displacement;
+        let sin_coeff = ((-r * adjusted_displacement) + initial_velocity) / damped_frequency;
+        let d_fdt = damped_frequency * delta_t;
+        let exp = (r * delta_t).exp();
+        let displacement = exp * (cos_coeff * d_fdt.cos() + sin_coeff * d_fdt.sin());
+        let velocity = displacement * r
+            + exp
+                * (-damped_frequency * cos_coeff * d_fdt.sin()
+                    + damped_frequency * sin_coeff * d_fdt.cos());
 
-        1.0 - envelope * (1.0 + natural_frequency * seconds)
+        (displacement, velocity)
+    };
+
+    (
+        (displacement + f64::from(target_value)) as f32,
+        velocity as f32,
+    )
+}
+
+fn estimate_spring_duration_millis(
+    stiffness: f64,
+    damping_ratio: f64,
+    initial_velocity: f64,
+    initial_displacement: f64,
+    delta: f64,
+) -> u64 {
+    if damping_ratio == 0.0 {
+        return u64::MAX / 1_000_000;
     }
+
+    let damping_coefficient = 2.0 * damping_ratio * stiffness.sqrt();
+    let partial_root = damping_coefficient * damping_coefficient - 4.0 * stiffness;
+    let partial_root_real = if partial_root < 0.0 {
+        0.0
+    } else {
+        partial_root.sqrt()
+    };
+    let partial_root_imaginary = if partial_root < 0.0 {
+        partial_root.abs().sqrt()
+    } else {
+        0.0
+    };
+
+    let first_root_real = (-damping_coefficient + partial_root_real) * 0.5;
+    let first_root_imaginary = partial_root_imaginary * 0.5;
+    let second_root_real = (-damping_coefficient - partial_root_real) * 0.5;
+
+    estimate_duration_internal(
+        first_root_real,
+        first_root_imaginary,
+        second_root_real,
+        damping_ratio,
+        initial_velocity,
+        initial_displacement,
+        delta,
+    )
+}
+
+fn estimate_duration_internal(
+    first_root_real: f64,
+    first_root_imaginary: f64,
+    second_root_real: f64,
+    damping_ratio: f64,
+    initial_velocity: f64,
+    initial_position: f64,
+    delta: f64,
+) -> u64 {
+    if initial_position == 0.0 && initial_velocity == 0.0 {
+        return 0;
+    }
+
+    let velocity = if initial_position < 0.0 {
+        -initial_velocity
+    } else {
+        initial_velocity
+    };
+    let position = initial_position.abs();
+
+    let seconds = if damping_ratio > 1.0 {
+        estimate_over_damped(first_root_real, second_root_real, position, velocity, delta)
+    } else if damping_ratio < 1.0 {
+        estimate_under_damped(
+            first_root_real,
+            first_root_imaginary,
+            position,
+            velocity,
+            delta,
+        )
+    } else {
+        estimate_critically_damped(first_root_real, position, velocity, delta)
+    };
+
+    (seconds.max(0.0) * MILLIS_PER_SECOND) as u64
+}
+
+fn estimate_under_damped(
+    first_root_real: f64,
+    first_root_imaginary: f64,
+    position: f64,
+    velocity: f64,
+    delta: f64,
+) -> f64 {
+    let c1 = position;
+    let c2 = (velocity - first_root_real * c1) / first_root_imaginary;
+    let c = (c1 * c1 + c2 * c2).sqrt();
+
+    (delta / c).ln() / first_root_real
+}
+
+fn estimate_critically_damped(
+    first_root_real: f64,
+    position: f64,
+    velocity: f64,
+    delta: f64,
+) -> f64 {
+    let r = first_root_real;
+    let c1 = position;
+    let c2 = velocity - r * c1;
+
+    let t1 = (delta / c1).abs().ln() / r;
+    let t2 = {
+        let guess = (delta / c2).abs().ln();
+        let mut t = guess;
+
+        for _ in 0..=5 {
+            t = guess - (t / r).abs().ln();
+        }
+
+        t / r
+    };
+
+    let mut t_curr = match (t1.is_finite(), t2.is_finite()) {
+        (false, true) => t2,
+        (true, false) => t1,
+        _ => t1.max(t2),
+    };
+
+    let t_inflection = -(r * c1 + c2) / (r * c2);
+    let x_inflection = c1 * (r * t_inflection).exp() + c2 * t_inflection * (r * t_inflection).exp();
+
+    let signed_delta = if t_inflection.is_nan() || t_inflection <= 0.0 {
+        -delta
+    } else if t_inflection > 0.0 && -x_inflection < delta {
+        if c2 < 0.0 && c1 > 0.0 {
+            t_curr = 0.0;
+        }
+
+        -delta
+    } else {
+        t_curr = -(2.0 / r) - (c1 / c2);
+        delta
+    };
+
+    let mut t_delta = f64::MAX;
+    let mut iterations = 0;
+    while t_delta > 0.001 && iterations < 100 {
+        iterations += 1;
+        let t_last = t_curr;
+        t_curr = iterate_newtons_method(
+            t_curr,
+            |t| (c1 + c2 * t) * (r * t).exp() + signed_delta,
+            |t| (c2 * (r * t + 1.0) + c1 * r) * (r * t).exp(),
+        );
+        t_delta = (t_last - t_curr).abs();
+    }
+
+    t_curr
+}
+
+fn estimate_over_damped(
+    first_root_real: f64,
+    second_root_real: f64,
+    position: f64,
+    velocity: f64,
+    delta: f64,
+) -> f64 {
+    let r1 = first_root_real;
+    let r2 = second_root_real;
+    let c2 = (r1 * position - velocity) / (r1 - r2);
+    let c1 = position - c2;
+
+    let t1 = (delta / c1).abs().ln() / r1;
+    let t2 = (delta / c2).abs().ln() / r2;
+
+    let mut t_curr = match (t1.is_finite(), t2.is_finite()) {
+        (false, true) => t2,
+        (true, false) => t1,
+        _ => t1.max(t2),
+    };
+
+    let t_inflection = ((c1 * r1) / (-c2 * r2)).ln() / (r2 - r1);
+    let x_inflection = || c1 * (r1 * t_inflection).exp() + c2 * (r2 * t_inflection).exp();
+
+    let signed_delta = if t_inflection.is_nan() || t_inflection <= 0.0 {
+        -delta
+    } else if t_inflection > 0.0 && -x_inflection() < delta {
+        if c2 > 0.0 && c1 < 0.0 {
+            t_curr = 0.0;
+        }
+
+        -delta
+    } else {
+        t_curr = (-(c2 * r2 * r2) / (c1 * r1 * r1)).ln() / (r1 - r2);
+        delta
+    };
+
+    if (c1 * r1 * (r1 * t_curr).exp() + c2 * r2 * (r2 * t_curr).exp()).abs() < 0.0001 {
+        return t_curr;
+    }
+
+    let mut t_delta = f64::MAX;
+    let mut iterations = 0;
+    while t_delta > 0.001 && iterations < 100 {
+        iterations += 1;
+        let t_last = t_curr;
+        t_curr = iterate_newtons_method(
+            t_curr,
+            |t| c1 * (r1 * t).exp() + c2 * (r2 * t).exp() + signed_delta,
+            |t| c1 * r1 * (r1 * t).exp() + c2 * r2 * (r2 * t).exp(),
+        );
+        t_delta = (t_last - t_curr).abs();
+    }
+
+    t_curr
+}
+
+fn iterate_newtons_method(x: f64, f: impl Fn(f64) -> f64, f_prime: impl Fn(f64) -> f64) -> f64 {
+    x - f(x) / f_prime(x)
 }
 
 pub(super) struct SelectionState<Paragraph: core_text::Paragraph, Status> {

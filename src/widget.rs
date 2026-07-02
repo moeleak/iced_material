@@ -42,6 +42,7 @@ pub mod card;
 pub mod combo_box;
 pub mod data_table;
 pub mod list;
+mod menu_overlay;
 pub mod navigation;
 pub mod page;
 pub mod progress_bar;

@@ -15,6 +15,7 @@ use iced_widget::overlay::menu as overlay_menu;
 use iced_widget::text::{self, LineHeight};
 use iced_widget::text_input::{self, Icon, TextInput};
 
+use super::menu_overlay;
 use super::{absolute_line_height, select};
 use crate::{Theme, menu as menu_style, text_input as text_input_style, tokens};
 
@@ -602,7 +603,7 @@ where
 }
 
 struct MenuState<T> {
-    menu: overlay_menu::State,
+    menu: menu_overlay::State,
     hovered_option: Option<usize>,
     new_selection: Option<T>,
     filtered_options: Filtered<T>,
@@ -652,7 +653,7 @@ where
 
     fn state(&self) -> widget::tree::State {
         widget::tree::State::new(MenuState::<T> {
-            menu: overlay_menu::State::new(),
+            menu: menu_overlay::State::new(),
             filtered_options: Filtered::empty(),
             hovered_option: Some(0),
             new_selection: None,
@@ -826,7 +827,7 @@ where
             if let Some(selection) = menu.new_selection.take() {
                 state.value = String::new();
                 state.filtered_options.update(self.state.options.clone());
-                menu.menu = overlay_menu::State::default();
+                menu.menu = menu_overlay::State::default();
 
                 shell.publish((self.on_selected)(selection));
                 published_message_to_shell = true;
@@ -857,6 +858,13 @@ where
 
         if started_focused != is_focused {
             shell.invalidate_widgets();
+
+            if is_focused {
+                self.state.with_inner(|state| {
+                    menu.menu
+                        .start_open(state.filtered_options.options.len(), Instant::now());
+                });
+            }
 
             if !published_message_to_shell {
                 if is_focused {
@@ -948,7 +956,7 @@ where
             } else {
                 let bounds = layout.bounds();
 
-                let mut menu = overlay_menu::Menu::new(
+                let mut menu = menu_overlay::Menu::new(
                     menu,
                     &filtered_options.options,
                     hovered_option,

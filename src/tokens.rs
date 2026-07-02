@@ -89,12 +89,30 @@ pub mod motion {
         pub stiffness: f32,
     }
 
+    pub const SPRING_DEFAULT_DISPLACEMENT_THRESHOLD: f32 = 0.01;
+
+    pub const EXPRESSIVE_DEFAULT_SPATIAL: Spring = Spring {
+        damping_ratio: 0.8,
+        stiffness: 380.0,
+    };
     pub const EXPRESSIVE_DEFAULT_EFFECTS: Spring = Spring {
         damping_ratio: 1.0,
         stiffness: 1600.0,
     };
     pub const EXPRESSIVE_FAST_SPATIAL: Spring = Spring {
         damping_ratio: 0.6,
+        stiffness: 800.0,
+    };
+    pub const EXPRESSIVE_FAST_EFFECTS: Spring = Spring {
+        damping_ratio: 1.0,
+        stiffness: 3800.0,
+    };
+    pub const EXPRESSIVE_SLOW_SPATIAL: Spring = Spring {
+        damping_ratio: 0.8,
+        stiffness: 200.0,
+    };
+    pub const EXPRESSIVE_SLOW_EFFECTS: Spring = Spring {
+        damping_ratio: 1.0,
         stiffness: 800.0,
     };
 }
@@ -972,10 +990,19 @@ mod tests {
         assert_eq!(motion::DURATION_SHORT4_MS, 200);
         assert_eq!(motion::DURATION_MEDIUM2_MS, 300);
         assert_eq!(motion::DURATION_EXTRA_LONG4_MS, 1000);
+        assert_eq!(motion::SPRING_DEFAULT_DISPLACEMENT_THRESHOLD, 0.01);
+        assert_eq!(motion::EXPRESSIVE_DEFAULT_SPATIAL.damping_ratio, 0.8);
+        assert_eq!(motion::EXPRESSIVE_DEFAULT_SPATIAL.stiffness, 380.0);
         assert_eq!(motion::EXPRESSIVE_DEFAULT_EFFECTS.damping_ratio, 1.0);
         assert_eq!(motion::EXPRESSIVE_DEFAULT_EFFECTS.stiffness, 1600.0);
         assert_eq!(motion::EXPRESSIVE_FAST_SPATIAL.damping_ratio, 0.6);
         assert_eq!(motion::EXPRESSIVE_FAST_SPATIAL.stiffness, 800.0);
+        assert_eq!(motion::EXPRESSIVE_FAST_EFFECTS.damping_ratio, 1.0);
+        assert_eq!(motion::EXPRESSIVE_FAST_EFFECTS.stiffness, 3800.0);
+        assert_eq!(motion::EXPRESSIVE_SLOW_SPATIAL.damping_ratio, 0.8);
+        assert_eq!(motion::EXPRESSIVE_SLOW_SPATIAL.stiffness, 200.0);
+        assert_eq!(motion::EXPRESSIVE_SLOW_EFFECTS.damping_ratio, 1.0);
+        assert_eq!(motion::EXPRESSIVE_SLOW_EFFECTS.stiffness, 800.0);
         assert_eq!(
             motion::EASING_EMPHASIZED_DECELERATE,
             motion::CubicBezier::new(0.05, 0.7, 0.1, 1.0)

@@ -10,14 +10,16 @@ use std::fmt;
 
 use iced_widget::core::text::paragraph;
 use iced_widget::core::text::{self, Text};
+use iced_widget::core::time::Instant;
 use iced_widget::core::widget::tree::{self, Tree};
 use iced_widget::core::{
     Clipboard, Element, Event, Layout, Length, Padding, Pixels, Point, Rectangle, Shell, Size,
     Vector, Widget, alignment, keyboard, layout, mouse, overlay, renderer, touch, window,
 };
-use iced_widget::overlay::menu::{self, Menu};
+use iced_widget::overlay::menu;
 use iced_widget::pick_list::{self, Handle, Icon, Status};
 
+use super::menu_overlay;
 use crate::{Theme, tokens};
 
 const MAX_VISIBLE_OPTIONS: usize = 5;
@@ -337,6 +339,9 @@ where
                         .borrow()
                         .iter()
                         .position(|option| Some(option) == selected);
+                    state
+                        .menu
+                        .start_open(self.options.borrow().len(), Instant::now());
 
                     if let Some(on_open) = &self.on_open {
                         shell.publish(on_open.clone());
@@ -559,7 +564,7 @@ where
             let bounds = layout.bounds();
             let on_select = &self.on_select;
 
-            let mut menu = Menu::new(
+            let mut menu = menu_overlay::Menu::new(
                 &mut state.menu,
                 self.options.borrow(),
                 &mut state.hovered_option,
@@ -619,7 +624,7 @@ where
 
 #[derive(Debug)]
 struct State<P: text::Paragraph> {
-    menu: menu::State,
+    menu: menu_overlay::State,
     keyboard_modifiers: keyboard::Modifiers,
     is_open: bool,
     hovered_option: Option<usize>,
@@ -630,7 +635,7 @@ struct State<P: text::Paragraph> {
 impl<P: text::Paragraph> State<P> {
     fn new() -> Self {
         Self {
-            menu: menu::State::default(),
+            menu: menu_overlay::State::default(),
             keyboard_modifiers: keyboard::Modifiers::default(),
             is_open: bool::default(),
             hovered_option: Option::default(),
