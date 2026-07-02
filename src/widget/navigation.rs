@@ -3,17 +3,17 @@
 use iced_widget::button;
 use iced_widget::core::text as core_text;
 use iced_widget::core::time::Instant;
-use iced_widget::core::{Background, Color, Element, Font, Length, Padding, alignment, border};
+use iced_widget::core::{alignment, border, Background, Color, Element, Font, Length, Padding};
 use iced_widget::text::{self, LineHeight};
 use iced_widget::{Button, Column, Container, Row, Space, Stack, Text};
 
 use super::badge as badge_widget;
-use super::support::{AnimatedScalar, alpha_color, duration_ms, lerp};
+use super::support::{alpha_color, duration_ms, lerp, AnimatedScalar};
 use crate::button as button_style;
 use crate::utils::{
-    HOVERED_LAYER_OPACITY, PRESSED_LAYER_OPACITY, mix, shadow_from_level, state_layer,
+    mix, shadow_from_level, state_layer, HOVERED_LAYER_OPACITY, PRESSED_LAYER_OPACITY,
 };
-use crate::{Theme, fonts, tokens};
+use crate::{fonts, tokens, Theme};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AdaptiveLayout {
@@ -187,7 +187,6 @@ pub struct NavigationState<Id> {
     size_progress: AnimatedScalar,
     alpha_progress: AnimatedScalar,
     activation_progress: AnimatedScalar,
-    activation_pending_frame: bool,
 }
 
 impl<Id: Copy + Eq> NavigationState<Id> {
@@ -202,7 +201,6 @@ impl<Id: Copy + Eq> NavigationState<Id> {
             size_progress: AnimatedScalar::new(1.0),
             alpha_progress: AnimatedScalar::new(1.0),
             activation_progress: AnimatedScalar::new(0.0),
-            activation_pending_frame: false,
         }
     }
 
@@ -265,20 +263,13 @@ impl<Id: Copy + Eq> NavigationState<Id> {
 
     pub fn is_animating(&self) -> bool {
         self.previous.is_some()
-            || self.activation_pending_frame
             || (self.activation_progress.value - self.activation_progress.to).abs() > 0.001
     }
 
     pub fn advance(&mut self, now: Instant) -> bool {
-        let selection_animating =
-            self.size_progress.advance(now) | self.alpha_progress.advance(now);
-        let activation_animating = if self.activation_pending_frame {
-            self.activation_pending_frame = false;
-            true
-        } else {
-            self.activation_progress.advance(now)
-        };
-        let animating = selection_animating | activation_animating;
+        let animating = self.size_progress.advance(now)
+            | self.alpha_progress.advance(now)
+            | self.activation_progress.advance(now);
 
         if !animating {
             self.size_progress.value = 1.0;
@@ -302,7 +293,6 @@ impl<Id: Copy + Eq> NavigationState<Id> {
             duration_ms(tokens::motion::DURATION_SHORT4_MS),
             tokens::motion::EASING_STANDARD,
         );
-        self.activation_pending_frame = true;
     }
 }
 
@@ -1175,13 +1165,20 @@ where
             size_progress,
             alpha_progress,
         ))
-        .push(indicator_state_layer(
+        .push(indicator_activation_layer(
             indicator_width,
             indicator_height,
             NavigationStateLayer::Drawer {
                 progress: alpha_progress,
             },
             activation_progress,
+        ))
+        .push(indicator_state_layer(
+            indicator_width,
+            indicator_height,
+            NavigationStateLayer::Drawer {
+                progress: alpha_progress,
+            },
             message.clone(),
         ))
         .push(content)
@@ -1312,13 +1309,20 @@ where
             size_progress,
             alpha_progress,
         ))
-        .push(indicator_state_layer(
+        .push(indicator_activation_layer(
             indicator_width,
             tokens::component::navigation_drawer::ACTIVE_INDICATOR_HEIGHT,
             NavigationStateLayer::Drawer {
                 progress: alpha_progress,
             },
             activation_progress,
+        ))
+        .push(indicator_state_layer(
+            indicator_width,
+            tokens::component::navigation_drawer::ACTIVE_INDICATOR_HEIGHT,
+            NavigationStateLayer::Drawer {
+                progress: alpha_progress,
+            },
             message.clone(),
         ))
         .push(content);
@@ -1364,11 +1368,16 @@ where
             size_progress,
             alpha_progress,
         ))
-        .push(indicator_state_layer(
+        .push(indicator_activation_layer(
             indicator_width,
             indicator_height,
             NavigationStateLayer::BarOrRail,
             activation_progress,
+        ))
+        .push(indicator_state_layer(
+            indicator_width,
+            indicator_height,
+            NavigationStateLayer::BarOrRail,
             on_press,
         ))
         .push(
@@ -1388,7 +1397,6 @@ fn indicator_state_layer<'a, Message, Renderer>(
     target_width: f32,
     height: f32,
     layer: NavigationStateLayer,
-    activation_progress: f32,
     on_press: Message,
 ) -> Button<'a, Message, Theme, Renderer>
 where
@@ -1403,10 +1411,28 @@ where
     .width(Length::Fixed(target_width))
     .height(Length::Fixed(height))
     .padding(Padding::ZERO)
-    .style(move |theme, status| {
-        indicator_state_layer_style(theme, status, layer, activation_progress)
-    })
+    .style(move |theme, status| indicator_state_layer_style(theme, status, layer))
     .on_press(on_press)
+}
+
+fn indicator_activation_layer<'a, Message, Renderer>(
+    target_width: f32,
+    height: f32,
+    layer: NavigationStateLayer,
+    activation_progress: f32,
+) -> Container<'a, Message, Theme, Renderer>
+where
+    Message: 'a,
+    Renderer: iced_widget::core::Renderer + 'a,
+{
+    Container::new(
+        Space::new()
+            .width(Length::Fixed(target_width))
+            .height(Length::Fixed(height)),
+    )
+    .width(Length::Fixed(target_width))
+    .height(Length::Fixed(height))
+    .style(move |theme| indicator_activation_layer_style(theme, layer, activation_progress))
 }
 
 fn indicator_layer<'a, Message, Renderer>(
@@ -1438,16 +1464,13 @@ fn indicator_state_layer_style(
     theme: &Theme,
     status: button::Status,
     layer: NavigationStateLayer,
-    activation_progress: f32,
 ) -> button::Style {
     let layer_color = navigation_state_layer_color(theme, layer);
-    let interaction_opacity = match status {
+    let opacity = match status {
         button::Status::Hovered => HOVERED_LAYER_OPACITY,
         button::Status::Pressed => PRESSED_LAYER_OPACITY,
         button::Status::Active | button::Status::Disabled => 0.0,
     };
-    let opacity =
-        interaction_opacity.max(activation_progress.clamp(0.0, 1.0) * PRESSED_LAYER_OPACITY);
 
     button::Style {
         background: (opacity > 0.0).then_some(Background::Color(state_layer(layer_color, opacity))),
@@ -1455,6 +1478,23 @@ fn indicator_state_layer_style(
         border: border::rounded(tokens::shape::CORNER_FULL),
         snap: cfg!(feature = "crisp"),
         ..button::Style::default()
+    }
+}
+
+fn indicator_activation_layer_style(
+    theme: &Theme,
+    layer: NavigationStateLayer,
+    activation_progress: f32,
+) -> iced_widget::container::Style {
+    let layer_color = navigation_state_layer_color(theme, layer);
+    let opacity = activation_progress.clamp(0.0, 1.0) * PRESSED_LAYER_OPACITY;
+
+    iced_widget::container::Style {
+        background: (opacity > 0.0).then_some(Background::Color(state_layer(layer_color, opacity))),
+        text_color: Some(layer_color),
+        border: border::rounded(tokens::shape::CORNER_FULL),
+        snap: cfg!(feature = "crisp"),
+        ..iced_widget::container::Style::default()
     }
 }
 
@@ -1983,11 +2023,6 @@ mod tests {
         assert!(still_animating);
         assert!(state.selection().progress(Page::Two) > 0.0);
         assert!(state.selection().progress(Page::One) < 1.0);
-        assert_eq!(state.selection().activation_progress(Page::Two), 1.0);
-
-        let still_animating = state.advance(start + Duration::from_millis(100));
-
-        assert!(still_animating);
         assert!(state.selection().activation_progress(Page::Two) < 1.0);
         assert_ne!(
             state.selection().size_progress(Page::Two),
@@ -2037,11 +2072,6 @@ mod tests {
         assert_eq!(state.selection().activation_progress(Page::One), 1.0);
 
         let still_animating = state.advance(start + Duration::from_millis(50));
-
-        assert!(still_animating);
-        assert_eq!(state.selection().activation_progress(Page::One), 1.0);
-
-        let still_animating = state.advance(start + Duration::from_millis(100));
 
         assert!(still_animating);
         assert!(state.selection().activation_progress(Page::One) < 1.0);
@@ -2300,16 +2330,11 @@ mod tests {
             &theme,
             button::Status::Active,
             NavigationStateLayer::BarOrRail,
-            0.0,
         );
         assert_eq!(active.background, None);
 
-        let active_activation = indicator_state_layer_style(
-            &theme,
-            button::Status::Active,
-            NavigationStateLayer::BarOrRail,
-            1.0,
-        );
+        let active_activation =
+            indicator_activation_layer_style(&theme, NavigationStateLayer::BarOrRail, 1.0);
         assert_eq!(
             active_activation.background,
             Some(Background::Color(state_layer(
@@ -2322,7 +2347,6 @@ mod tests {
             &theme,
             button::Status::Hovered,
             NavigationStateLayer::BarOrRail,
-            0.0,
         );
         assert_eq!(
             inactive_hover.background,
@@ -2336,7 +2360,6 @@ mod tests {
             &theme,
             button::Status::Pressed,
             NavigationStateLayer::BarOrRail,
-            0.0,
         );
         assert_eq!(
             selected_pressed.background,
@@ -2350,7 +2373,6 @@ mod tests {
             &theme,
             button::Status::Pressed,
             NavigationStateLayer::Drawer { progress: 1.0 },
-            0.0,
         );
         assert_eq!(
             drawer_selected_pressed.background,
