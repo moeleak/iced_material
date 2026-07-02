@@ -632,24 +632,35 @@ where
         .width(Length::Fixed(
             tokens::component::navigation_rail::ITEM_WIDTH,
         ))
-        .height(Length::Fixed(
-            tokens::component::navigation_rail::ITEM_HEIGHT,
-        ))
         .spacing(tokens::component::navigation_rail::ITEM_VERTICAL_PADDING)
         .align_x(alignment::Horizontal::Center)
         .push(indicator)
         .push(label);
 
-    Button::new(content)
-        .width(Length::Fixed(
-            tokens::component::navigation_rail::ITEM_WIDTH,
-        ))
-        .height(Length::Fixed(
-            tokens::component::navigation_rail::ITEM_HEIGHT,
-        ))
-        .padding(Padding::ZERO)
-        .style(navigation_button)
-        .on_press(message)
+    Button::new(
+        Container::new(content)
+            .width(Length::Fixed(
+                tokens::component::navigation_rail::ITEM_WIDTH,
+            ))
+            .height(Length::Fixed(
+                tokens::component::navigation_rail::ITEM_HEIGHT,
+            ))
+            .padding(Padding {
+                top: navigation_rail_item_content_top_padding(),
+                right: 0.0,
+                bottom: 0.0,
+                left: 0.0,
+            }),
+    )
+    .width(Length::Fixed(
+        tokens::component::navigation_rail::ITEM_WIDTH,
+    ))
+    .height(Length::Fixed(
+        tokens::component::navigation_rail::ITEM_HEIGHT,
+    ))
+    .padding(Padding::ZERO)
+    .style(navigation_button)
+    .on_press(message)
 }
 
 fn navigation_drawer_item<'a, Id, Message, Renderer, F>(
@@ -888,6 +899,12 @@ fn navigation_bar_item_bottom_padding() -> f32 {
         - tokens::component::navigation_bar::INDICATOR_TO_LABEL_PADDING
         - label.line_height)
         .max(0.0)
+}
+
+fn navigation_rail_item_content_top_padding() -> f32 {
+    (tokens::component::navigation_rail::ACTIVE_INDICATOR_HEIGHT
+        - tokens::component::navigation_rail::ICON_SIZE)
+        / 2.0
 }
 
 fn navigation_drawer_badge_space() -> f32 {
@@ -1241,6 +1258,11 @@ mod tests {
     #[test]
     fn navigation_bar_item_geometry_matches_material_vertical_offsets() {
         assert_eq!(navigation_bar_item_bottom_padding(), 16.0);
+    }
+
+    #[test]
+    fn navigation_rail_item_geometry_matches_material_vertical_offsets() {
+        assert_eq!(navigation_rail_item_content_top_padding(), 4.0);
     }
 
     #[test]
