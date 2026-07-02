@@ -36,6 +36,7 @@
             trunk
             binaryen
             wasm-bindgen-cli
+            nodejs_24
           ]
           ++ (lib.optionals pkgs.stdenv.isDarwin [ pkgs.libiconv ]);
       in
