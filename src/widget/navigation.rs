@@ -885,30 +885,6 @@ fn navigation_drawer_badge_space() -> f32 {
     tokens::component::navigation_drawer::LABEL_BADGE_SPACE
 }
 
-fn navigation_badge_leading_space(anchor_size: f32, badge: Badge) -> f32 {
-    (anchor_size - navigation_badge_horizontal_offset(badge)).max(0.0)
-}
-
-fn navigation_badge_horizontal_offset(badge: Badge) -> f32 {
-    match badge {
-        Badge::Small => tokens::component::badge::ICON_ONLY_OFFSET,
-        Badge::Large(_) => tokens::component::badge::WITH_CONTENT_HORIZONTAL_OFFSET,
-    }
-}
-
-#[cfg(test)]
-fn navigation_badge_top_offset(badge: Badge) -> f32 {
-    match badge {
-        Badge::Small => {
-            tokens::component::badge::ICON_ONLY_OFFSET - tokens::component::badge::SMALL_SIZE
-        }
-        Badge::Large(_) => {
-            tokens::component::badge::WITH_CONTENT_VERTICAL_OFFSET
-                - tokens::component::badge::LARGE_CONTAINER_HEIGHT
-        }
-    }
-}
-
 fn destination_icon_anchor<'a, Message, Renderer>(
     icon: &'static str,
     size: f32,
@@ -920,38 +896,22 @@ where
     Message: 'a,
     Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
 {
-    let anchor = Stack::new()
-        .width(Length::Fixed(size))
-        .height(Length::Fixed(size))
-        .push(destination_icon::<Renderer>(icon, size, progress, drawer));
+    let icon: Element<'a, Message, Theme, Renderer> =
+        destination_icon::<Renderer>(icon, size, progress, drawer).into();
     let anchor = if let Some(badge) = badge {
-        anchor.push(navigation_badge_layer::<Message, Renderer>(badge, size))
+        badge_widget::badged_box(
+            icon,
+            destination_badge::<Message, Renderer>(badge),
+            destination_badge_placement(badge),
+        )
+        .into()
     } else {
-        anchor
+        icon
     };
 
     Container::new(anchor)
         .align_x(alignment::Horizontal::Center)
         .align_y(alignment::Vertical::Center)
-}
-
-fn navigation_badge_layer<'a, Message, Renderer>(
-    badge: Badge,
-    anchor_size: f32,
-) -> Row<'a, Message, Theme, Renderer>
-where
-    Message: 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
-{
-    Row::new()
-        .height(Length::Fixed(anchor_size))
-        .push(
-            Space::new().width(Length::Fixed(navigation_badge_leading_space(
-                anchor_size,
-                badge,
-            ))),
-        )
-        .push(destination_badge::<Message, Renderer>(badge))
 }
 
 fn destination_badge<'a, Message, Renderer>(badge: Badge) -> Element<'a, Message, Theme, Renderer>
@@ -962,6 +922,13 @@ where
     match badge {
         Badge::Small => badge_widget::small().into(),
         Badge::Large(label) => badge_widget::large(label).into(),
+    }
+}
+
+fn destination_badge_placement(badge: Badge) -> badge_widget::BadgedBoxPlacement {
+    match badge {
+        Badge::Small => badge_widget::BadgedBoxPlacement::IconOnly,
+        Badge::Large(_) => badge_widget::BadgedBoxPlacement::WithContent,
     }
 }
 
@@ -1270,19 +1237,15 @@ mod tests {
     }
 
     #[test]
-    fn navigation_badge_position_matches_material_badged_box_offsets() {
-        let anchor = tokens::component::navigation_bar::ICON_SIZE;
-
-        assert_eq!(navigation_badge_horizontal_offset(Badge::Small), 6.0);
-        assert_eq!(navigation_badge_leading_space(anchor, Badge::Small), 18.0);
-        assert_eq!(navigation_badge_top_offset(Badge::Small), 0.0);
-
-        assert_eq!(navigation_badge_horizontal_offset(Badge::Large("3")), 12.0);
+    fn navigation_badges_use_material_badged_box_placement() {
         assert_eq!(
-            navigation_badge_leading_space(anchor, Badge::Large("3")),
-            12.0
+            destination_badge_placement(Badge::Small),
+            badge_widget::BadgedBoxPlacement::IconOnly
         );
-        assert_eq!(navigation_badge_top_offset(Badge::Large("3")), -2.0);
+        assert_eq!(
+            destination_badge_placement(Badge::Large("3")),
+            badge_widget::BadgedBoxPlacement::WithContent
+        );
     }
 
     #[test]
