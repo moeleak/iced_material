@@ -2201,12 +2201,18 @@ fn navigation_press_origin(
     indicator_bounds: Rectangle,
     cursor: mouse::Cursor,
 ) -> Option<Point> {
-    let position = navigation_event_position(event).or_else(|| cursor.position())?;
+    let position = cursor
+        .position()
+        .or_else(|| navigation_event_position(event))?;
 
     Some(position - Vector::new(indicator_bounds.x, indicator_bounds.y))
 }
 
 fn navigation_event_is_over(event: &Event, bounds: Rectangle, cursor: mouse::Cursor) -> bool {
+    if cursor.position().is_some() {
+        return cursor.is_over(bounds);
+    }
+
     navigation_event_position(event)
         .map(|position| bounds.contains(position))
         .unwrap_or_else(|| cursor.is_over(bounds))
@@ -3776,6 +3782,59 @@ mod tests {
             bounds,
             mouse::Cursor::Unavailable
         ));
+    }
+
+    #[test]
+    fn navigation_touch_hit_test_prefers_translated_cursor_position() {
+        let bounds = Rectangle::new(Point::new(0.0, 720.0), Size::new(120.0, 80.0));
+        let event = Event::Touch(touch::Event::FingerPressed {
+            id: touch::Finger(0),
+            position: Point::new(48.0, 160.0),
+        });
+
+        assert!(navigation_event_is_over(
+            &event,
+            bounds,
+            mouse::Cursor::Available(Point::new(48.0, 760.0))
+        ));
+    }
+
+    #[test]
+    fn navigation_touch_hit_test_does_not_fallback_when_cursor_is_available() {
+        let bounds = Rectangle::new(Point::new(0.0, 720.0), Size::new(120.0, 80.0));
+        let event = Event::Touch(touch::Event::FingerPressed {
+            id: touch::Finger(0),
+            position: Point::new(48.0, 760.0),
+        });
+
+        assert!(!navigation_event_is_over(
+            &event,
+            bounds,
+            mouse::Cursor::Available(Point::new(48.0, 160.0))
+        ));
+    }
+
+    #[test]
+    fn navigation_touch_origin_prefers_translated_cursor_position() {
+        let indicator_bounds = Rectangle {
+            x: 28.0,
+            y: 720.0,
+            width: 64.0,
+            height: 32.0,
+        };
+        let event = Event::Touch(touch::Event::FingerPressed {
+            id: touch::Finger(0),
+            position: Point::new(20.0, 56.0),
+        });
+
+        let origin = navigation_press_origin(
+            &event,
+            indicator_bounds,
+            mouse::Cursor::Available(Point::new(40.0, 736.0)),
+        )
+        .unwrap();
+
+        assert_eq!(origin, Point::new(12.0, 16.0));
     }
 
     #[test]

@@ -846,6 +846,10 @@ pub mod button {
     }
 
     fn press_origin(event: &Event, bounds: Rectangle, cursor: mouse::Cursor) -> Option<Point> {
+        if cursor.position().is_some() {
+            return cursor.position_in(bounds);
+        }
+
         match event {
             Event::Touch(touch::Event::FingerPressed { position, .. }) => {
                 relative_position(*position, bounds)
@@ -855,6 +859,10 @@ pub mod button {
     }
 
     fn release_is_over(event: &Event, bounds: Rectangle, cursor: mouse::Cursor) -> bool {
+        if cursor.position().is_some() {
+            return cursor.is_over(bounds);
+        }
+
         match event {
             Event::Touch(touch::Event::FingerLifted { position, .. }) => bounds.contains(*position),
             _ => cursor.is_over(bounds),
@@ -1305,6 +1313,91 @@ pub mod button {
                     bounds,
                     mouse::Cursor::Available(Point::new(25.0, 35.0))
                 ),
+                Some(Point::new(15.0, 15.0))
+            );
+        }
+
+        #[test]
+        fn touch_press_origin_prefers_translated_cursor_position() {
+            let bounds = Rectangle {
+                x: 10.0,
+                y: 120.0,
+                width: 40.0,
+                height: 30.0,
+            };
+            let event = Event::Touch(touch::Event::FingerPressed {
+                id: touch::Finger(0),
+                position: Point::new(25.0, 35.0),
+            });
+
+            assert_eq!(
+                press_origin(
+                    &event,
+                    bounds,
+                    mouse::Cursor::Available(Point::new(25.0, 135.0))
+                ),
+                Some(Point::new(15.0, 15.0))
+            );
+        }
+
+        #[test]
+        fn touch_press_origin_does_not_fallback_to_raw_position_when_cursor_is_available() {
+            let bounds = Rectangle {
+                x: 10.0,
+                y: 20.0,
+                width: 40.0,
+                height: 30.0,
+            };
+            let event = Event::Touch(touch::Event::FingerPressed {
+                id: touch::Finger(0),
+                position: Point::new(25.0, 35.0),
+            });
+
+            assert_eq!(
+                press_origin(
+                    &event,
+                    bounds,
+                    mouse::Cursor::Available(Point::new(25.0, 135.0))
+                ),
+                None
+            );
+        }
+
+        #[test]
+        fn touch_release_uses_translated_cursor_position() {
+            let bounds = Rectangle {
+                x: 10.0,
+                y: 120.0,
+                width: 40.0,
+                height: 30.0,
+            };
+            let event = Event::Touch(touch::Event::FingerLifted {
+                id: touch::Finger(0),
+                position: Point::new(25.0, 35.0),
+            });
+
+            assert!(release_is_over(
+                &event,
+                bounds,
+                mouse::Cursor::Available(Point::new(25.0, 135.0))
+            ));
+        }
+
+        #[test]
+        fn touch_press_origin_falls_back_to_raw_position_without_cursor() {
+            let bounds = Rectangle {
+                x: 10.0,
+                y: 20.0,
+                width: 40.0,
+                height: 30.0,
+            };
+            let event = Event::Touch(touch::Event::FingerPressed {
+                id: touch::Finger(0),
+                position: Point::new(25.0, 35.0),
+            });
+
+            assert_eq!(
+                press_origin(&event, bounds, mouse::Cursor::Unavailable),
                 Some(Point::new(15.0, 15.0))
             );
         }
