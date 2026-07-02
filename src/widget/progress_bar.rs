@@ -13,6 +13,7 @@ const ROUNDED_CORNER_SAMPLE_COUNT: usize = 10;
 const OUTLINE_LINE_SAMPLE_LENGTH: f32 = 0.06;
 const MORPH_OFFSET_CANDIDATE_COUNT: usize = 80;
 const MORPH_OFFSET_SAMPLE_COUNT: usize = 32;
+const ROUNDED_CORNER_CONTROL_PULL: f32 = 0.38;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum LinearMode {
@@ -757,7 +758,7 @@ fn morphed_loading_points(from: &[Point], to: &[Point], morph_progress: f32) -> 
         ));
     }
 
-    smooth_closed_points(&smooth_closed_points(&points))
+    center_points_on_bounds(&smooth_closed_points(&smooth_closed_points(&points)))
 }
 
 #[derive(Debug)]
@@ -899,7 +900,7 @@ fn loading_shape_scale() -> f32 {
     let mut max_radius = 1.0_f32;
 
     for shape_index in 0..tokens::component::loading_indicator::INDETERMINATE_SHAPE_COUNT {
-        for point in material_loading_outline(shape_index) {
+        for point in center_points_on_bounds(&material_loading_outline(shape_index)) {
             max_radius = max_radius.max(point.x.hypot(point.y));
         }
     }
@@ -1190,10 +1191,16 @@ fn rounded_corner(vertices: &[LoadingVertex], index: usize) -> RoundedCorner {
 
     let start = point_add(current, point_scale(incoming, cut / incoming_length));
     let end = point_add(current, point_scale(outgoing, cut / outgoing_length));
+    let chord_midpoint = point_lerp(start, end, 0.5);
+    let control = point_lerp(
+        chord_midpoint,
+        current,
+        ROUNDED_CORNER_CONTROL_PULL.clamp(0.0, 1.0),
+    );
 
     RoundedCorner {
         start,
-        control: current,
+        control,
         end,
         cut,
     }
@@ -1247,6 +1254,35 @@ fn smooth_closed_points(points: &[Point]) -> Vec<Point> {
     }
 
     smoothed
+}
+
+fn center_points_on_bounds(points: &[Point]) -> Vec<Point> {
+    let center = points_bounds_center(points);
+
+    points
+        .iter()
+        .map(|point| point_sub(*point, center))
+        .collect()
+}
+
+fn points_bounds_center(points: &[Point]) -> Point {
+    if points.is_empty() {
+        return Point::ORIGIN;
+    }
+
+    let mut min_x = f32::INFINITY;
+    let mut max_x = f32::NEG_INFINITY;
+    let mut min_y = f32::INFINITY;
+    let mut max_y = f32::NEG_INFINITY;
+
+    for point in points {
+        min_x = min_x.min(point.x);
+        max_x = max_x.max(point.x);
+        min_y = min_y.min(point.y);
+        max_y = max_y.max(point.y);
+    }
+
+    Point::new((min_x + max_x) / 2.0, (min_y + max_y) / 2.0)
 }
 
 fn distance(from: Point, to: Point) -> f32 {
@@ -1444,7 +1480,7 @@ mod tests {
                 outline.len()
             );
             assert!(
-                max_turn_angle(&outline) < 1.0,
+                max_turn_angle(&outline) < 0.7,
                 "shape {shape_index} has a hard outline turn: {}",
                 max_turn_angle(&outline)
             );
@@ -1464,8 +1500,28 @@ mod tests {
                 let max_turn = max_turn_angle(&points);
 
                 assert!(
-                    max_turn < 1.0,
+                    max_turn < 0.7,
                     "shape {shape_index} morph {progress} has a spike turn: {max_turn}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn loading_morphs_are_centered_before_rotation() {
+        for shape_index in 0..tokens::component::loading_indicator::INDETERMINATE_SHAPE_COUNT {
+            let from = material_loading_outline(shape_index);
+            let to = material_loading_outline(
+                (shape_index + 1) % tokens::component::loading_indicator::INDETERMINATE_SHAPE_COUNT,
+            );
+
+            for progress in [0.0, 0.125, 0.25, 0.5, 0.75, 0.875, 1.0] {
+                let points = morphed_loading_points(&from, &to, progress);
+                let center = points_bounds_center(&points);
+
+                assert!(
+                    center.x.abs() < 0.001 && center.y.abs() < 0.001,
+                    "shape {shape_index} morph {progress} is off-center: {center:?}"
                 );
             }
         }
