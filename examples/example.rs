@@ -70,8 +70,9 @@ struct InventoryRow {
 const NAV_DESTINATIONS: [material::widget::navigation::Destination<DemoPage>; 5] = [
     material::widget::navigation::Destination::new(DemoPage::Inputs, "I", "Inputs"),
     material::widget::navigation::Destination::new(DemoPage::Controls, "C", "Controls"),
-    material::widget::navigation::Destination::new(DemoPage::Feedback, "F", "Feedback"),
-    material::widget::navigation::Destination::new(DemoPage::Surfaces, "S", "Surfaces"),
+    material::widget::navigation::Destination::new(DemoPage::Feedback, "F", "Feedback").badge("3"),
+    material::widget::navigation::Destination::new(DemoPage::Surfaces, "S", "Surfaces")
+        .small_badge(),
     material::widget::navigation::Destination::new(DemoPage::Navigation, "N", "Navigation"),
 ];
 

@@ -216,6 +216,9 @@ pub mod component {
         pub const LARGE_CONTAINER_MAX_WIDTH: f32 = 34.0;
         pub const LARGE_CONTAINER_SHAPE: f32 = 8.0;
         pub const LARGE_HORIZONTAL_SPACE: f32 = 4.0;
+        pub const ICON_ONLY_OFFSET: f32 = 6.0;
+        pub const WITH_CONTENT_HORIZONTAL_OFFSET: f32 = 12.0;
+        pub const WITH_CONTENT_VERTICAL_OFFSET: f32 = 14.0;
         pub const LABEL_TEXT: super::super::typography::TypeScale =
             super::super::typography::LABEL_SMALL;
     }
@@ -509,6 +512,7 @@ pub mod component {
         pub const ITEM_CONTENT_LEADING_SPACE: f32 = 16.0;
         pub const ITEM_CONTENT_TRAILING_SPACE: f32 = 24.0;
         pub const ICON_LABEL_SPACE: f32 = 12.0;
+        pub const LABEL_BADGE_SPACE: f32 = 12.0;
         pub const MODAL_CONTAINER_ELEVATION_LEVEL: u8 = 1;
         pub const STANDARD_CONTAINER_ELEVATION_LEVEL: u8 = 0;
     }
@@ -719,6 +723,9 @@ mod tests {
         assert_eq!(component::badge::LARGE_CONTAINER_MAX_WIDTH, 34.0);
         assert_eq!(component::badge::LARGE_CONTAINER_SHAPE, 8.0);
         assert_eq!(component::badge::LARGE_HORIZONTAL_SPACE, 4.0);
+        assert_eq!(component::badge::ICON_ONLY_OFFSET, 6.0);
+        assert_eq!(component::badge::WITH_CONTENT_HORIZONTAL_OFFSET, 12.0);
+        assert_eq!(component::badge::WITH_CONTENT_VERTICAL_OFFSET, 14.0);
         assert_eq!(component::badge::LABEL_TEXT, typography::LABEL_SMALL);
         assert_eq!(component::button::CONTAINER_HEIGHT, 40.0);
         assert_eq!(component::button::LABEL_TEXT_SIZE, 14.0);
@@ -906,6 +913,7 @@ mod tests {
             typography::TITLE_SMALL
         );
         assert_eq!(component::navigation_drawer::ITEM_HORIZONTAL_PADDING, 12.0);
+        assert_eq!(component::navigation_drawer::LABEL_BADGE_SPACE, 12.0);
         assert_eq!(
             component::navigation_drawer::MODAL_CONTAINER_ELEVATION_LEVEL,
             1

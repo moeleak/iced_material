@@ -7,6 +7,7 @@ use iced_widget::core::{Background, Color, Element, Length, Padding, alignment, 
 use iced_widget::text::{self, LineHeight};
 use iced_widget::{Button, Column, Container, Row, Space, Stack, Text};
 
+use super::badge as badge_widget;
 use super::support::{AnimatedScalar, lerp};
 use crate::utils::{
     HOVERED_LAYER_OPACITY, PRESSED_LAYER_OPACITY, mix, shadow_from_level, state_layer,
@@ -284,11 +285,33 @@ pub struct Destination<Id> {
     pub id: Id,
     pub icon: &'static str,
     pub label: &'static str,
+    pub badge: Option<Badge>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Badge {
+    Small,
+    Large(&'static str),
 }
 
 impl<Id> Destination<Id> {
     pub const fn new(id: Id, icon: &'static str, label: &'static str) -> Self {
-        Self { id, icon, label }
+        Self {
+            id,
+            icon,
+            label,
+            badge: None,
+        }
+    }
+
+    pub const fn small_badge(mut self) -> Self {
+        self.badge = Some(Badge::Small);
+        self
+    }
+
+    pub const fn badge(mut self, label: &'static str) -> Self {
+        self.badge = Some(Badge::Large(label));
+        self
     }
 }
 
@@ -533,6 +556,7 @@ where
         tokens::component::navigation_bar::ACTIVE_INDICATOR_HEIGHT,
         size_progress,
         alpha_progress,
+        destination.badge,
         false,
         message.clone(),
     );
@@ -590,6 +614,7 @@ where
         tokens::component::navigation_rail::ACTIVE_INDICATOR_HEIGHT,
         size_progress,
         alpha_progress,
+        destination.badge,
         false,
         message.clone(),
     );
@@ -652,7 +677,14 @@ where
         .spacing(tokens::component::navigation_drawer::ICON_LABEL_SPACE)
         .align_y(alignment::Vertical::Center)
         .push(icon)
-        .push(label);
+        .push(Container::new(label).width(Length::Fill));
+    let content = if let Some(badge) = destination.badge {
+        content
+            .push(Space::new().width(Length::Fixed(navigation_drawer_badge_space())))
+            .push(destination_badge::<Message, Renderer>(badge))
+    } else {
+        content
+    };
     let content = Container::new(content)
         .width(Length::Fixed(
             tokens::component::navigation_drawer::ACTIVE_INDICATOR_WIDTH,
@@ -718,6 +750,7 @@ fn indicator_icon_stack<'a, Message, Renderer>(
     indicator_height: f32,
     size_progress: f32,
     alpha_progress: f32,
+    badge: Option<Badge>,
     drawer: bool,
     on_press: Message,
 ) -> Stack<'a, Message, Theme, Renderer>
@@ -746,16 +779,15 @@ where
             on_press,
         ))
         .push(
-            Container::new(destination_icon::<Renderer>(
+            destination_icon_anchor::<Message, Renderer>(
                 icon,
                 icon_size,
                 alpha_progress,
+                badge,
                 drawer,
-            ))
+            )
             .width(Length::Fixed(indicator_width))
-            .height(Length::Fixed(indicator_height))
-            .align_x(alignment::Horizontal::Center)
-            .align_y(alignment::Vertical::Center),
+            .height(Length::Fixed(indicator_height)),
         )
 }
 
@@ -847,6 +879,90 @@ fn navigation_bar_item_bottom_padding() -> f32 {
         - tokens::component::navigation_bar::INDICATOR_TO_LABEL_PADDING
         - label.line_height)
         .max(0.0)
+}
+
+fn navigation_drawer_badge_space() -> f32 {
+    tokens::component::navigation_drawer::LABEL_BADGE_SPACE
+}
+
+fn navigation_badge_leading_space(anchor_size: f32, badge: Badge) -> f32 {
+    (anchor_size - navigation_badge_horizontal_offset(badge)).max(0.0)
+}
+
+fn navigation_badge_horizontal_offset(badge: Badge) -> f32 {
+    match badge {
+        Badge::Small => tokens::component::badge::ICON_ONLY_OFFSET,
+        Badge::Large(_) => tokens::component::badge::WITH_CONTENT_HORIZONTAL_OFFSET,
+    }
+}
+
+#[cfg(test)]
+fn navigation_badge_top_offset(badge: Badge) -> f32 {
+    match badge {
+        Badge::Small => {
+            tokens::component::badge::ICON_ONLY_OFFSET - tokens::component::badge::SMALL_SIZE
+        }
+        Badge::Large(_) => {
+            tokens::component::badge::WITH_CONTENT_VERTICAL_OFFSET
+                - tokens::component::badge::LARGE_CONTAINER_HEIGHT
+        }
+    }
+}
+
+fn destination_icon_anchor<'a, Message, Renderer>(
+    icon: &'static str,
+    size: f32,
+    progress: f32,
+    badge: Option<Badge>,
+    drawer: bool,
+) -> Container<'a, Message, Theme, Renderer>
+where
+    Message: 'a,
+    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+{
+    let anchor = Stack::new()
+        .width(Length::Fixed(size))
+        .height(Length::Fixed(size))
+        .push(destination_icon::<Renderer>(icon, size, progress, drawer));
+    let anchor = if let Some(badge) = badge {
+        anchor.push(navigation_badge_layer::<Message, Renderer>(badge, size))
+    } else {
+        anchor
+    };
+
+    Container::new(anchor)
+        .align_x(alignment::Horizontal::Center)
+        .align_y(alignment::Vertical::Center)
+}
+
+fn navigation_badge_layer<'a, Message, Renderer>(
+    badge: Badge,
+    anchor_size: f32,
+) -> Row<'a, Message, Theme, Renderer>
+where
+    Message: 'a,
+    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+{
+    Row::new()
+        .height(Length::Fixed(anchor_size))
+        .push(
+            Space::new().width(Length::Fixed(navigation_badge_leading_space(
+                anchor_size,
+                badge,
+            ))),
+        )
+        .push(destination_badge::<Message, Renderer>(badge))
+}
+
+fn destination_badge<'a, Message, Renderer>(badge: Badge) -> Element<'a, Message, Theme, Renderer>
+where
+    Message: 'a,
+    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+{
+    match badge {
+        Badge::Small => badge_widget::small().into(),
+        Badge::Large(label) => badge_widget::large(label).into(),
+    }
 }
 
 fn destination_icon<'a, Renderer>(
@@ -1073,6 +1189,15 @@ mod tests {
     }
 
     #[test]
+    fn destination_badge_builders_attach_navigation_badges() {
+        let small = Destination::new(Page::One, "1", "One").small_badge();
+        let large = Destination::new(Page::Two, "2", "Two").badge("3");
+
+        assert_eq!(small.badge, Some(Badge::Small));
+        assert_eq!(large.badge, Some(Badge::Large("3")));
+    }
+
+    #[test]
     fn navigation_state_owns_selection_animation_progress() {
         let start = Instant::now();
         let mut state = NavigationState::new(Page::One);
@@ -1137,6 +1262,27 @@ mod tests {
     #[test]
     fn navigation_bar_item_geometry_matches_material_vertical_offsets() {
         assert_eq!(navigation_bar_item_bottom_padding(), 16.0);
+    }
+
+    #[test]
+    fn navigation_drawer_badge_spacing_matches_material_row_spacing() {
+        assert_eq!(navigation_drawer_badge_space(), 12.0);
+    }
+
+    #[test]
+    fn navigation_badge_position_matches_material_badged_box_offsets() {
+        let anchor = tokens::component::navigation_bar::ICON_SIZE;
+
+        assert_eq!(navigation_badge_horizontal_offset(Badge::Small), 6.0);
+        assert_eq!(navigation_badge_leading_space(anchor, Badge::Small), 18.0);
+        assert_eq!(navigation_badge_top_offset(Badge::Small), 0.0);
+
+        assert_eq!(navigation_badge_horizontal_offset(Badge::Large("3")), 12.0);
+        assert_eq!(
+            navigation_badge_leading_space(anchor, Badge::Large("3")),
+            12.0
+        );
+        assert_eq!(navigation_badge_top_offset(Badge::Large("3")), -2.0);
     }
 
     #[test]
