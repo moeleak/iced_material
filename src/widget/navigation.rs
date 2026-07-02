@@ -2,10 +2,12 @@
 
 use iced_widget::button;
 use iced_widget::core::text as core_text;
+use iced_widget::core::time::Instant;
 use iced_widget::core::{Background, Color, Element, Length, Padding, alignment, border};
 use iced_widget::text::{self, LineHeight};
 use iced_widget::{Button, Column, Container, Row, Space, Stack, Text};
 
+use super::support::{AnimatedScalar, duration_ms};
 use crate::button as button_style;
 use crate::utils::{mix, shadow_from_level};
 use crate::{Theme, tokens};
@@ -103,6 +105,67 @@ impl<Id: Copy + Eq> Selection<Id> {
             1.0 - self.progress
         } else {
             0.0
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct NavigationState<Id> {
+    selected: Id,
+    previous: Option<Id>,
+    progress: AnimatedScalar,
+}
+
+impl<Id: Copy + Eq> NavigationState<Id> {
+    pub fn new(selected: Id) -> Self {
+        Self {
+            selected,
+            previous: None,
+            progress: AnimatedScalar::new(1.0),
+        }
+    }
+
+    pub fn selected(&self) -> Id {
+        self.selected
+    }
+
+    pub fn selection(&self) -> Selection<Id> {
+        if let Some(previous) = self.previous {
+            Selection::transitioning(self.selected, previous, self.progress.value)
+        } else {
+            Selection::new(self.selected)
+        }
+    }
+
+    pub fn select(&mut self, selected: Id, now: Instant, layout: AdaptiveLayout) {
+        if selected == self.selected {
+            return;
+        }
+
+        let previous = self.selected;
+
+        self.selected = selected;
+        self.previous = Some(previous);
+        self.progress = AnimatedScalar::new(0.0);
+        self.progress.set_target(
+            1.0,
+            now,
+            duration_ms(layout.item_animation_duration_ms()),
+            tokens::motion::EASING_LEGACY,
+        );
+    }
+
+    pub fn is_animating(&self) -> bool {
+        self.previous.is_some()
+    }
+
+    pub fn advance(&mut self, now: Instant) -> bool {
+        if !self.progress.advance(now) {
+            self.progress.value = 1.0;
+            self.previous = None;
+            false
+        } else {
+            true
         }
     }
 }
@@ -775,6 +838,36 @@ mod tests {
         assert_eq!(selection.progress(Page::Two), 0.25);
         assert_eq!(selection.progress(Page::One), 0.75);
         assert_eq!(Selection::new(Page::One).progress(Page::One), 1.0);
+    }
+
+    #[test]
+    fn navigation_state_owns_selection_animation_progress() {
+        let start = Instant::now();
+        let mut state = NavigationState::new(Page::One);
+
+        state.select(Page::Two, start, AdaptiveLayout::NavigationRail);
+
+        assert_eq!(state.selected(), Page::Two);
+        assert!(state.is_animating());
+        assert_eq!(state.selection().progress(Page::Two), 0.0);
+        assert_eq!(state.selection().progress(Page::One), 1.0);
+
+        let still_animating = state.advance(
+            start + duration_ms(tokens::component::navigation_rail::ITEM_ANIMATION_DURATION_MS / 2),
+        );
+
+        assert!(still_animating);
+        assert!(state.selection().progress(Page::Two) > 0.0);
+        assert!(state.selection().progress(Page::One) < 1.0);
+
+        let finished = state.advance(
+            start + duration_ms(tokens::component::navigation_rail::ITEM_ANIMATION_DURATION_MS),
+        );
+
+        assert!(!finished);
+        assert!(!state.is_animating());
+        assert_eq!(state.selection().progress(Page::Two), 1.0);
+        assert_eq!(state.selection().progress(Page::One), 0.0);
     }
 
     #[test]

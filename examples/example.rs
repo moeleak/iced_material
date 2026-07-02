@@ -95,7 +95,7 @@ const INVENTORY_ROWS: [InventoryRow; 3] = [
 
 #[derive(Debug)]
 struct Demo {
-    page: DemoPage,
+    navigation: material::widget::navigation::NavigationState<DemoPage>,
     window_size: Size,
     count: i32,
     note: String,
@@ -110,8 +110,6 @@ struct Demo {
     radio_choice: Option<RadioChoice>,
     visible_scheme: ColorScheme,
     animation: Option<ThemeAnimation>,
-    navigation_animation: Option<NavigationAnimation>,
-    navigation_progress: f32,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -121,18 +119,12 @@ struct ThemeAnimation {
     started_at: Instant,
 }
 
-#[derive(Debug, Clone, Copy)]
-struct NavigationAnimation {
-    from: DemoPage,
-    started_at: Instant,
-}
-
 impl Default for Demo {
     fn default() -> Self {
         let initial_theme = Theme::Dark;
 
         Self {
-            page: DemoPage::Inputs,
+            navigation: material::widget::navigation::NavigationState::new(DemoPage::Inputs),
             window_size: Size::new(1080.0, 980.0),
             count: 0,
             note: String::new(),
@@ -152,8 +144,6 @@ impl Default for Demo {
             radio_choice: Some(RadioChoice::Standard),
             visible_scheme: initial_theme.colors(),
             animation: None,
-            navigation_animation: None,
-            navigation_progress: 1.0,
         }
     }
 }
@@ -164,15 +154,7 @@ impl Demo {
     }
 
     fn navigation_selection(&self) -> material::widget::navigation::Selection<DemoPage> {
-        if let Some(animation) = self.navigation_animation {
-            material::widget::navigation::Selection::transitioning(
-                self.page,
-                animation.from,
-                self.navigation_progress,
-            )
-        } else {
-            material::widget::navigation::Selection::new(self.page)
-        }
+        self.navigation.selection()
     }
 
     fn adaptive_navigation_layout(&self) -> material::widget::navigation::AdaptiveLayout {
@@ -186,14 +168,9 @@ impl Demo {
 fn update(state: &mut Demo, message: Message) {
     match message {
         Message::Navigate(page) => {
-            if page != state.page {
-                state.navigation_animation = Some(NavigationAnimation {
-                    from: state.page,
-                    started_at: Instant::now(),
-                });
-                state.navigation_progress = 0.0;
-                state.page = page;
-            }
+            state
+                .navigation
+                .select(page, Instant::now(), state.adaptive_navigation_layout());
         }
         Message::Increment => state.count += 1,
         Message::Decrement => state.count -= 1,
@@ -250,20 +227,7 @@ fn update(state: &mut Demo, message: Message) {
                 }
             }
 
-            if let Some(animation) = state.navigation_animation {
-                let duration = navigation_animation_duration(state.adaptive_navigation_layout());
-                let progress = now
-                    .saturating_duration_since(animation.started_at)
-                    .as_secs_f32()
-                    / duration.as_secs_f32();
-
-                if progress >= 1.0 {
-                    state.navigation_progress = 1.0;
-                    state.navigation_animation = None;
-                } else {
-                    state.navigation_progress = emphasized_decelerate(progress);
-                }
-            }
+            let _ = state.navigation.advance(now);
         }
     }
 }
@@ -276,7 +240,7 @@ fn subscription(state: &Demo) -> Subscription<Message> {
     let mut subscriptions =
         vec![iced::window::resize_events().map(|(_id, size)| Message::WindowResized(size))];
 
-    if state.animation.is_some() || state.navigation_animation.is_some() {
+    if state.animation.is_some() || state.navigation.is_animating() {
         subscriptions.push(iced::window::frames().map(Message::Frame));
     }
 
@@ -295,7 +259,8 @@ fn view(state: &Demo) -> Element<'_, Message, Theme> {
 }
 
 fn page_content(state: &Demo) -> Element<'_, Message, Theme> {
-    let content = match state.page {
+    let page = state.navigation.selected();
+    let content = match page {
         DemoPage::Inputs => inputs_page(state),
         DemoPage::Controls => controls_page(state),
         DemoPage::Feedback => feedback_page(state),
@@ -303,7 +268,7 @@ fn page_content(state: &Demo) -> Element<'_, Message, Theme> {
         DemoPage::Navigation => navigation_page(state),
     };
 
-    let page = column![header(state.page), content]
+    let page = column![header(page), content]
         .spacing(28)
         .padding(28)
         .width(Length::Fill)
@@ -718,12 +683,6 @@ fn page_label(page: DemoPage) -> &'static str {
     }
 }
 
-fn navigation_animation_duration(layout: material::widget::navigation::AdaptiveLayout) -> Duration {
-    Duration::from_millis(u64::from(
-        material::widget::navigation::item_animation_duration_ms(layout),
-    ))
-}
-
 fn emphasized_decelerate(progress: f32) -> f32 {
     if progress <= 0.0 {
         return 0.0;
@@ -885,12 +844,13 @@ mod tests {
 
         update(&mut demo, Message::Navigate(DemoPage::Controls));
 
-        assert_eq!(demo.page, DemoPage::Controls);
-        assert_eq!(demo.navigation_progress, 0.0);
+        assert_eq!(demo.navigation.selected(), DemoPage::Controls);
+        assert!(demo.navigation.is_animating());
         assert_eq!(
-            demo.navigation_animation.map(|animation| animation.from),
-            Some(DemoPage::Inputs)
+            demo.navigation.selection().progress(DemoPage::Controls),
+            0.0
         );
+        assert_eq!(demo.navigation.selection().progress(DemoPage::Inputs), 1.0);
     }
 
     #[test]
