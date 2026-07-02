@@ -3,10 +3,11 @@
 use iced_widget::button::{Status, Style};
 use iced_widget::core::text as core_text;
 use iced_widget::core::{Background, Border, Color, Element, Length, Padding, alignment, border};
+use iced_widget::graphics::geometry;
 use iced_widget::text;
-use iced_widget::{Button, Container, Row, Text};
+use iced_widget::{Container, Row, Text};
 
-use super::absolute_line_height;
+use super::{absolute_line_height, button::Button};
 use crate::utils::{shadow_from_level, state_layer};
 use crate::{Theme, fonts, tokens};
 
@@ -75,10 +76,10 @@ where
 /// Creates a snackbar text action button.
 pub fn action<'a, Message, Renderer>(
     label: impl text::IntoFragment<'a>,
-) -> Button<'a, Message, Theme, Renderer>
+) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
 {
     let label_text = tokens::component::snackbar::ACTION_LABEL_TEXT;
 
@@ -105,10 +106,10 @@ where
 /// Creates a snackbar icon action, typically used for dismiss.
 pub fn icon_action<'a, Message, Renderer>(
     icon_name: impl text::IntoFragment<'a>,
-) -> Button<'a, Message, Theme, Renderer>
+) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     Button::new(

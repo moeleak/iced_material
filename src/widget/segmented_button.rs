@@ -5,10 +5,12 @@ use iced_widget::core::border::Radius;
 use iced_widget::core::text as core_text;
 use iced_widget::core::time::Instant;
 use iced_widget::core::{Background, Border, Color, Element, Length, Padding, alignment};
+use iced_widget::graphics::geometry;
 use iced_widget::text;
-use iced_widget::{Button, Container, Row, Text};
+use iced_widget::{Container, Row, Text};
 
 use super::absolute_line_height;
+use super::button::Button;
 use super::support::{AnimatedScalar, duration_ms};
 use crate::utils::{mix, state_layer};
 use crate::{Theme, fonts, tokens};
@@ -127,10 +129,10 @@ pub fn label<'a, Message, Renderer>(
     label: impl text::IntoFragment<'a>,
     selected: bool,
     position: SegmentPosition,
-) -> Button<'a, Message, Theme, Renderer>
+) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
 {
     segment_button(
         Text::new(label)
@@ -149,10 +151,10 @@ pub fn selectable_label<'a, Message, Renderer>(
     label_text: impl text::IntoFragment<'a>,
     selected: bool,
     position: SegmentPosition,
-) -> Button<'a, Message, Theme, Renderer>
+) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     animated_selectable_label(label_text, selected.then_some(1.0).unwrap_or(0.0), position)
@@ -163,10 +165,10 @@ pub fn animated_selectable_label<'a, Message, Renderer>(
     label: impl text::IntoFragment<'a>,
     selected_progress: f32,
     position: SegmentPosition,
-) -> Button<'a, Message, Theme, Renderer>
+) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     leading_icon_progress("check", label, selected_progress, position)
@@ -178,10 +180,10 @@ pub fn leading_icon<'a, Message, Renderer>(
     label: impl text::IntoFragment<'a>,
     selected: bool,
     position: SegmentPosition,
-) -> Button<'a, Message, Theme, Renderer>
+) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     leading_icon_progress(
@@ -197,10 +199,10 @@ fn leading_icon_progress<'a, Message, Renderer>(
     label: impl text::IntoFragment<'a>,
     selected_progress: f32,
     position: SegmentPosition,
-) -> Button<'a, Message, Theme, Renderer>
+) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     let progress = selected_progress.clamp(0.0, 1.0);
@@ -233,10 +235,10 @@ fn segment_button<'a, Message, Renderer>(
     content: Element<'a, Message, Theme, Renderer>,
     selected: bool,
     position: SegmentPosition,
-) -> Button<'a, Message, Theme, Renderer>
+) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
 {
     segment_button_progress(content, selected.then_some(1.0).unwrap_or(0.0), position)
 }
@@ -245,10 +247,10 @@ fn segment_button_progress<'a, Message, Renderer>(
     content: Element<'a, Message, Theme, Renderer>,
     selected_progress: f32,
     position: SegmentPosition,
-) -> Button<'a, Message, Theme, Renderer>
+) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
 {
     let progress = selected_progress.clamp(0.0, 1.0);
 

@@ -8,10 +8,12 @@ use iced_widget::core::{
     Background, Border, Color, Element, Layout, Length, Padding, Rectangle, Size, Widget,
     alignment, border, layout, mouse, renderer,
 };
+use iced_widget::graphics::geometry;
 use iced_widget::text;
-use iced_widget::{Button, Column, Container, Row, Space, Text};
+use iced_widget::{Column, Container, Row, Space, Text};
 
 use super::absolute_line_height;
+use super::button::Button;
 use super::support::{AnimatedScalar, duration_ms};
 use crate::utils::{mix, shadow_from_level};
 use crate::{Theme, fonts, tokens};
@@ -158,10 +160,10 @@ where
 pub fn primary_label<'a, Message, Renderer>(
     label: impl text::IntoFragment<'a>,
     active: bool,
-) -> Button<'a, Message, Theme, Renderer>
+) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
 {
     label_tab(Variant::Primary, label, active)
 }
@@ -171,10 +173,10 @@ pub fn primary_icon_label<'a, Message, Renderer>(
     icon_name: impl text::IntoFragment<'a>,
     label: impl text::IntoFragment<'a>,
     active: bool,
-) -> Button<'a, Message, Theme, Renderer>
+) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     let variant = Variant::Primary;
@@ -202,10 +204,10 @@ pub fn primary_icon_label_for_animated_bar<'a, Message, Renderer>(
     icon_name: impl text::IntoFragment<'a>,
     label: impl text::IntoFragment<'a>,
     active: bool,
-) -> Button<'a, Message, Theme, Renderer>
+) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     let variant = Variant::Primary;
@@ -233,10 +235,10 @@ pub fn primary_inline_icon_label<'a, Message, Renderer>(
     icon_name: impl text::IntoFragment<'a>,
     label: impl text::IntoFragment<'a>,
     active: bool,
-) -> Button<'a, Message, Theme, Renderer>
+) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     inline_icon_label_tab(Variant::Primary, icon_name, label, active)
@@ -246,10 +248,10 @@ where
 pub fn secondary_label<'a, Message, Renderer>(
     label: impl text::IntoFragment<'a>,
     active: bool,
-) -> Button<'a, Message, Theme, Renderer>
+) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
 {
     label_tab(Variant::Secondary, label, active)
 }
@@ -258,10 +260,10 @@ where
 pub fn primary_label_for_animated_bar<'a, Message, Renderer>(
     label: impl text::IntoFragment<'a>,
     active: bool,
-) -> Button<'a, Message, Theme, Renderer>
+) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
 {
     animated_label_tab(Variant::Primary, label, active)
 }
@@ -271,10 +273,10 @@ pub fn primary_inline_icon_label_for_animated_bar<'a, Message, Renderer>(
     icon_name: impl text::IntoFragment<'a>,
     label: impl text::IntoFragment<'a>,
     active: bool,
-) -> Button<'a, Message, Theme, Renderer>
+) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     animated_inline_icon_label_tab(Variant::Primary, icon_name, label, active)
@@ -284,10 +286,10 @@ where
 pub fn secondary_label_for_animated_bar<'a, Message, Renderer>(
     label: impl text::IntoFragment<'a>,
     active: bool,
-) -> Button<'a, Message, Theme, Renderer>
+) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
 {
     animated_label_tab(Variant::Secondary, label, active)
 }
@@ -297,10 +299,10 @@ pub fn secondary_icon_label<'a, Message, Renderer>(
     icon_name: impl text::IntoFragment<'a>,
     label: impl text::IntoFragment<'a>,
     active: bool,
-) -> Button<'a, Message, Theme, Renderer>
+) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     inline_icon_label_tab(Variant::Secondary, icon_name, label, active)
@@ -311,10 +313,10 @@ pub fn secondary_icon_label_for_animated_bar<'a, Message, Renderer>(
     icon_name: impl text::IntoFragment<'a>,
     label: impl text::IntoFragment<'a>,
     active: bool,
-) -> Button<'a, Message, Theme, Renderer>
+) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     animated_inline_icon_label_tab(Variant::Secondary, icon_name, label, active)
@@ -324,10 +326,10 @@ fn animated_label_tab<'a, Message, Renderer>(
     variant: Variant,
     label: impl text::IntoFragment<'a>,
     active: bool,
-) -> Button<'a, Message, Theme, Renderer>
+) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
 {
     let label_text = variant.label_text();
     animated_tab_button(
@@ -346,10 +348,10 @@ fn animated_inline_icon_label_tab<'a, Message, Renderer>(
     icon_name: impl text::IntoFragment<'a>,
     label: impl text::IntoFragment<'a>,
     active: bool,
-) -> Button<'a, Message, Theme, Renderer>
+) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     let label_text = variant.label_text();
@@ -374,10 +376,10 @@ fn label_tab<'a, Message, Renderer>(
     variant: Variant,
     label: impl text::IntoFragment<'a>,
     active: bool,
-) -> Button<'a, Message, Theme, Renderer>
+) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
 {
     let label_text = variant.label_text();
     tab_button(
@@ -396,10 +398,10 @@ fn inline_icon_label_tab<'a, Message, Renderer>(
     icon_name: impl text::IntoFragment<'a>,
     label: impl text::IntoFragment<'a>,
     active: bool,
-) -> Button<'a, Message, Theme, Renderer>
+) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     let label_text = variant.label_text();
@@ -425,10 +427,10 @@ fn tab_button<'a, Message, Renderer>(
     content: Element<'a, Message, Theme, Renderer>,
     active: bool,
     height: f32,
-) -> Button<'a, Message, Theme, Renderer>
+) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
 {
     tab_button_with_indicator(variant, content, active, height, true)
 }
@@ -438,10 +440,10 @@ fn animated_tab_button<'a, Message, Renderer>(
     content: Element<'a, Message, Theme, Renderer>,
     active: bool,
     height: f32,
-) -> Button<'a, Message, Theme, Renderer>
+) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
 {
     tab_button_with_indicator(
         variant,
@@ -458,10 +460,10 @@ fn tab_button_with_indicator<'a, Message, Renderer>(
     active: bool,
     height: f32,
     show_indicator: bool,
-) -> Button<'a, Message, Theme, Renderer>
+) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
 {
     let tab_content = Column::new().push(
         Container::new(content)

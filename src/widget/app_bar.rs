@@ -2,20 +2,21 @@
 
 use iced_widget::core::text as core_text;
 use iced_widget::core::{Background, Element, Length, Padding, alignment, border};
+use iced_widget::graphics::geometry;
 use iced_widget::text;
-use iced_widget::{Button, Column, Container, Row, Space, Text};
+use iced_widget::{Column, Container, Row, Space, Text};
 
-use super::absolute_line_height;
+use super::{absolute_line_height, button::Button};
 use crate::utils::shadow_from_level;
 use crate::{Theme, button as button_style, fonts, tokens};
 
 /// Creates a Material icon button suitable for app bars.
 pub fn icon_button<'a, Message, Renderer>(
     icon_name: impl text::IntoFragment<'a>,
-) -> Button<'a, Message, Theme, Renderer>
+) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     Button::new(
