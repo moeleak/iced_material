@@ -7,14 +7,6 @@ use std::f32::consts::{FRAC_PI_2, FRAC_PI_4, TAU};
 
 use crate::{Theme, tokens};
 
-const SHAPE_SAMPLE_COUNT: usize = 160;
-const CIRCLE_SAMPLE_COUNT: usize = 128;
-const ROUNDED_CORNER_SAMPLE_COUNT: usize = 10;
-const OUTLINE_LINE_SAMPLE_LENGTH: f32 = 0.06;
-const MORPH_OFFSET_CANDIDATE_COUNT: usize = 80;
-const MORPH_OFFSET_SAMPLE_COUNT: usize = 32;
-const ROUNDED_CORNER_CONTROL_PULL: f32 = 0.38;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum LinearMode {
     Determinate,
@@ -230,21 +222,6 @@ pub struct LoadingIndicator {
     phase: f32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct LoadingVertex {
-    point: Point,
-    rounding: f32,
-}
-
-impl LoadingVertex {
-    fn new(x: f32, y: f32, rounding: f32) -> Self {
-        Self {
-            point: Point::new(x, y),
-            rounding,
-        }
-    }
-}
-
 /// Creates an expressive indeterminate loading indicator.
 pub fn loading_indicator<'a, Message, Renderer>(
     phase: f32,
@@ -355,11 +332,11 @@ where
             frame.fill(&container, color);
         }
 
-        let radius = frame.width().min(frame.height()) * loading_shape_scale() / 2.0;
+        let side = frame.width().min(frame.height());
         let path = if let Some(progress) = self.progress {
-            determinate_loading_shape_path(frame.center(), radius, progress)
+            determinate_loading_shape_path(frame.center(), side, progress)
         } else {
-            loading_shape_path(frame.center(), radius, self.phase)
+            loading_shape_path(frame.center(), side, self.phase)
         };
         frame.fill(&path, active);
 
@@ -700,152 +677,51 @@ fn color_lerp(from: Color, to: Color, progress: f32) -> Color {
     }
 }
 
-fn loading_shape_path(center: Point, radius: f32, phase: f32) -> Path {
+fn loading_shape_path(center: Point, side: f32, phase: f32) -> Path {
     let phase = phase.rem_euclid(1.0);
+    let polygons = indeterminate_loading_polygons();
+    let morphs = morph_sequence(&polygons, true);
+    let scale_factor = loading_shape_scale(&polygons);
     let morph_position = (phase
         * f32::from(tokens::component::loading_indicator::GLOBAL_ROTATION_DURATION_MS)
         / f32::from(tokens::component::loading_indicator::MORPH_INTERVAL_MS))
-    .rem_euclid(tokens::component::loading_indicator::INDETERMINATE_SHAPE_COUNT as f32);
+    .rem_euclid(morphs.len() as f32);
     let from_index = morph_position.floor() as usize;
-    let to_index =
-        (from_index + 1) % tokens::component::loading_indicator::INDETERMINATE_SHAPE_COUNT;
     let local_progress = morph_position.fract();
     let morph_progress = loading_spring_progress(local_progress);
     let rotation = phase * TAU + (from_index as f32 + 1.0 + morph_progress) * FRAC_PI_2;
-    let from = material_loading_outline(from_index);
-    let to = material_loading_outline(to_index);
 
-    morphed_loading_shape_path(&from, &to, center, radius, morph_progress, rotation)
+    morphed_loading_shape_path(
+        &morphs[from_index],
+        center,
+        side,
+        scale_factor,
+        morph_progress,
+        rotation,
+    )
 }
 
-fn determinate_loading_shape_path(center: Point, radius: f32, progress: f32) -> Path {
+fn determinate_loading_shape_path(center: Point, side: f32, progress: f32) -> Path {
     let progress = progress.clamp(0.0, 1.0);
-    let from = determinate_loading_outline(0);
-    let to = determinate_loading_outline(1);
+    let polygons = determinate_loading_polygons();
+    let morphs = morph_sequence(&polygons, false);
+    let scale_factor = loading_shape_scale(&polygons);
     let rotation = -progress * std::f32::consts::PI;
 
-    morphed_loading_shape_path(&from, &to, center, radius, progress, rotation)
+    morphed_loading_shape_path(&morphs[0], center, side, scale_factor, progress, rotation)
 }
 
 fn morphed_loading_shape_path(
-    from: &[Point],
-    to: &[Point],
+    morph: &Morph,
     center: Point,
-    radius: f32,
+    side: f32,
+    scale_factor: f32,
     morph_progress: f32,
     rotation: f32,
 ) -> Path {
-    let points = morphed_loading_points(from, to, morph_progress);
+    let cubics = morph.as_cubics(morph_progress);
 
-    closed_polyline_path(&points, center, radius, rotation)
-}
-
-fn morphed_loading_points(from: &[Point], to: &[Point], morph_progress: f32) -> Vec<Point> {
-    let morph_progress = morph_progress.clamp(0.0, 1.0);
-    let from = MeasuredOutline::new(from);
-    let to = MeasuredOutline::new(to);
-    let to_offset = best_outline_offset(&from, &to);
-    let mut points = Vec::with_capacity(SHAPE_SAMPLE_COUNT);
-
-    for index in 0..SHAPE_SAMPLE_COUNT {
-        let progress = index as f32 / SHAPE_SAMPLE_COUNT as f32;
-        let from = from.point_at(progress);
-        let to = to.point_at(progress + to_offset);
-
-        points.push(Point::new(
-            from.x + (to.x - from.x) * morph_progress,
-            from.y + (to.y - from.y) * morph_progress,
-        ));
-    }
-
-    center_points_on_bounds(&points)
-}
-
-#[derive(Debug)]
-struct MeasuredOutline<'a> {
-    points: &'a [Point],
-    cumulative_lengths: Vec<f32>,
-    perimeter: f32,
-}
-
-impl<'a> MeasuredOutline<'a> {
-    fn new(points: &'a [Point]) -> Self {
-        if points.len() < 2 {
-            return Self {
-                points,
-                cumulative_lengths: vec![0.0],
-                perimeter: 0.0,
-            };
-        }
-
-        let mut cumulative_lengths = Vec::with_capacity(points.len() + 1);
-        let mut perimeter = 0.0;
-
-        cumulative_lengths.push(0.0);
-
-        for index in 0..points.len() {
-            perimeter += distance(points[index], points[(index + 1) % points.len()]);
-            cumulative_lengths.push(perimeter);
-        }
-
-        Self {
-            points,
-            cumulative_lengths,
-            perimeter,
-        }
-    }
-
-    fn point_at(&self, progress: f32) -> Point {
-        if self.points.is_empty() {
-            return Point::ORIGIN;
-        }
-
-        if self.points.len() == 1 || self.perimeter <= f32::EPSILON {
-            return self.points[0];
-        }
-
-        let target = progress.rem_euclid(1.0) * self.perimeter;
-        let segment_index = self
-            .cumulative_lengths
-            .partition_point(|length| *length < target)
-            .saturating_sub(1)
-            .min(self.points.len() - 1);
-        let segment_start = self.cumulative_lengths[segment_index];
-        let segment_end = self.cumulative_lengths[segment_index + 1];
-        let segment_length = (segment_end - segment_start).max(f32::EPSILON);
-        let local_progress = (target - segment_start) / segment_length;
-
-        point_lerp(
-            self.points[segment_index],
-            self.points[(segment_index + 1) % self.points.len()],
-            local_progress,
-        )
-    }
-}
-
-fn best_outline_offset(from: &MeasuredOutline<'_>, to: &MeasuredOutline<'_>) -> f32 {
-    let mut best_offset = 0.0;
-    let mut best_distance = f32::INFINITY;
-
-    for candidate in 0..MORPH_OFFSET_CANDIDATE_COUNT {
-        let offset = candidate as f32 / MORPH_OFFSET_CANDIDATE_COUNT as f32;
-        let mut candidate_distance = 0.0;
-
-        for sample in 0..MORPH_OFFSET_SAMPLE_COUNT {
-            let progress = sample as f32 / MORPH_OFFSET_SAMPLE_COUNT as f32;
-            let from = from.point_at(progress);
-            let to = to.point_at(progress + offset);
-
-            candidate_distance += squared_distance(from, to);
-        }
-
-        if candidate_distance < best_distance {
-            best_distance = candidate_distance;
-            best_offset = offset;
-        }
-    }
-
-    best_offset
+    processed_cubic_path(&cubics, center, side, scale_factor, rotation)
 }
 
 fn loading_spring_progress(progress: f32) -> f32 {
@@ -871,125 +747,222 @@ fn loading_spring_progress(progress: f32) -> f32 {
     response.clamp(0.0, 1.0)
 }
 
-fn closed_polyline_path(points: &[Point], center: Point, radius: f32, rotation: f32) -> Path {
-    if points.is_empty() {
+fn processed_cubic_path(
+    cubics: &[Cubic],
+    center: Point,
+    side: f32,
+    scale_factor: f32,
+    rotation: f32,
+) -> Path {
+    if cubics.is_empty() {
         return Path::new(|_| {});
     }
 
-    Path::new(|path| {
-        path.move_to(place_loading_point(points[0], center, radius, rotation));
+    let transformed = processed_cubics(cubics, center, side, scale_factor, rotation);
 
-        for point in &points[1..] {
-            path.line_to(place_loading_point(*point, center, radius, rotation));
+    Path::new(|path| {
+        path.move_to(Point::new(
+            transformed[0].anchor0_x(),
+            transformed[0].anchor0_y(),
+        ));
+
+        for cubic in &transformed {
+            path.bezier_curve_to(
+                Point::new(cubic.control0_x(), cubic.control0_y()),
+                Point::new(cubic.control1_x(), cubic.control1_y()),
+                Point::new(cubic.anchor1_x(), cubic.anchor1_y()),
+            );
         }
 
         path.close();
     })
 }
 
-fn place_loading_point(point: Point, center: Point, radius: f32, rotation: f32) -> Point {
-    let cos = rotation.cos();
-    let sin = rotation.sin();
-    let x = point.x * cos - point.y * sin;
-    let y = point.x * sin + point.y * cos;
+fn processed_cubics(
+    cubics: &[Cubic],
+    center: Point,
+    side: f32,
+    scale_factor: f32,
+    rotation: f32,
+) -> Vec<Cubic> {
+    if cubics.is_empty() {
+        return Vec::new();
+    }
 
-    Point::new(center.x + x * radius, center.y + y * radius)
+    let scale = side * scale_factor;
+    let transformed: Vec<Cubic> = cubics
+        .iter()
+        .map(|cubic| cubic.transformed(|point| Point::new(point.x * scale, point.y * scale)))
+        .collect();
+    let bounds = cubics_bounds(&transformed, false);
+    let bounds_center = bounds_center(bounds);
+    let translation = point_sub(center, bounds_center);
+
+    transformed
+        .into_iter()
+        .map(|cubic| {
+            cubic.transformed(|point| {
+                rotate_point_around(point_add(point, translation), center, rotation)
+            })
+        })
+        .collect()
 }
 
-fn loading_shape_scale() -> f32 {
-    let mut max_radius = 1.0_f32;
+fn loading_shape_scale(polygons: &[RoundedPolygon]) -> f32 {
+    let mut scale_factor = 1.0_f32;
 
-    for shape_index in 0..tokens::component::loading_indicator::INDETERMINATE_SHAPE_COUNT {
-        for point in center_points_on_bounds(&material_loading_outline(shape_index)) {
-            max_radius = max_radius.max(point.x.hypot(point.y));
+    for polygon in polygons {
+        let bounds = polygon.calculate_bounds(true);
+        let max_bounds = polygon.calculate_max_bounds();
+        let scale_x = bounds_width(bounds) / bounds_width(max_bounds);
+        let scale_y = bounds_height(bounds) / bounds_height(max_bounds);
+
+        scale_factor = scale_factor.min(scale_x.max(scale_y));
+    }
+
+    scale_factor * tokens::component::loading_indicator::ACTIVE_INDICATOR_SCALE
+}
+
+fn indeterminate_loading_polygons() -> Vec<RoundedPolygon> {
+    vec![
+        material_soft_burst(),
+        material_cookie9(),
+        material_pentagon(),
+        material_pill(),
+        material_sunny(),
+        material_cookie4(),
+        material_oval(),
+    ]
+}
+
+fn determinate_loading_polygons() -> Vec<RoundedPolygon> {
+    vec![
+        material_circle().transformed(|point| rotate_point(point, TAU / 20.0)),
+        material_soft_burst(),
+    ]
+}
+
+fn morph_sequence(polygons: &[RoundedPolygon], circular_sequence: bool) -> Vec<Morph> {
+    let mut morphs = Vec::new();
+
+    for index in 0..polygons.len() {
+        if index + 1 < polygons.len() {
+            morphs.push(Morph::new(
+                polygons[index].normalized(),
+                polygons[index + 1].normalized(),
+            ));
+        } else if circular_sequence {
+            morphs.push(Morph::new(
+                polygons[index].normalized(),
+                polygons[0].normalized(),
+            ));
         }
     }
 
-    tokens::component::loading_indicator::ACTIVE_INDICATOR_SCALE / max_radius
+    morphs
 }
 
-fn material_loading_outline(shape_index: usize) -> Vec<Point> {
-    rounded_outline(&material_loading_vertices(shape_index))
+fn material_circle() -> RoundedPolygon {
+    rounded_polygon_circle(10, 1.0, Point::ORIGIN).normalized()
 }
 
-fn determinate_loading_outline(shape_index: usize) -> Vec<Point> {
-    match shape_index % tokens::component::loading_indicator::DETERMINATE_SHAPE_COUNT {
-        0 => rounded_outline(&circle_vertices(CIRCLE_SAMPLE_COUNT, TAU / 20.0)),
-        _ => material_loading_outline(0),
-    }
+fn material_oval() -> RoundedPolygon {
+    rounded_polygon_circle(8, 1.0, Point::ORIGIN)
+        .transformed(|point| Point::new(point.x, point.y * 0.64))
+        .transformed(|point| rotate_point(point, -FRAC_PI_4))
+        .normalized()
 }
 
-fn material_loading_vertices(shape_index: usize) -> Vec<LoadingVertex> {
-    normalize_vertices(
-        match shape_index % tokens::component::loading_indicator::INDETERMINATE_SHAPE_COUNT {
-            0 => custom_loading_polygon(
-                &[
-                    LoadingVertex::new(0.193, 0.277, 0.053),
-                    LoadingVertex::new(0.176, 0.055, 0.053),
-                ],
-                10,
-                false,
-            ),
-            1 => star_vertices(9, 0.8, -FRAC_PI_2, 0.5),
-            2 => custom_loading_polygon(
-                &[
-                    LoadingVertex::new(0.500, -0.009, 0.172),
-                    LoadingVertex::new(1.030, 0.365, 0.164),
-                    LoadingVertex::new(0.828, 0.970, 0.169),
-                ],
-                1,
-                true,
-            ),
-            3 => custom_loading_polygon(
-                &[
-                    LoadingVertex::new(0.961, 0.039, 0.426),
-                    LoadingVertex::new(1.001, 0.428, 0.0),
-                    LoadingVertex::new(1.000, 0.609, 1.0),
-                ],
-                2,
-                true,
-            ),
-            4 => star_vertices(8, 0.8, 0.0, 0.15),
-            5 => custom_loading_polygon(
-                &[
-                    LoadingVertex::new(1.237, 1.236, 0.258),
-                    LoadingVertex::new(0.500, 0.918, 0.233),
-                ],
-                4,
-                false,
-            ),
-            _ => ellipse_vertices(CIRCLE_SAMPLE_COUNT, 1.0, 0.64, -FRAC_PI_4),
-        },
+fn material_pill() -> RoundedPolygon {
+    custom_material_polygon(
+        &[
+            ShapeVertex::new(0.961, 0.039, CornerRounding::new(0.426)),
+            ShapeVertex::new(1.001, 0.428, CornerRounding::UNROUNDED),
+            ShapeVertex::new(1.000, 0.609, CornerRounding::new(1.0)),
+        ],
+        2,
+        true,
     )
+    .normalized()
 }
 
-#[cfg(test)]
-fn determinate_loading_vertices(shape_index: usize) -> Vec<LoadingVertex> {
-    match shape_index % tokens::component::loading_indicator::DETERMINATE_SHAPE_COUNT {
-        0 => circle_vertices(CIRCLE_SAMPLE_COUNT, TAU / 20.0),
-        _ => material_loading_vertices(0),
+fn material_pentagon() -> RoundedPolygon {
+    custom_material_polygon(
+        &[
+            ShapeVertex::new(0.500, -0.009, CornerRounding::new(0.172)),
+            ShapeVertex::new(1.030, 0.365, CornerRounding::new(0.164)),
+            ShapeVertex::new(0.828, 0.970, CornerRounding::new(0.169)),
+        ],
+        1,
+        true,
+    )
+    .normalized()
+}
+
+fn material_sunny() -> RoundedPolygon {
+    rounded_polygon_star(8, 1.0, 0.8, CornerRounding::new(0.15), Point::ORIGIN).normalized()
+}
+
+fn material_cookie4() -> RoundedPolygon {
+    custom_material_polygon(
+        &[
+            ShapeVertex::new(1.237, 1.236, CornerRounding::new(0.258)),
+            ShapeVertex::new(0.500, 0.918, CornerRounding::new(0.233)),
+        ],
+        4,
+        false,
+    )
+    .normalized()
+}
+
+fn material_cookie9() -> RoundedPolygon {
+    rounded_polygon_star(9, 1.0, 0.8, CornerRounding::new(0.5), Point::ORIGIN)
+        .transformed(|point| rotate_point(point, -FRAC_PI_2))
+        .normalized()
+}
+
+fn material_soft_burst() -> RoundedPolygon {
+    custom_material_polygon(
+        &[
+            ShapeVertex::new(0.193, 0.277, CornerRounding::new(0.053)),
+            ShapeVertex::new(0.176, 0.055, CornerRounding::new(0.053)),
+        ],
+        10,
+        false,
+    )
+    .normalized()
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct ShapeVertex {
+    point: Point,
+    rounding: CornerRounding,
+}
+
+impl ShapeVertex {
+    fn new(x: f32, y: f32, rounding: CornerRounding) -> Self {
+        Self {
+            point: Point::new(x, y),
+            rounding,
+        }
     }
 }
 
-fn circle_vertices(count: usize, rotation: f32) -> Vec<LoadingVertex> {
-    let mut vertices = Vec::with_capacity(count);
-
-    for index in 0..count {
-        let angle = index as f32 * TAU / count as f32 + rotation;
-
-        vertices.push(LoadingVertex::new(angle.cos(), angle.sin(), 0.0));
-    }
-
-    vertices
-}
-
-fn custom_loading_polygon(
-    points: &[LoadingVertex],
-    reps: usize,
-    mirroring: bool,
-) -> Vec<LoadingVertex> {
+fn custom_material_polygon(points: &[ShapeVertex], reps: usize, mirroring: bool) -> RoundedPolygon {
     let center = Point::new(0.5, 0.5);
+    let repeated = repeat_material_vertices(points, reps, center, mirroring);
+    let vertices: Vec<Point> = repeated.iter().map(|vertex| vertex.point).collect();
+    let roundings: Vec<CornerRounding> = repeated.iter().map(|vertex| vertex.rounding).collect();
 
+    RoundedPolygon::from_vertices(&vertices, &roundings, Some(center))
+}
+
+fn repeat_material_vertices(
+    points: &[ShapeVertex],
+    reps: usize,
+    center: Point,
+    mirroring: bool,
+) -> Vec<ShapeVertex> {
     if mirroring {
         let angles: Vec<f32> = points
             .iter()
@@ -997,7 +970,7 @@ fn custom_loading_polygon(
             .collect();
         let distances: Vec<f32> = points
             .iter()
-            .map(|vertex| (vertex.point.x - center.x).hypot(vertex.point.y - center.y))
+            .map(|vertex| point_distance(point_sub(vertex.point, center)))
             .collect();
         let actual_reps = reps * 2;
         let section_angle = TAU / actual_reps as f32;
@@ -1005,22 +978,21 @@ fn custom_loading_polygon(
 
         for rep in 0..actual_reps {
             for index in 0..points.len() {
-                let mirrored = rep % 2 == 1;
-                let source = if mirrored {
-                    points.len() - 1 - index
-                } else {
+                let source = if rep % 2 == 0 {
                     index
+                } else {
+                    points.len() - 1 - index
                 };
 
-                if source > 0 || !mirrored {
+                if source > 0 || rep % 2 == 0 {
                     let angle = section_angle * rep as f32
-                        + if mirrored {
-                            section_angle - angles[source] + 2.0 * angles[0]
-                        } else {
+                        + if rep % 2 == 0 {
                             angles[source]
+                        } else {
+                            section_angle - angles[source] + 2.0 * angles[0]
                         };
 
-                    vertices.push(LoadingVertex::new(
+                    vertices.push(ShapeVertex::new(
                         center.x + angle.cos() * distances[source],
                         center.y + angle.sin() * distances[source],
                         points[source].rounding,
@@ -1033,290 +1005,1510 @@ fn custom_loading_polygon(
     } else {
         let mut vertices = Vec::with_capacity(points.len() * reps);
 
-        for rep in 0..reps {
-            let angle = rep as f32 * TAU / reps as f32;
-            let cos = angle.cos();
-            let sin = angle.sin();
+        for index in 0..points.len() * reps {
+            let source = index % points.len();
+            let rep = index / points.len();
+            let point =
+                rotate_point_around(points[source].point, center, rep as f32 * TAU / reps as f32);
 
-            for vertex in points {
-                let offset_x = vertex.point.x - center.x;
-                let offset_y = vertex.point.y - center.y;
-
-                vertices.push(LoadingVertex::new(
-                    center.x + offset_x * cos - offset_y * sin,
-                    center.y + offset_x * sin + offset_y * cos,
-                    vertex.rounding,
-                ));
-            }
+            vertices.push(ShapeVertex {
+                point,
+                rounding: points[source].rounding,
+            });
         }
 
         vertices
     }
 }
 
-fn star_vertices(
-    points_per_radius: usize,
-    inner_radius: f32,
-    rotation: f32,
-    rounding: f32,
-) -> Vec<LoadingVertex> {
-    let count = points_per_radius * 2;
-    let mut vertices = Vec::with_capacity(count);
-
-    for index in 0..count {
-        let radius = if index % 2 == 0 { 1.0 } else { inner_radius };
-        let angle = index as f32 * TAU / count as f32 + rotation;
-
-        vertices.push(LoadingVertex::new(
-            angle.cos() * radius,
-            angle.sin() * radius,
-            rounding,
-        ));
-    }
-
-    vertices
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct CornerRounding {
+    radius: f32,
+    smoothing: f32,
 }
 
-fn ellipse_vertices(
-    count: usize,
-    x_radius: f32,
-    y_radius: f32,
-    rotation: f32,
-) -> Vec<LoadingVertex> {
-    let mut vertices = Vec::with_capacity(count);
-    let cos = rotation.cos();
-    let sin = rotation.sin();
+impl CornerRounding {
+    const UNROUNDED: Self = Self {
+        radius: 0.0,
+        smoothing: 0.0,
+    };
 
-    for index in 0..count {
-        let angle = index as f32 * TAU / count as f32;
-        let x = angle.cos() * x_radius;
-        let y = angle.sin() * y_radius;
-
-        vertices.push(LoadingVertex::new(
-            x * cos - y * sin,
-            x * sin + y * cos,
-            0.0,
-        ));
+    const fn new(radius: f32) -> Self {
+        Self {
+            radius,
+            smoothing: 0.0,
+        }
     }
-
-    vertices
 }
 
-fn normalize_vertices(vertices: Vec<LoadingVertex>) -> Vec<LoadingVertex> {
-    let mut min_x = f32::INFINITY;
-    let mut max_x = f32::NEG_INFINITY;
-    let mut min_y = f32::INFINITY;
-    let mut max_y = f32::NEG_INFINITY;
-
-    for vertex in &vertices {
-        min_x = min_x.min(vertex.point.x);
-        max_x = max_x.max(vertex.point.x);
-        min_y = min_y.min(vertex.point.y);
-        max_y = max_y.max(vertex.point.y);
-    }
-
-    let center_x = (min_x + max_x) / 2.0;
-    let center_y = (min_y + max_y) / 2.0;
-    let scale = ((max_x - min_x).max(max_y - min_y) / 2.0).max(f32::EPSILON);
-
-    vertices
-        .into_iter()
-        .map(|vertex| LoadingVertex {
-            point: Point::new(
-                (vertex.point.x - center_x) / scale,
-                (vertex.point.y - center_y) / scale,
-            ),
-            rounding: vertex.rounding / scale,
-        })
-        .collect()
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Cubic {
+    points: [f32; 8],
 }
 
-fn rounded_outline(vertices: &[LoadingVertex]) -> Vec<Point> {
-    if vertices.len() < 3 {
-        return vertices.iter().map(|vertex| vertex.point).collect();
-    }
-
-    let corners: Vec<RoundedCorner> = (0..vertices.len())
-        .map(|index| rounded_corner(vertices, index))
-        .collect();
-    let mut outline = Vec::with_capacity(vertices.len() * (ROUNDED_CORNER_SAMPLE_COUNT + 2));
-
-    for index in 0..corners.len() {
-        let previous_end = corners[(index + corners.len() - 1) % corners.len()].end;
-        let corner = corners[index];
-
-        append_line_samples(&mut outline, previous_end, corner.start);
-
-        if corner.cut <= f32::EPSILON {
-            push_outline_point(&mut outline, corner.control);
-        } else {
-            append_quadratic_samples(&mut outline, corner.start, corner.control, corner.end);
+impl Cubic {
+    fn new(
+        anchor0_x: f32,
+        anchor0_y: f32,
+        control0_x: f32,
+        control0_y: f32,
+        control1_x: f32,
+        control1_y: f32,
+        anchor1_x: f32,
+        anchor1_y: f32,
+    ) -> Self {
+        Self {
+            points: [
+                anchor0_x, anchor0_y, control0_x, control0_y, control1_x, control1_y, anchor1_x,
+                anchor1_y,
+            ],
         }
     }
 
-    outline
-}
-
-#[derive(Debug, Clone, Copy)]
-struct RoundedCorner {
-    start: Point,
-    control: Point,
-    end: Point,
-    cut: f32,
-}
-
-fn rounded_corner(vertices: &[LoadingVertex], index: usize) -> RoundedCorner {
-    let count = vertices.len();
-    let previous = vertices[(index + count - 1) % count].point;
-    let current = vertices[index].point;
-    let next = vertices[(index + 1) % count].point;
-    let incoming = point_sub(previous, current);
-    let outgoing = point_sub(next, current);
-    let incoming_length = point_length(incoming);
-    let outgoing_length = point_length(outgoing);
-    let cut = vertices[index]
-        .rounding
-        .max(0.0)
-        .min(incoming_length * 0.45)
-        .min(outgoing_length * 0.45);
-
-    if cut <= f32::EPSILON || incoming_length <= f32::EPSILON || outgoing_length <= f32::EPSILON {
-        return RoundedCorner {
-            start: current,
-            control: current,
-            end: current,
-            cut: 0.0,
-        };
+    fn from_points(anchor0: Point, control0: Point, control1: Point, anchor1: Point) -> Self {
+        Self::new(
+            anchor0.x, anchor0.y, control0.x, control0.y, control1.x, control1.y, anchor1.x,
+            anchor1.y,
+        )
     }
 
-    let start = point_add(current, point_scale(incoming, cut / incoming_length));
-    let end = point_add(current, point_scale(outgoing, cut / outgoing_length));
-    let chord_midpoint = point_lerp(start, end, 0.5);
-    let control = point_lerp(
-        chord_midpoint,
-        current,
-        ROUNDED_CORNER_CONTROL_PULL.clamp(0.0, 1.0),
-    );
+    fn straight_line(x0: f32, y0: f32, x1: f32, y1: f32) -> Self {
+        Self::new(
+            x0,
+            y0,
+            lerp(x0, x1, 1.0 / 3.0),
+            lerp(y0, y1, 1.0 / 3.0),
+            lerp(x0, x1, 2.0 / 3.0),
+            lerp(y0, y1, 2.0 / 3.0),
+            x1,
+            y1,
+        )
+    }
 
-    RoundedCorner {
-        start,
-        control,
-        end,
-        cut,
+    fn circular_arc(center_x: f32, center_y: f32, x0: f32, y0: f32, x1: f32, y1: f32) -> Self {
+        let p0d = direction_vector(x0 - center_x, y0 - center_y);
+        let p1d = direction_vector(x1 - center_x, y1 - center_y);
+        let rotated_p0 = rotate90(p0d);
+        let rotated_p1 = rotate90(p1d);
+        let clockwise = point_dot(rotated_p0, Point::new(x1 - center_x, y1 - center_y)) >= 0.0;
+        let cosa = point_dot(p0d, p1d);
+
+        if cosa > 0.999 {
+            return Self::straight_line(x0, y0, x1, y1);
+        }
+
+        let k = distance_components(x0 - center_x, y0 - center_y) * 4.0 / 3.0
+            * ((2.0 * (1.0 - cosa)).sqrt() - (1.0 - cosa * cosa).sqrt())
+            / (1.0 - cosa)
+            * if clockwise { 1.0 } else { -1.0 };
+
+        Self::new(
+            x0,
+            y0,
+            x0 + rotated_p0.x * k,
+            y0 + rotated_p0.y * k,
+            x1 - rotated_p1.x * k,
+            y1 - rotated_p1.y * k,
+            x1,
+            y1,
+        )
+    }
+
+    fn anchor0_x(&self) -> f32 {
+        self.points[0]
+    }
+
+    fn anchor0_y(&self) -> f32 {
+        self.points[1]
+    }
+
+    fn control0_x(&self) -> f32 {
+        self.points[2]
+    }
+
+    fn control0_y(&self) -> f32 {
+        self.points[3]
+    }
+
+    fn control1_x(&self) -> f32 {
+        self.points[4]
+    }
+
+    fn control1_y(&self) -> f32 {
+        self.points[5]
+    }
+
+    fn anchor1_x(&self) -> f32 {
+        self.points[6]
+    }
+
+    fn anchor1_y(&self) -> f32 {
+        self.points[7]
+    }
+
+    fn point_on_curve(&self, t: f32) -> Point {
+        let u = 1.0 - t;
+
+        Point::new(
+            self.anchor0_x() * (u * u * u)
+                + self.control0_x() * (3.0 * t * u * u)
+                + self.control1_x() * (3.0 * t * t * u)
+                + self.anchor1_x() * (t * t * t),
+            self.anchor0_y() * (u * u * u)
+                + self.control0_y() * (3.0 * t * u * u)
+                + self.control1_y() * (3.0 * t * t * u)
+                + self.anchor1_y() * (t * t * t),
+        )
+    }
+
+    fn split(&self, t: f32) -> (Self, Self) {
+        let u = 1.0 - t;
+        let point_on_curve = self.point_on_curve(t);
+
+        (
+            Self::new(
+                self.anchor0_x(),
+                self.anchor0_y(),
+                self.anchor0_x() * u + self.control0_x() * t,
+                self.anchor0_y() * u + self.control0_y() * t,
+                self.anchor0_x() * (u * u)
+                    + self.control0_x() * (2.0 * u * t)
+                    + self.control1_x() * (t * t),
+                self.anchor0_y() * (u * u)
+                    + self.control0_y() * (2.0 * u * t)
+                    + self.control1_y() * (t * t),
+                point_on_curve.x,
+                point_on_curve.y,
+            ),
+            Self::new(
+                point_on_curve.x,
+                point_on_curve.y,
+                self.control0_x() * (u * u)
+                    + self.control1_x() * (2.0 * u * t)
+                    + self.anchor1_x() * (t * t),
+                self.control0_y() * (u * u)
+                    + self.control1_y() * (2.0 * u * t)
+                    + self.anchor1_y() * (t * t),
+                self.control1_x() * u + self.anchor1_x() * t,
+                self.control1_y() * u + self.anchor1_y() * t,
+                self.anchor1_x(),
+                self.anchor1_y(),
+            ),
+        )
+    }
+
+    fn reverse(&self) -> Self {
+        Self::new(
+            self.anchor1_x(),
+            self.anchor1_y(),
+            self.control1_x(),
+            self.control1_y(),
+            self.control0_x(),
+            self.control0_y(),
+            self.anchor0_x(),
+            self.anchor0_y(),
+        )
+    }
+
+    fn transformed(&self, mut f: impl FnMut(Point) -> Point) -> Self {
+        Self::from_points(
+            f(Point::new(self.anchor0_x(), self.anchor0_y())),
+            f(Point::new(self.control0_x(), self.control0_y())),
+            f(Point::new(self.control1_x(), self.control1_y())),
+            f(Point::new(self.anchor1_x(), self.anchor1_y())),
+        )
+    }
+
+    fn zero_length(&self) -> bool {
+        (self.anchor0_x() - self.anchor1_x()).abs() < DISTANCE_EPSILON
+            && (self.anchor0_y() - self.anchor1_y()).abs() < DISTANCE_EPSILON
+    }
+
+    fn calculate_bounds(&self, approximate: bool) -> [f32; 4] {
+        if self.zero_length() {
+            return [
+                self.anchor0_x(),
+                self.anchor0_y(),
+                self.anchor0_x(),
+                self.anchor0_y(),
+            ];
+        }
+
+        let mut min_x = self.anchor0_x().min(self.anchor1_x());
+        let mut min_y = self.anchor0_y().min(self.anchor1_y());
+        let mut max_x = self.anchor0_x().max(self.anchor1_x());
+        let mut max_y = self.anchor0_y().max(self.anchor1_y());
+
+        if approximate {
+            return [
+                min_x.min(self.control0_x().min(self.control1_x())),
+                min_y.min(self.control0_y().min(self.control1_y())),
+                max_x.max(self.control0_x().max(self.control1_x())),
+                max_y.max(self.control0_y().max(self.control1_y())),
+            ];
+        }
+
+        update_cubic_bounds_axis(
+            self.anchor0_x(),
+            self.control0_x(),
+            self.control1_x(),
+            self.anchor1_x(),
+            |t| self.point_on_curve(t).x,
+            &mut min_x,
+            &mut max_x,
+        );
+        update_cubic_bounds_axis(
+            self.anchor0_y(),
+            self.control0_y(),
+            self.control1_y(),
+            self.anchor1_y(),
+            |t| self.point_on_curve(t).y,
+            &mut min_y,
+            &mut max_y,
+        );
+
+        [min_x, min_y, max_x, max_y]
     }
 }
 
-fn append_line_samples(outline: &mut Vec<Point>, from: Point, to: Point) {
-    let length = distance(from, to);
-    let steps = (length / OUTLINE_LINE_SAMPLE_LENGTH).ceil().max(1.0) as usize;
+#[derive(Debug, Clone, PartialEq)]
+enum Feature {
+    Edge(Vec<Cubic>),
+    Corner { cubics: Vec<Cubic>, convex: bool },
+}
 
-    if outline.is_empty() {
-        push_outline_point(outline, from);
+impl Feature {
+    fn cubics(&self) -> &[Cubic] {
+        match self {
+            Self::Edge(cubics) | Self::Corner { cubics, .. } => cubics,
+        }
     }
 
-    for step in 1..=steps {
-        push_outline_point(outline, point_lerp(from, to, step as f32 / steps as f32));
+    fn transformed(&self, f: impl Fn(Point) -> Point + Copy) -> Self {
+        match self {
+            Self::Edge(cubics) => {
+                Self::Edge(cubics.iter().map(|cubic| cubic.transformed(f)).collect())
+            }
+            Self::Corner { cubics, convex } => Self::Corner {
+                cubics: cubics.iter().map(|cubic| cubic.transformed(f)).collect(),
+                convex: *convex,
+            },
+        }
+    }
+
+    fn is_corner(&self) -> bool {
+        matches!(self, Self::Corner { .. })
+    }
+
+    fn is_convex_corner(&self) -> bool {
+        matches!(self, Self::Corner { convex: true, .. })
+    }
+
+    fn is_concave_corner(&self) -> bool {
+        matches!(self, Self::Corner { convex: false, .. })
     }
 }
 
-fn append_quadratic_samples(outline: &mut Vec<Point>, from: Point, control: Point, to: Point) {
-    for step in 1..=ROUNDED_CORNER_SAMPLE_COUNT {
-        let progress = step as f32 / ROUNDED_CORNER_SAMPLE_COUNT as f32;
-        let first = point_lerp(from, control, progress);
-        let second = point_lerp(control, to, progress);
+#[derive(Debug, Clone, PartialEq)]
+struct RoundedPolygon {
+    features: Vec<Feature>,
+    center: Point,
+    cubics: Vec<Cubic>,
+}
 
-        push_outline_point(outline, point_lerp(first, second, progress));
+impl RoundedPolygon {
+    fn from_features(features: Vec<Feature>, center: Point) -> Self {
+        let cubics = polygon_cubics(&features, center);
+
+        Self {
+            features,
+            center,
+            cubics,
+        }
+    }
+
+    fn from_vertices(
+        vertices: &[Point],
+        per_vertex_rounding: &[CornerRounding],
+        center: Option<Point>,
+    ) -> Self {
+        assert!(vertices.len() >= 3);
+        assert_eq!(vertices.len(), per_vertex_rounding.len());
+
+        let rounded_corners: Vec<PolygonCorner> = (0..vertices.len())
+            .map(|index| {
+                PolygonCorner::new(
+                    vertices[(index + vertices.len() - 1) % vertices.len()],
+                    vertices[index],
+                    vertices[(index + 1) % vertices.len()],
+                    per_vertex_rounding[index],
+                )
+            })
+            .collect();
+        let cut_adjusts: Vec<(f32, f32)> = (0..vertices.len())
+            .map(|index| {
+                let expected_round_cut = rounded_corners[index].expected_round_cut
+                    + rounded_corners[(index + 1) % vertices.len()].expected_round_cut;
+                let expected_cut = rounded_corners[index].expected_cut()
+                    + rounded_corners[(index + 1) % vertices.len()].expected_cut();
+                let side_size = point_distance(point_sub(
+                    vertices[index],
+                    vertices[(index + 1) % vertices.len()],
+                ));
+
+                if expected_round_cut > side_size {
+                    (side_size / expected_round_cut, 0.0)
+                } else if expected_cut > side_size {
+                    (
+                        1.0,
+                        (side_size - expected_round_cut) / (expected_cut - expected_round_cut),
+                    )
+                } else {
+                    (1.0, 1.0)
+                }
+            })
+            .collect();
+        let corners: Vec<Vec<Cubic>> = (0..vertices.len())
+            .map(|index| {
+                let (round_cut_ratio0, cut_ratio0) =
+                    cut_adjusts[(index + vertices.len() - 1) % vertices.len()];
+                let (round_cut_ratio1, cut_ratio1) = cut_adjusts[index];
+                let allowed_cut0 = rounded_corners[index].expected_round_cut * round_cut_ratio0
+                    + (rounded_corners[index].expected_cut()
+                        - rounded_corners[index].expected_round_cut)
+                        * cut_ratio0;
+                let allowed_cut1 = rounded_corners[index].expected_round_cut * round_cut_ratio1
+                    + (rounded_corners[index].expected_cut()
+                        - rounded_corners[index].expected_round_cut)
+                        * cut_ratio1;
+
+                rounded_corners[index].get_cubics(allowed_cut0, allowed_cut1)
+            })
+            .collect();
+        let mut features = Vec::with_capacity(vertices.len() * 2);
+
+        for index in 0..vertices.len() {
+            let previous = vertices[(index + vertices.len() - 1) % vertices.len()];
+            let current = vertices[index];
+            let next = vertices[(index + 1) % vertices.len()];
+            let convex = convex(previous, current, next);
+
+            features.push(Feature::Corner {
+                cubics: corners[index].clone(),
+                convex,
+            });
+            features.push(Feature::Edge(vec![Cubic::straight_line(
+                corners[index].last().unwrap().anchor1_x(),
+                corners[index].last().unwrap().anchor1_y(),
+                corners[(index + 1) % vertices.len()]
+                    .first()
+                    .unwrap()
+                    .anchor0_x(),
+                corners[(index + 1) % vertices.len()]
+                    .first()
+                    .unwrap()
+                    .anchor0_y(),
+            )]));
+        }
+
+        Self::from_features(
+            features,
+            center.unwrap_or_else(|| calculate_center(vertices)),
+        )
+    }
+
+    fn transformed(&self, f: impl Fn(Point) -> Point + Copy) -> Self {
+        Self::from_features(
+            self.features
+                .iter()
+                .map(|feature| feature.transformed(f))
+                .collect(),
+            f(self.center),
+        )
+    }
+
+    fn normalized(&self) -> Self {
+        let bounds = self.calculate_bounds(true);
+        let width = bounds_width(bounds);
+        let height = bounds_height(bounds);
+        let side = width.max(height);
+        let offset_x = (side - width) / 2.0 - bounds[0];
+        let offset_y = (side - height) / 2.0 - bounds[1];
+
+        self.transformed(|point| {
+            Point::new((point.x + offset_x) / side, (point.y + offset_y) / side)
+        })
+    }
+
+    fn calculate_bounds(&self, approximate: bool) -> [f32; 4] {
+        cubics_bounds(&self.cubics, approximate)
+    }
+
+    fn calculate_max_bounds(&self) -> [f32; 4] {
+        let mut max_dist_squared = 0.0_f32;
+
+        for cubic in &self.cubics {
+            let anchor_distance = distance_squared(
+                cubic.anchor0_x() - self.center.x,
+                cubic.anchor0_y() - self.center.y,
+            );
+            let middle = cubic.point_on_curve(0.5);
+            let middle_distance =
+                distance_squared(middle.x - self.center.x, middle.y - self.center.y);
+
+            max_dist_squared = max_dist_squared.max(anchor_distance.max(middle_distance));
+        }
+
+        let distance = max_dist_squared.sqrt();
+
+        [
+            self.center.x - distance,
+            self.center.y - distance,
+            self.center.x + distance,
+            self.center.y + distance,
+        ]
     }
 }
 
-fn push_outline_point(outline: &mut Vec<Point>, point: Point) {
-    if outline
-        .last()
-        .map_or(true, |previous| distance(*previous, point) > 0.0001)
-    {
-        outline.push(point);
-    }
+fn rounded_polygon_circle(num_vertices: usize, radius: f32, center: Point) -> RoundedPolygon {
+    let theta = std::f32::consts::PI / num_vertices as f32;
+    let polygon_radius = radius / theta.cos();
+    let vertices = vertices_from_num_verts(num_vertices, polygon_radius, center);
+    let roundings = vec![CornerRounding::new(radius); num_vertices];
+
+    RoundedPolygon::from_vertices(&vertices, &roundings, Some(center))
 }
 
-fn center_points_on_bounds(points: &[Point]) -> Vec<Point> {
-    let center = points_bounds_center(points);
+fn rounded_polygon_star(
+    num_vertices_per_radius: usize,
+    radius: f32,
+    inner_radius: f32,
+    rounding: CornerRounding,
+    center: Point,
+) -> RoundedPolygon {
+    assert!(radius > 0.0 && inner_radius > 0.0 && inner_radius < radius);
 
-    points
-        .iter()
-        .map(|point| point_sub(*point, center))
+    let vertices =
+        star_vertices_from_num_verts(num_vertices_per_radius, radius, inner_radius, center);
+    let roundings = vec![rounding; vertices.len()];
+
+    RoundedPolygon::from_vertices(&vertices, &roundings, Some(center))
+}
+
+fn vertices_from_num_verts(num_vertices: usize, radius: f32, center: Point) -> Vec<Point> {
+    (0..num_vertices)
+        .map(|index| radial_to_cartesian(radius, TAU / num_vertices as f32 * index as f32, center))
         .collect()
 }
 
-fn points_bounds_center(points: &[Point]) -> Point {
-    if points.is_empty() {
-        return Point::ORIGIN;
+fn star_vertices_from_num_verts(
+    num_vertices_per_radius: usize,
+    radius: f32,
+    inner_radius: f32,
+    center: Point,
+) -> Vec<Point> {
+    let mut vertices = Vec::with_capacity(num_vertices_per_radius * 2);
+
+    for index in 0..num_vertices_per_radius {
+        vertices.push(radial_to_cartesian(
+            radius,
+            TAU / num_vertices_per_radius as f32 * index as f32,
+            center,
+        ));
+        vertices.push(radial_to_cartesian(
+            inner_radius,
+            std::f32::consts::PI / num_vertices_per_radius as f32 * (2 * index + 1) as f32,
+            center,
+        ));
     }
 
-    let (min, max) = points_bounds(points);
-
-    Point::new((min.x + max.x) / 2.0, (min.y + max.y) / 2.0)
+    vertices
 }
 
-#[cfg(test)]
-fn points_bounds_size(points: &[Point]) -> (f32, f32) {
-    let (min, max) = points_bounds(points);
+fn polygon_cubics(features: &[Feature], center: Point) -> Vec<Cubic> {
+    let mut cubics = Vec::new();
+    let mut first_cubic = None;
+    let mut last_cubic: Option<Cubic> = None;
+    let mut first_feature_split_start = None;
+    let mut first_feature_split_end = None;
 
-    (max.x - min.x, max.y - min.y)
-}
-
-fn points_bounds(points: &[Point]) -> (Point, Point) {
-    if points.is_empty() {
-        return (Point::ORIGIN, Point::ORIGIN);
+    if !features.is_empty() && features[0].cubics().len() == 3 {
+        let (start, end) = features[0].cubics()[1].split(0.5);
+        first_feature_split_start = Some(vec![features[0].cubics()[0], start]);
+        first_feature_split_end = Some(vec![end, features[0].cubics()[2]]);
     }
 
+    for index in 0..=features.len() {
+        let feature_cubics: Option<&[Cubic]> = if index == 0 {
+            first_feature_split_end
+                .as_deref()
+                .or(Some(features[0].cubics()))
+        } else if index == features.len() {
+            first_feature_split_start.as_deref()
+        } else {
+            Some(features[index].cubics())
+        };
+
+        let Some(feature_cubics) = feature_cubics else {
+            break;
+        };
+
+        for cubic in feature_cubics {
+            if !cubic.zero_length() {
+                if let Some(last) = last_cubic.take() {
+                    cubics.push(last);
+                }
+
+                last_cubic = Some(*cubic);
+                let _ = first_cubic.get_or_insert(*cubic);
+            } else if let Some(last) = last_cubic.as_mut() {
+                last.points[6] = cubic.anchor1_x();
+                last.points[7] = cubic.anchor1_y();
+            }
+        }
+    }
+
+    if let (Some(last), Some(first)) = (last_cubic, first_cubic) {
+        cubics.push(Cubic::new(
+            last.anchor0_x(),
+            last.anchor0_y(),
+            last.control0_x(),
+            last.control0_y(),
+            last.control1_x(),
+            last.control1_y(),
+            first.anchor0_x(),
+            first.anchor0_y(),
+        ));
+    } else {
+        cubics.push(Cubic::new(
+            center.x, center.y, center.x, center.y, center.x, center.y, center.x, center.y,
+        ));
+    }
+
+    cubics
+}
+
+#[derive(Debug, Clone, Copy)]
+struct PolygonCorner {
+    p0: Point,
+    p1: Point,
+    p2: Point,
+    d1: Point,
+    d2: Point,
+    corner_radius: f32,
+    smoothing: f32,
+    expected_round_cut: f32,
+}
+
+impl PolygonCorner {
+    fn new(p0: Point, p1: Point, p2: Point, rounding: CornerRounding) -> Self {
+        let v01 = point_sub(p0, p1);
+        let v21 = point_sub(p2, p1);
+        let d01 = point_distance(v01);
+        let d21 = point_distance(v21);
+
+        if d01 > 0.0 && d21 > 0.0 {
+            let d1 = point_scale(v01, 1.0 / d01);
+            let d2 = point_scale(v21, 1.0 / d21);
+            let cos_angle = point_dot(d1, d2);
+            let sin_angle = (1.0 - square(cos_angle)).sqrt();
+            let expected_round_cut = if sin_angle > 1e-3 {
+                rounding.radius * (cos_angle + 1.0) / sin_angle
+            } else {
+                0.0
+            };
+
+            Self {
+                p0,
+                p1,
+                p2,
+                d1,
+                d2,
+                corner_radius: rounding.radius,
+                smoothing: rounding.smoothing,
+                expected_round_cut,
+            }
+        } else {
+            Self {
+                p0,
+                p1,
+                p2,
+                d1: Point::ORIGIN,
+                d2: Point::ORIGIN,
+                corner_radius: 0.0,
+                smoothing: 0.0,
+                expected_round_cut: 0.0,
+            }
+        }
+    }
+
+    fn expected_cut(&self) -> f32 {
+        (1.0 + self.smoothing) * self.expected_round_cut
+    }
+
+    fn get_cubics(&self, allowed_cut0: f32, allowed_cut1: f32) -> Vec<Cubic> {
+        let allowed_cut = allowed_cut0.min(allowed_cut1);
+
+        if self.expected_round_cut < DISTANCE_EPSILON
+            || allowed_cut < DISTANCE_EPSILON
+            || self.corner_radius < DISTANCE_EPSILON
+        {
+            return vec![Cubic::straight_line(
+                self.p1.x, self.p1.y, self.p1.x, self.p1.y,
+            )];
+        }
+
+        let actual_round_cut = allowed_cut.min(self.expected_round_cut);
+        let actual_smoothing0 = self.calculate_actual_smoothing_value(allowed_cut0);
+        let actual_smoothing1 = self.calculate_actual_smoothing_value(allowed_cut1);
+        let actual_radius = self.corner_radius * actual_round_cut / self.expected_round_cut;
+        let center_distance = (square(actual_radius) + square(actual_round_cut)).sqrt();
+        let circle_center = point_add(
+            self.p1,
+            point_scale(
+                point_direction(point_scale(point_add(self.d1, self.d2), 0.5)),
+                center_distance,
+            ),
+        );
+        let circle_intersection0 = point_add(self.p1, point_scale(self.d1, actual_round_cut));
+        let circle_intersection2 = point_add(self.p1, point_scale(self.d2, actual_round_cut));
+        let flanking0 = self.compute_flanking_curve(
+            actual_round_cut,
+            actual_smoothing0,
+            self.p1,
+            self.p0,
+            circle_intersection0,
+            circle_intersection2,
+            circle_center,
+            actual_radius,
+        );
+        let flanking2 = self
+            .compute_flanking_curve(
+                actual_round_cut,
+                actual_smoothing1,
+                self.p1,
+                self.p2,
+                circle_intersection2,
+                circle_intersection0,
+                circle_center,
+                actual_radius,
+            )
+            .reverse();
+
+        vec![
+            flanking0,
+            Cubic::circular_arc(
+                circle_center.x,
+                circle_center.y,
+                flanking0.anchor1_x(),
+                flanking0.anchor1_y(),
+                flanking2.anchor0_x(),
+                flanking2.anchor0_y(),
+            ),
+            flanking2,
+        ]
+    }
+
+    fn calculate_actual_smoothing_value(&self, allowed_cut: f32) -> f32 {
+        if allowed_cut > self.expected_cut() {
+            self.smoothing
+        } else if allowed_cut > self.expected_round_cut {
+            self.smoothing * (allowed_cut - self.expected_round_cut)
+                / (self.expected_cut() - self.expected_round_cut)
+        } else {
+            0.0
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn compute_flanking_curve(
+        &self,
+        actual_round_cut: f32,
+        actual_smoothing_value: f32,
+        corner: Point,
+        side_start: Point,
+        circle_segment_intersection: Point,
+        other_circle_segment_intersection: Point,
+        circle_center: Point,
+        actual_radius: f32,
+    ) -> Cubic {
+        let side_direction = point_direction(point_sub(side_start, corner));
+        let curve_start = point_add(
+            corner,
+            point_scale(
+                side_direction,
+                actual_round_cut * (1.0 + actual_smoothing_value),
+            ),
+        );
+        let p = point_lerp(
+            circle_segment_intersection,
+            point_scale(
+                point_add(
+                    circle_segment_intersection,
+                    other_circle_segment_intersection,
+                ),
+                0.5,
+            ),
+            actual_smoothing_value,
+        );
+        let curve_end = point_add(
+            circle_center,
+            point_scale(
+                direction_vector(p.x - circle_center.x, p.y - circle_center.y),
+                actual_radius,
+            ),
+        );
+        let circle_tangent = rotate90(point_sub(curve_end, circle_center));
+        let anchor_end = line_intersection(side_start, side_direction, curve_end, circle_tangent)
+            .unwrap_or(circle_segment_intersection);
+        let anchor_start = point_scale(
+            point_add(curve_start, point_scale(anchor_end, 2.0)),
+            1.0 / 3.0,
+        );
+
+        Cubic::from_points(curve_start, anchor_start, anchor_end, curve_end)
+    }
+}
+
+fn line_intersection(p0: Point, d0: Point, p1: Point, d1: Point) -> Option<Point> {
+    let rotated_d1 = rotate90(d1);
+    let denominator = point_dot(d0, rotated_d1);
+
+    if denominator.abs() < DISTANCE_EPSILON {
+        return None;
+    }
+
+    let numerator = point_dot(point_sub(p1, p0), rotated_d1);
+
+    if denominator.abs() < DISTANCE_EPSILON * numerator.abs() {
+        return None;
+    }
+
+    Some(point_add(p0, point_scale(d0, numerator / denominator)))
+}
+
+#[derive(Debug, Clone)]
+struct Morph {
+    pairs: Vec<(Cubic, Cubic)>,
+}
+
+impl Morph {
+    fn new(start: RoundedPolygon, end: RoundedPolygon) -> Self {
+        Self {
+            pairs: match_polygons(&start, &end),
+        }
+    }
+
+    fn as_cubics(&self, progress: f32) -> Vec<Cubic> {
+        let mut cubics = Vec::with_capacity(self.pairs.len());
+        let mut first_cubic = None;
+        let mut last_cubic = None;
+
+        for (start, end) in &self.pairs {
+            let cubic = Cubic {
+                points: std::array::from_fn(|index| {
+                    lerp(start.points[index], end.points[index], progress)
+                }),
+            };
+
+            let _ = first_cubic.get_or_insert(cubic);
+            if let Some(last) = last_cubic.take() {
+                cubics.push(last);
+            }
+            last_cubic = Some(cubic);
+        }
+
+        if let (Some(last), Some(first)) = (last_cubic, first_cubic) {
+            cubics.push(Cubic::new(
+                last.anchor0_x(),
+                last.anchor0_y(),
+                last.control0_x(),
+                last.control0_y(),
+                last.control1_x(),
+                last.control1_y(),
+                first.anchor0_x(),
+                first.anchor0_y(),
+            ));
+        }
+
+        cubics
+    }
+}
+
+#[derive(Debug, Clone)]
+struct ProgressableFeature {
+    progress: f32,
+    feature: Feature,
+}
+
+#[derive(Debug, Clone)]
+struct MeasuredCubic {
+    cubic: Cubic,
+    start_outline_progress: f32,
+    end_outline_progress: f32,
+}
+
+impl MeasuredCubic {
+    fn cut_at_progress(&self, cut_outline_progress: f32) -> (Self, Self) {
+        let bounded_cut_outline_progress =
+            cut_outline_progress.clamp(self.start_outline_progress, self.end_outline_progress);
+        let outline_progress_size = self.end_outline_progress - self.start_outline_progress;
+        let progress_from_start = bounded_cut_outline_progress - self.start_outline_progress;
+        let relative_progress = progress_from_start / outline_progress_size;
+        let measured_size = measure_cubic(self.cubic);
+        let t = find_cubic_cut_point(self.cubic, relative_progress * measured_size);
+        let (first, second) = self.cubic.split(t);
+
+        (
+            Self {
+                cubic: first,
+                start_outline_progress: self.start_outline_progress,
+                end_outline_progress: bounded_cut_outline_progress,
+            },
+            Self {
+                cubic: second,
+                start_outline_progress: bounded_cut_outline_progress,
+                end_outline_progress: self.end_outline_progress,
+            },
+        )
+    }
+}
+
+#[derive(Debug, Clone)]
+struct MeasuredPolygon {
+    features: Vec<ProgressableFeature>,
+    cubics: Vec<MeasuredCubic>,
+}
+
+impl MeasuredPolygon {
+    fn new(
+        features: Vec<ProgressableFeature>,
+        cubics: Vec<Cubic>,
+        outline_progress: Vec<f32>,
+    ) -> Self {
+        assert_eq!(outline_progress.len(), cubics.len() + 1);
+        assert!((outline_progress[0] - 0.0).abs() < DISTANCE_EPSILON);
+        assert!((outline_progress[outline_progress.len() - 1] - 1.0).abs() < DISTANCE_EPSILON);
+
+        let mut measured_cubics = Vec::new();
+        let mut start_outline_progress = 0.0;
+
+        for index in 0..cubics.len() {
+            if outline_progress[index + 1] - outline_progress[index] > DISTANCE_EPSILON {
+                measured_cubics.push(MeasuredCubic {
+                    cubic: cubics[index],
+                    start_outline_progress,
+                    end_outline_progress: outline_progress[index + 1],
+                });
+                start_outline_progress = outline_progress[index + 1];
+            }
+        }
+
+        if let Some(last) = measured_cubics.last_mut() {
+            last.end_outline_progress = 1.0;
+        }
+
+        Self {
+            features,
+            cubics: measured_cubics,
+        }
+    }
+
+    fn measure_polygon(polygon: &RoundedPolygon) -> Self {
+        let mut cubics = Vec::new();
+        let mut feature_to_cubic = Vec::new();
+
+        for feature in &polygon.features {
+            for (cubic_index, cubic) in feature.cubics().iter().enumerate() {
+                if feature.is_corner() && cubic_index == feature.cubics().len() / 2 {
+                    feature_to_cubic.push((feature.clone(), cubics.len()));
+                }
+                cubics.push(*cubic);
+            }
+        }
+
+        let mut measures = Vec::with_capacity(cubics.len() + 1);
+        let mut total = 0.0;
+        measures.push(total);
+
+        for cubic in &cubics {
+            total += measure_cubic(*cubic);
+            measures.push(total);
+        }
+
+        let outline_progress: Vec<f32> = measures.iter().map(|measure| measure / total).collect();
+        let features = feature_to_cubic
+            .into_iter()
+            .map(|(feature, index)| ProgressableFeature {
+                progress: positive_modulo(
+                    (outline_progress[index] + outline_progress[index + 1]) / 2.0,
+                    1.0,
+                ),
+                feature,
+            })
+            .collect();
+
+        Self::new(features, cubics, outline_progress)
+    }
+
+    fn cut_and_shift(&self, cutting_point: f32) -> Self {
+        assert!((0.0..=1.0).contains(&cutting_point));
+
+        if cutting_point < DISTANCE_EPSILON {
+            return self.clone();
+        }
+
+        let target_index = self
+            .cubics
+            .iter()
+            .position(|cubic| {
+                cutting_point >= cubic.start_outline_progress
+                    && cutting_point <= cubic.end_outline_progress
+            })
+            .unwrap_or(self.cubics.len() - 1);
+        let target = &self.cubics[target_index];
+        let (first, second) = target.cut_at_progress(cutting_point);
+        let mut cubics = Vec::with_capacity(self.cubics.len() + 1);
+
+        cubics.push(second.cubic);
+        for index in 1..self.cubics.len() {
+            cubics.push(self.cubics[(index + target_index) % self.cubics.len()].cubic);
+        }
+        cubics.push(first.cubic);
+
+        let mut outline_progress = Vec::with_capacity(self.cubics.len() + 2);
+
+        for index in 0..self.cubics.len() + 2 {
+            outline_progress.push(match index {
+                0 => 0.0,
+                n if n == self.cubics.len() + 1 => 1.0,
+                _ => {
+                    let cubic_index = (target_index + index - 1) % self.cubics.len();
+                    positive_modulo(
+                        self.cubics[cubic_index].end_outline_progress - cutting_point,
+                        1.0,
+                    )
+                }
+            });
+        }
+
+        let features = self
+            .features
+            .iter()
+            .map(|feature| ProgressableFeature {
+                progress: positive_modulo(feature.progress - cutting_point, 1.0),
+                feature: feature.feature.clone(),
+            })
+            .collect();
+
+        Self::new(features, cubics, outline_progress)
+    }
+}
+
+fn match_polygons(start: &RoundedPolygon, end: &RoundedPolygon) -> Vec<(Cubic, Cubic)> {
+    let measured_start = MeasuredPolygon::measure_polygon(start);
+    let measured_end = MeasuredPolygon::measure_polygon(end);
+    let mapper = feature_mapper(&measured_start.features, &measured_end.features);
+    let end_cut_point = mapper.map(0.0);
+    let shifted_start = measured_start;
+    let shifted_end = measured_end.cut_and_shift(end_cut_point);
+    let mut pairs = Vec::new();
+    let mut start_index = 0;
+    let mut end_index = 0;
+    let mut start_cubic = shifted_start.cubics.get(start_index).cloned();
+    start_index += 1;
+    let mut end_cubic = shifted_end.cubics.get(end_index).cloned();
+    end_index += 1;
+
+    while let (Some(start), Some(end)) = (start_cubic.clone(), end_cubic.clone()) {
+        let start_end_progress = if start_index == shifted_start.cubics.len() {
+            1.0
+        } else {
+            start.end_outline_progress
+        };
+        let end_end_progress = if end_index == shifted_end.cubics.len() {
+            1.0
+        } else {
+            mapper.map_back(positive_modulo(
+                end.end_outline_progress + end_cut_point,
+                1.0,
+            ))
+        };
+        let min_progress = start_end_progress.min(end_end_progress);
+        let (start_segment, new_start) = if start_end_progress > min_progress + ANGLE_EPSILON {
+            let (segment, remainder) = start.cut_at_progress(min_progress);
+
+            (segment, Some(remainder))
+        } else {
+            let next = shifted_start.cubics.get(start_index).cloned();
+            start_index += 1;
+
+            (start, next)
+        };
+        let (end_segment, new_end) = if end_end_progress > min_progress + ANGLE_EPSILON {
+            let (segment, remainder) = end.cut_at_progress(positive_modulo(
+                mapper.map(min_progress) - end_cut_point,
+                1.0,
+            ));
+
+            (segment, Some(remainder))
+        } else {
+            let next = shifted_end.cubics.get(end_index).cloned();
+            end_index += 1;
+
+            (end, next)
+        };
+
+        pairs.push((start_segment.cubic, end_segment.cubic));
+        start_cubic = new_start;
+        end_cubic = new_end;
+    }
+
+    assert!(start_cubic.is_none() && end_cubic.is_none());
+
+    pairs
+}
+
+#[derive(Debug, Clone)]
+struct DoubleMapper {
+    source_values: Vec<f32>,
+    target_values: Vec<f32>,
+}
+
+impl DoubleMapper {
+    fn new(mappings: &[(f32, f32)]) -> Self {
+        let source_values = mappings.iter().map(|mapping| mapping.0).collect();
+        let target_values = mappings.iter().map(|mapping| mapping.1).collect();
+
+        Self {
+            source_values,
+            target_values,
+        }
+    }
+
+    fn map(&self, progress: f32) -> f32 {
+        linear_map(&self.source_values, &self.target_values, progress)
+    }
+
+    fn map_back(&self, progress: f32) -> f32 {
+        linear_map(&self.target_values, &self.source_values, progress)
+    }
+}
+
+fn feature_mapper(
+    features1: &[ProgressableFeature],
+    features2: &[ProgressableFeature],
+) -> DoubleMapper {
+    let filtered1: Vec<ProgressableFeature> = features1
+        .iter()
+        .filter(|feature| feature.feature.is_corner())
+        .cloned()
+        .collect();
+    let filtered2: Vec<ProgressableFeature> = features2
+        .iter()
+        .filter(|feature| feature.feature.is_corner())
+        .cloned()
+        .collect();
+    let mappings = feature_mapping(&filtered1, &filtered2);
+
+    DoubleMapper::new(&mappings)
+}
+
+fn feature_mapping(
+    features1: &[ProgressableFeature],
+    features2: &[ProgressableFeature],
+) -> Vec<(f32, f32)> {
+    let mut distances = Vec::new();
+
+    for (index1, feature1) in features1.iter().enumerate() {
+        for (index2, feature2) in features2.iter().enumerate() {
+            let distance = feature_distance_squared(&feature1.feature, &feature2.feature);
+
+            if distance != f32::MAX {
+                distances.push((distance, index1, index2));
+            }
+        }
+    }
+
+    distances.sort_by(|a, b| a.0.total_cmp(&b.0));
+
+    if distances.is_empty() {
+        return vec![(0.0, 0.0), (0.5, 0.5)];
+    }
+
+    if distances.len() == 1 {
+        let (_, index1, index2) = distances[0];
+        let f1 = features1[index1].progress;
+        let f2 = features2[index2].progress;
+
+        return vec![(f1, f2), ((f1 + 0.5) % 1.0, (f2 + 0.5) % 1.0)];
+    }
+
+    let mut helper = MappingHelper::new();
+
+    for (_, index1, index2) in distances {
+        helper.add_mapping(features1, features2, index1, index2);
+    }
+
+    helper.mapping
+}
+
+struct MappingHelper {
+    mapping: Vec<(f32, f32)>,
+    used1: Vec<usize>,
+    used2: Vec<usize>,
+}
+
+impl MappingHelper {
+    fn new() -> Self {
+        Self {
+            mapping: Vec::new(),
+            used1: Vec::new(),
+            used2: Vec::new(),
+        }
+    }
+
+    fn add_mapping(
+        &mut self,
+        features1: &[ProgressableFeature],
+        features2: &[ProgressableFeature],
+        index1: usize,
+        index2: usize,
+    ) {
+        if self.used1.contains(&index1) || self.used2.contains(&index2) {
+            return;
+        }
+
+        let f1 = features1[index1].progress;
+        let f2 = features2[index2].progress;
+        let insertion_index = self
+            .mapping
+            .iter()
+            .position(|mapping| mapping.0 > f1)
+            .unwrap_or(self.mapping.len());
+        let len = self.mapping.len();
+
+        if len >= 1 {
+            let before = self.mapping[(insertion_index + len - 1) % len];
+            let after = self.mapping[insertion_index % len];
+
+            if progress_distance(f1, before.0) < DISTANCE_EPSILON
+                || progress_distance(f1, after.0) < DISTANCE_EPSILON
+                || progress_distance(f2, before.1) < DISTANCE_EPSILON
+                || progress_distance(f2, after.1) < DISTANCE_EPSILON
+            {
+                return;
+            }
+
+            if len > 1 && !progress_in_range(f2, before.1, after.1) {
+                return;
+            }
+        }
+
+        self.mapping.insert(insertion_index, (f1, f2));
+        self.used1.push(index1);
+        self.used2.push(index2);
+    }
+}
+
+fn feature_distance_squared(first: &Feature, second: &Feature) -> f32 {
+    if (first.is_convex_corner() && second.is_concave_corner())
+        || (first.is_concave_corner() && second.is_convex_corner())
+    {
+        return f32::MAX;
+    }
+
+    distance_squared_point(point_sub(
+        feature_representative_point(first),
+        feature_representative_point(second),
+    ))
+}
+
+fn feature_representative_point(feature: &Feature) -> Point {
+    Point::new(
+        (feature.cubics().first().unwrap().anchor0_x()
+            + feature.cubics().last().unwrap().anchor1_x())
+            / 2.0,
+        (feature.cubics().first().unwrap().anchor0_y()
+            + feature.cubics().last().unwrap().anchor1_y())
+            / 2.0,
+    )
+}
+
+fn linear_map(x_values: &[f32], y_values: &[f32], progress: f32) -> f32 {
+    let progress = if progress >= 1.0 {
+        0.0
+    } else {
+        positive_modulo(progress, 1.0)
+    };
+    let segment_start_index = (0..x_values.len())
+        .find(|index| {
+            progress_in_range(
+                progress,
+                x_values[*index],
+                x_values[(*index + 1) % x_values.len()],
+            )
+        })
+        .unwrap_or(0);
+    let segment_end_index = (segment_start_index + 1) % x_values.len();
+    let segment_size_x = positive_modulo(
+        x_values[segment_end_index] - x_values[segment_start_index],
+        1.0,
+    );
+    let segment_size_y = positive_modulo(
+        y_values[segment_end_index] - y_values[segment_start_index],
+        1.0,
+    );
+    let position = if segment_size_x < 0.001 {
+        0.5
+    } else {
+        positive_modulo(progress - x_values[segment_start_index], 1.0) / segment_size_x
+    };
+
+    positive_modulo(
+        y_values[segment_start_index] + segment_size_y * position,
+        1.0,
+    )
+}
+
+fn progress_in_range(progress: f32, from: f32, to: f32) -> bool {
+    if to >= from {
+        (from..=to).contains(&progress)
+    } else {
+        progress >= from || progress <= to
+    }
+}
+
+fn progress_distance(first: f32, second: f32) -> f32 {
+    let distance = (first - second).abs();
+
+    distance.min(1.0 - distance)
+}
+
+fn measure_cubic(cubic: Cubic) -> f32 {
+    closest_progress_to(cubic, f32::INFINITY).1
+}
+
+fn find_cubic_cut_point(cubic: Cubic, measure: f32) -> f32 {
+    closest_progress_to(cubic, measure).0
+}
+
+fn closest_progress_to(cubic: Cubic, threshold: f32) -> (f32, f32) {
+    const SEGMENTS: usize = 3;
+    let mut total = 0.0;
+    let mut remainder = threshold;
+    let mut previous = Point::new(cubic.anchor0_x(), cubic.anchor0_y());
+
+    for index in 1..=SEGMENTS {
+        let progress = index as f32 / SEGMENTS as f32;
+        let point = cubic.point_on_curve(progress);
+        let segment = point_distance(point_sub(point, previous));
+
+        if segment >= remainder {
+            return (
+                progress - (1.0 - remainder / segment) / SEGMENTS as f32,
+                threshold,
+            );
+        }
+
+        remainder -= segment;
+        total += segment;
+        previous = point;
+    }
+
+    (1.0, total)
+}
+
+fn update_cubic_bounds_axis(
+    anchor0: f32,
+    control0: f32,
+    control1: f32,
+    anchor1: f32,
+    point: impl Fn(f32) -> f32,
+    min_value: &mut f32,
+    max_value: &mut f32,
+) {
+    let a = -anchor0 + 3.0 * control0 - 3.0 * control1 + anchor1;
+    let b = 2.0 * anchor0 - 4.0 * control0 + 2.0 * control1;
+    let c = -anchor0 + control0;
+
+    if a.abs() < DISTANCE_EPSILON {
+        if b != 0.0 {
+            let t = 2.0 * c / (-2.0 * b);
+            update_bounds_with_curve_point(t, &point, min_value, max_value);
+        }
+    } else {
+        let discriminant = b * b - 4.0 * a * c;
+
+        if discriminant >= 0.0 {
+            update_bounds_with_curve_point(
+                (-b + discriminant.sqrt()) / (2.0 * a),
+                &point,
+                min_value,
+                max_value,
+            );
+            update_bounds_with_curve_point(
+                (-b - discriminant.sqrt()) / (2.0 * a),
+                &point,
+                min_value,
+                max_value,
+            );
+        }
+    }
+}
+
+fn update_bounds_with_curve_point(
+    t: f32,
+    point: &impl Fn(f32) -> f32,
+    min_value: &mut f32,
+    max_value: &mut f32,
+) {
+    if (0.0..=1.0).contains(&t) {
+        let value = point(t);
+        *min_value = min_value.min(value);
+        *max_value = max_value.max(value);
+    }
+}
+
+fn cubics_bounds(cubics: &[Cubic], approximate: bool) -> [f32; 4] {
     let mut min_x = f32::INFINITY;
-    let mut max_x = f32::NEG_INFINITY;
     let mut min_y = f32::INFINITY;
+    let mut max_x = f32::NEG_INFINITY;
     let mut max_y = f32::NEG_INFINITY;
 
-    for point in points {
-        min_x = min_x.min(point.x);
-        max_x = max_x.max(point.x);
-        min_y = min_y.min(point.y);
-        max_y = max_y.max(point.y);
+    for cubic in cubics {
+        let bounds = cubic.calculate_bounds(approximate);
+
+        min_x = min_x.min(bounds[0]);
+        min_y = min_y.min(bounds[1]);
+        max_x = max_x.max(bounds[2]);
+        max_y = max_y.max(bounds[3]);
     }
 
-    (Point::new(min_x, min_y), Point::new(max_x, max_y))
+    [min_x, min_y, max_x, max_y]
 }
 
-fn distance(from: Point, to: Point) -> f32 {
-    (to.x - from.x).hypot(to.y - from.y)
+fn bounds_width(bounds: [f32; 4]) -> f32 {
+    bounds[2] - bounds[0]
 }
 
-fn squared_distance(from: Point, to: Point) -> f32 {
-    let x = to.x - from.x;
-    let y = to.y - from.y;
-
-    x * x + y * y
+fn bounds_height(bounds: [f32; 4]) -> f32 {
+    bounds[3] - bounds[1]
 }
 
-fn point_add(from: Point, to: Point) -> Point {
-    Point::new(from.x + to.x, from.y + to.y)
+fn bounds_center(bounds: [f32; 4]) -> Point {
+    Point::new((bounds[0] + bounds[2]) / 2.0, (bounds[1] + bounds[3]) / 2.0)
 }
 
-fn point_sub(from: Point, to: Point) -> Point {
-    Point::new(from.x - to.x, from.y - to.y)
+fn calculate_center(vertices: &[Point]) -> Point {
+    let sum = vertices
+        .iter()
+        .fold(Point::ORIGIN, |sum, point| point_add(sum, *point));
+
+    point_scale(sum, 1.0 / vertices.len() as f32)
+}
+
+fn radial_to_cartesian(radius: f32, angle: f32, center: Point) -> Point {
+    point_add(
+        point_scale(direction_vector_from_angle(angle), radius),
+        center,
+    )
+}
+
+fn convex(previous: Point, current: Point, next: Point) -> bool {
+    point_clockwise(point_sub(current, previous), point_sub(next, current))
+}
+
+fn rotate_point(point: Point, rotation: f32) -> Point {
+    let cos = rotation.cos();
+    let sin = rotation.sin();
+
+    Point::new(point.x * cos - point.y * sin, point.x * sin + point.y * cos)
+}
+
+fn rotate_point_around(point: Point, center: Point, rotation: f32) -> Point {
+    point_add(rotate_point(point_sub(point, center), rotation), center)
+}
+
+fn point_add(first: Point, second: Point) -> Point {
+    Point::new(first.x + second.x, first.y + second.y)
+}
+
+fn point_sub(first: Point, second: Point) -> Point {
+    Point::new(first.x - second.x, first.y - second.y)
 }
 
 fn point_scale(point: Point, scale: f32) -> Point {
     Point::new(point.x * scale, point.y * scale)
 }
 
-fn point_lerp(from: Point, to: Point, progress: f32) -> Point {
+fn point_lerp(first: Point, second: Point, progress: f32) -> Point {
     Point::new(
-        from.x + (to.x - from.x) * progress,
-        from.y + (to.y - from.y) * progress,
+        lerp(first.x, second.x, progress),
+        lerp(first.y, second.y, progress),
     )
 }
 
-fn point_length(point: Point) -> f32 {
-    point.x.hypot(point.y)
+fn point_distance(point: Point) -> f32 {
+    distance_components(point.x, point.y)
 }
+
+fn point_direction(point: Point) -> Point {
+    let distance = point_distance(point);
+
+    assert!(distance > 0.0);
+    point_scale(point, 1.0 / distance)
+}
+
+fn point_dot(first: Point, second: Point) -> f32 {
+    first.x * second.x + first.y * second.y
+}
+
+fn point_clockwise(first: Point, second: Point) -> bool {
+    first.x * second.y - first.y * second.x > 0.0
+}
+
+fn rotate90(point: Point) -> Point {
+    Point::new(-point.y, point.x)
+}
+
+fn direction_vector(x: f32, y: f32) -> Point {
+    let distance = distance_components(x, y);
+
+    assert!(distance > 0.0);
+    Point::new(x / distance, y / distance)
+}
+
+fn direction_vector_from_angle(angle: f32) -> Point {
+    Point::new(angle.cos(), angle.sin())
+}
+
+fn distance_components(x: f32, y: f32) -> f32 {
+    (x * x + y * y).sqrt()
+}
+
+fn distance_squared(x: f32, y: f32) -> f32 {
+    x * x + y * y
+}
+
+fn distance_squared_point(point: Point) -> f32 {
+    distance_squared(point.x, point.y)
+}
+
+fn square(value: f32) -> f32 {
+    value * value
+}
+
+fn lerp(start: f32, end: f32, progress: f32) -> f32 {
+    (1.0 - progress) * start + progress * end
+}
+
+fn positive_modulo(value: f32, modulus: f32) -> f32 {
+    (value % modulus + modulus) % modulus
+}
+
+const DISTANCE_EPSILON: f32 = 1e-4;
+const ANGLE_EPSILON: f32 = 1e-6;
 
 #[cfg(test)]
 mod tests {
@@ -1404,152 +2596,101 @@ mod tests {
     }
 
     #[test]
-    fn loading_indicator_uses_material_shape_sequence_vertices_and_rounding() {
-        assert_eq!(material_loading_vertices(0).len(), 20);
-        assert!(
-            material_loading_vertices(0)
-                .iter()
-                .all(|vertex| vertex.rounding > 0.0)
+    fn loading_indicator_uses_androidx_material_shape_sequence() {
+        let polygons = indeterminate_loading_polygons();
+
+        assert_eq!(
+            polygons.len(),
+            tokens::component::loading_indicator::INDETERMINATE_SHAPE_COUNT
         );
-        assert_eq!(material_loading_vertices(1).len(), 18);
-        assert!(
-            material_loading_vertices(1)
-                .iter()
-                .all(|vertex| vertex.rounding > 0.0)
+        assert_eq!(
+            polygons.iter().map(corner_count).collect::<Vec<_>>(),
+            vec![20, 18, 5, 10, 16, 8, 8]
         );
-        assert_eq!(material_loading_vertices(2).len(), 5);
-        assert!(
-            material_loading_vertices(2)
-                .iter()
-                .all(|vertex| vertex.rounding > 0.0)
+        assert!(polygons.iter().all(|polygon| !polygon.cubics.is_empty()));
+    }
+
+    #[test]
+    fn cookie4_uses_androidx_material_shape_definition() {
+        let cookie = material_cookie4();
+        let repeated = repeat_material_vertices(
+            &[
+                ShapeVertex::new(1.237, 1.236, CornerRounding::new(0.258)),
+                ShapeVertex::new(0.500, 0.918, CornerRounding::new(0.233)),
+            ],
+            4,
+            Point::new(0.5, 0.5),
+            false,
         );
-        assert_eq!(material_loading_vertices(3).len(), 10);
-        assert!(
-            material_loading_vertices(3)
-                .iter()
-                .any(|vertex| vertex.rounding == 0.0)
-        );
-        assert!(
-            material_loading_vertices(3)
-                .iter()
-                .any(|vertex| vertex.rounding > 0.0)
-        );
-        assert_eq!(material_loading_vertices(4).len(), 16);
-        assert!(
-            material_loading_vertices(4)
-                .iter()
-                .all(|vertex| vertex.rounding > 0.0)
-        );
-        assert_eq!(material_loading_vertices(5).len(), 8);
-        assert!(
-            material_loading_vertices(5)
-                .iter()
-                .all(|vertex| vertex.rounding > 0.0)
-        );
-        assert_eq!(material_loading_vertices(6).len(), CIRCLE_SAMPLE_COUNT);
+
+        let corners: Vec<_> = cookie
+            .features
+            .iter()
+            .filter(|feature| feature.is_corner())
+            .collect();
+
+        assert_eq!(repeated.len(), 8);
+        assert_eq!(corners.len(), 8);
+        assert!(corners.iter().all(|feature| matches!(
+            feature,
+            Feature::Corner { cubics, .. } if !cubics.is_empty()
+        )));
     }
 
     #[test]
     fn loading_shape_sequence_wraps_after_seven_shapes() {
-        let first = material_loading_vertices(0);
-        let repeated = material_loading_vertices(
-            tokens::component::loading_indicator::INDETERMINATE_SHAPE_COUNT,
+        let polygons = indeterminate_loading_polygons();
+        let morphs = morph_sequence(&polygons, true);
+        let repeated = Morph::new(
+            polygons[polygons.len() - 1].normalized(),
+            polygons[0].normalized(),
         );
 
-        assert_eq!(first, repeated);
+        assert_eq!(morphs.len(), polygons.len());
+        assert_eq!(morphs[morphs.len() - 1].pairs, repeated.pairs);
     }
 
     #[test]
     fn determinate_loading_shape_sequence_uses_circle_to_soft_burst() {
-        assert_eq!(determinate_loading_vertices(0).len(), CIRCLE_SAMPLE_COUNT);
-        assert_eq!(
-            determinate_loading_vertices(1),
-            material_loading_vertices(0)
-        );
+        let polygons = determinate_loading_polygons();
+
+        assert_eq!(polygons.len(), 2);
+        assert_eq!(corner_count(&polygons[0]), 10);
+        assert_eq!(polygons[1], material_soft_burst());
     }
 
     #[test]
-    fn loading_shape_outlines_are_densely_rounded() {
-        for shape_index in 0..tokens::component::loading_indicator::INDETERMINATE_SHAPE_COUNT {
-            let outline = material_loading_outline(shape_index);
+    fn loading_morphs_use_androidx_feature_mapping() {
+        let polygons = indeterminate_loading_polygons();
+        let morphs = morph_sequence(&polygons, true);
 
+        for (index, morph) in morphs.iter().enumerate() {
+            let from = polygons[index].normalized();
+            let to = polygons[(index + 1) % polygons.len()].normalized();
+
+            assert!(!morph.pairs.is_empty());
             assert!(
-                outline.len() >= 64,
-                "shape {shape_index} outline is undersampled: {}",
-                outline.len()
-            );
-            assert!(
-                max_turn_angle(&outline) < 0.7,
-                "shape {shape_index} has a hard outline turn: {}",
-                max_turn_angle(&outline)
+                morph.pairs.len() >= from.cubics.len().max(to.cubics.len()),
+                "morph {index} lost cubic segments"
             );
         }
     }
 
     #[test]
-    fn loading_morphs_do_not_create_spike_turns() {
-        for shape_index in 0..tokens::component::loading_indicator::INDETERMINATE_SHAPE_COUNT {
-            let from = material_loading_outline(shape_index);
-            let to = material_loading_outline(
-                (shape_index + 1) % tokens::component::loading_indicator::INDETERMINATE_SHAPE_COUNT,
-            );
+    fn loading_morphs_are_centered_after_androidx_path_processing() {
+        let polygons = indeterminate_loading_polygons();
+        let morphs = morph_sequence(&polygons, true);
+        let scale = loading_shape_scale(&polygons);
+        let target = Point::new(40.0, 72.0);
 
-            for progress in [0.0, 0.25, 0.5, 0.75, 1.0] {
-                let points = morphed_loading_points(&from, &to, progress);
-                let max_turn = max_turn_angle(&points);
-
-                assert!(
-                    max_turn < 0.7,
-                    "shape {shape_index} morph {progress} has a spike turn: {max_turn}"
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn loading_morphs_are_centered_before_rotation() {
-        for shape_index in 0..tokens::component::loading_indicator::INDETERMINATE_SHAPE_COUNT {
-            let from = material_loading_outline(shape_index);
-            let to = material_loading_outline(
-                (shape_index + 1) % tokens::component::loading_indicator::INDETERMINATE_SHAPE_COUNT,
-            );
-
+        for (index, morph) in morphs.iter().enumerate() {
             for progress in [0.0, 0.125, 0.25, 0.5, 0.75, 0.875, 1.0] {
-                let points = morphed_loading_points(&from, &to, progress);
-                let center = points_bounds_center(&points);
+                let cubics = morph.as_cubics(progress);
+                let processed = processed_cubics(&cubics, target, 100.0, scale, 0.0);
+                let center = bounds_center(cubics_bounds(&processed, false));
 
-                assert!(
-                    center.x.abs() < 0.001 && center.y.abs() < 0.001,
-                    "shape {shape_index} morph {progress} is off-center: {center:?}"
-                );
+                assert_point_close(center, target, index, progress);
             }
-        }
-    }
-
-    #[test]
-    fn loading_morph_endpoints_preserve_source_bounds() {
-        for shape_index in 0..tokens::component::loading_indicator::INDETERMINATE_SHAPE_COUNT {
-            let from = material_loading_outline(shape_index);
-            let to = material_loading_outline(
-                (shape_index + 1) % tokens::component::loading_indicator::INDETERMINATE_SHAPE_COUNT,
-            );
-            let centered_from = center_points_on_bounds(&from);
-            let centered_to = center_points_on_bounds(&to);
-            let start_points = morphed_loading_points(&from, &to, 0.0);
-            let end_points = morphed_loading_points(&from, &to, 1.0);
-
-            assert_bounds_close(
-                points_bounds_size(&start_points),
-                points_bounds_size(&centered_from),
-                shape_index,
-                0.0,
-            );
-            assert_bounds_close(
-                points_bounds_size(&end_points),
-                points_bounds_size(&centered_to),
-                shape_index,
-                1.0,
-            );
         }
     }
 
@@ -1562,47 +2703,25 @@ mod tests {
 
     #[test]
     fn loading_shape_scale_accounts_for_rotation_bounds() {
-        let scale = loading_shape_scale();
+        let polygons = indeterminate_loading_polygons();
+        let scale = loading_shape_scale(&polygons);
 
         assert!(scale > 0.0);
         assert!(scale < tokens::component::loading_indicator::ACTIVE_INDICATOR_SCALE);
     }
 
-    fn max_turn_angle(points: &[Point]) -> f32 {
-        let mut max_angle = 0.0_f32;
-
-        for index in 0..points.len() {
-            let previous = points[(index + points.len() - 1) % points.len()];
-            let current = points[index];
-            let next = points[(index + 1) % points.len()];
-            let incoming = point_sub(current, previous);
-            let outgoing = point_sub(next, current);
-            let incoming_length = point_length(incoming);
-            let outgoing_length = point_length(outgoing);
-
-            if incoming_length <= f32::EPSILON || outgoing_length <= f32::EPSILON {
-                continue;
-            }
-
-            let dot = (incoming.x * outgoing.x + incoming.y * outgoing.y)
-                / (incoming_length * outgoing_length);
-            let angle = dot.clamp(-1.0, 1.0).acos();
-
-            max_angle = max_angle.max(angle);
-        }
-
-        max_angle
+    fn corner_count(polygon: &RoundedPolygon) -> usize {
+        polygon
+            .features
+            .iter()
+            .filter(|feature| feature.is_corner())
+            .count()
     }
 
-    fn assert_bounds_close(
-        actual: (f32, f32),
-        expected: (f32, f32),
-        shape_index: usize,
-        progress: f32,
-    ) {
+    fn assert_point_close(actual: Point, expected: Point, morph_index: usize, progress: f32) {
         assert!(
-            (actual.0 - expected.0).abs() < 0.03 && (actual.1 - expected.1).abs() < 0.03,
-            "shape {shape_index} morph {progress} changed bounds: actual={actual:?} expected={expected:?}"
+            (actual.x - expected.x).abs() < 0.001 && (actual.y - expected.y).abs() < 0.001,
+            "morph {morph_index} progress {progress} is off-center: actual={actual:?} expected={expected:?}"
         );
     }
 }
