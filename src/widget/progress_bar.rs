@@ -758,7 +758,7 @@ fn morphed_loading_points(from: &[Point], to: &[Point], morph_progress: f32) -> 
         ));
     }
 
-    center_points_on_bounds(&smooth_closed_points(&smooth_closed_points(&points)))
+    center_points_on_bounds(&points)
 }
 
 #[derive(Debug)]
@@ -1238,24 +1238,6 @@ fn push_outline_point(outline: &mut Vec<Point>, point: Point) {
     }
 }
 
-fn smooth_closed_points(points: &[Point]) -> Vec<Point> {
-    if points.len() < 3 {
-        return points.to_vec();
-    }
-
-    let mut smoothed = Vec::with_capacity(points.len() * 2);
-
-    for index in 0..points.len() {
-        let from = points[index];
-        let to = points[(index + 1) % points.len()];
-
-        smoothed.push(point_lerp(from, to, 0.25));
-        smoothed.push(point_lerp(from, to, 0.75));
-    }
-
-    smoothed
-}
-
 fn center_points_on_bounds(points: &[Point]) -> Vec<Point> {
     let center = points_bounds_center(points);
 
@@ -1270,6 +1252,23 @@ fn points_bounds_center(points: &[Point]) -> Point {
         return Point::ORIGIN;
     }
 
+    let (min, max) = points_bounds(points);
+
+    Point::new((min.x + max.x) / 2.0, (min.y + max.y) / 2.0)
+}
+
+#[cfg(test)]
+fn points_bounds_size(points: &[Point]) -> (f32, f32) {
+    let (min, max) = points_bounds(points);
+
+    (max.x - min.x, max.y - min.y)
+}
+
+fn points_bounds(points: &[Point]) -> (Point, Point) {
+    if points.is_empty() {
+        return (Point::ORIGIN, Point::ORIGIN);
+    }
+
     let mut min_x = f32::INFINITY;
     let mut max_x = f32::NEG_INFINITY;
     let mut min_y = f32::INFINITY;
@@ -1282,7 +1281,7 @@ fn points_bounds_center(points: &[Point]) -> Point {
         max_y = max_y.max(point.y);
     }
 
-    Point::new((min_x + max_x) / 2.0, (min_y + max_y) / 2.0)
+    (Point::new(min_x, min_y), Point::new(max_x, max_y))
 }
 
 fn distance(from: Point, to: Point) -> f32 {
@@ -1528,6 +1527,33 @@ mod tests {
     }
 
     #[test]
+    fn loading_morph_endpoints_preserve_source_bounds() {
+        for shape_index in 0..tokens::component::loading_indicator::INDETERMINATE_SHAPE_COUNT {
+            let from = material_loading_outline(shape_index);
+            let to = material_loading_outline(
+                (shape_index + 1) % tokens::component::loading_indicator::INDETERMINATE_SHAPE_COUNT,
+            );
+            let centered_from = center_points_on_bounds(&from);
+            let centered_to = center_points_on_bounds(&to);
+            let start_points = morphed_loading_points(&from, &to, 0.0);
+            let end_points = morphed_loading_points(&from, &to, 1.0);
+
+            assert_bounds_close(
+                points_bounds_size(&start_points),
+                points_bounds_size(&centered_from),
+                shape_index,
+                0.0,
+            );
+            assert_bounds_close(
+                points_bounds_size(&end_points),
+                points_bounds_size(&centered_to),
+                shape_index,
+                1.0,
+            );
+        }
+    }
+
+    #[test]
     fn loading_morph_spring_reaches_target_before_interval_end() {
         assert_close(loading_spring_progress(0.0), 0.0);
         assert!(loading_spring_progress(0.5) > 0.8);
@@ -1566,5 +1592,17 @@ mod tests {
         }
 
         max_angle
+    }
+
+    fn assert_bounds_close(
+        actual: (f32, f32),
+        expected: (f32, f32),
+        shape_index: usize,
+        progress: f32,
+    ) {
+        assert!(
+            (actual.0 - expected.0).abs() < 0.03 && (actual.1 - expected.1).abs() < 0.03,
+            "shape {shape_index} morph {progress} changed bounds: actual={actual:?} expected={expected:?}"
+        );
     }
 }
