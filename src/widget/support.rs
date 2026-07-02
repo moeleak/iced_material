@@ -165,7 +165,7 @@ impl AnimatedScalar {
         }
     }
 
-    fn is_animating(&self) -> bool {
+    pub(super) fn is_animating(&self) -> bool {
         self.started_at.is_some()
     }
 }

@@ -25,7 +25,7 @@ fn cards() -> material::Element<'static, Message> {
 
 fn lists() -> material::Element<'static, Message> {
     page::stack([
-        material::widget::list::one_line_with_leading_icon("*", "One-line list item").into(),
+        material::widget::list::one_line_with_leading_icon("info", "One-line list item").into(),
         material::widget::list::two_line_with_trailing("Messages", "Supporting text", "24").into(),
         material::widget::list::three_line("Three-line item", "Supporting text", "Second line")
             .into(),

@@ -225,14 +225,70 @@ pub fn text(theme: &Theme, status: Status) -> Style {
     }
 }
 
-fn fab_style(theme: &Theme, background: Color, foreground: Color, status: Status) -> Style {
+fn fab_style_with_tokens(
+    theme: &Theme,
+    background: Color,
+    foreground: Color,
+    elevations: ElevationLevels,
+    shape: f32,
+    status: Status,
+) -> Style {
     styled_with_elevations_and_shape(
         background,
         foreground,
         theme.colors().surface.text,
         theme.colors().shadow,
+        elevations,
+        shape,
+        status,
+    )
+}
+
+fn fab_style(theme: &Theme, background: Color, foreground: Color, status: Status) -> Style {
+    fab_style_with_tokens(
+        theme,
+        background,
+        foreground,
         tokens::component::fab::ELEVATION,
         tokens::component::fab::CONTAINER_SHAPE,
+        status,
+    )
+}
+
+fn fab_small_style(theme: &Theme, background: Color, foreground: Color, status: Status) -> Style {
+    fab_style_with_tokens(
+        theme,
+        background,
+        foreground,
+        tokens::component::fab::ELEVATION,
+        tokens::component::fab::SMALL_CONTAINER_SHAPE,
+        status,
+    )
+}
+
+fn fab_large_style(theme: &Theme, background: Color, foreground: Color, status: Status) -> Style {
+    fab_style_with_tokens(
+        theme,
+        background,
+        foreground,
+        tokens::component::fab::ELEVATION,
+        tokens::component::fab::LARGE_CONTAINER_SHAPE,
+        status,
+    )
+}
+
+fn extended_fab_style(
+    theme: &Theme,
+    background: Color,
+    foreground: Color,
+    status: Status,
+) -> Style {
+    fab_style_with_tokens(
+        theme,
+        background,
+        foreground,
+        tokens::component::fab::EXTENDED_ELEVATION,
+        tokens::component::fab::EXTENDED_CONTAINER_SHAPE,
         status,
     )
 }
@@ -240,19 +296,112 @@ fn fab_style(theme: &Theme, background: Color, foreground: Color, status: Status
 pub fn fab_primary(theme: &Theme, status: Status) -> Style {
     let primary = theme.colors().primary;
 
-    fab_style(theme, primary.container, primary.container_text, status)
+    fab_style(theme, primary.color, primary.text, status)
+}
+
+pub fn fab_primary_small(theme: &Theme, status: Status) -> Style {
+    let primary = theme.colors().primary;
+
+    fab_small_style(theme, primary.color, primary.text, status)
+}
+
+pub fn fab_primary_large(theme: &Theme, status: Status) -> Style {
+    let primary = theme.colors().primary;
+
+    fab_large_style(theme, primary.color, primary.text, status)
 }
 
 pub fn fab_secondary(theme: &Theme, status: Status) -> Style {
     let secondary = theme.colors().secondary;
 
-    fab_style(theme, secondary.container, secondary.container_text, status)
+    fab_style(theme, secondary.color, secondary.text, status)
+}
+
+pub fn fab_secondary_small(theme: &Theme, status: Status) -> Style {
+    let secondary = theme.colors().secondary;
+
+    fab_small_style(theme, secondary.color, secondary.text, status)
+}
+
+pub fn fab_secondary_large(theme: &Theme, status: Status) -> Style {
+    let secondary = theme.colors().secondary;
+
+    fab_large_style(theme, secondary.color, secondary.text, status)
+}
+
+pub fn fab_tertiary(theme: &Theme, status: Status) -> Style {
+    let tertiary = theme.colors().tertiary;
+
+    fab_style(theme, tertiary.color, tertiary.text, status)
+}
+
+pub fn fab_tertiary_small(theme: &Theme, status: Status) -> Style {
+    let tertiary = theme.colors().tertiary;
+
+    fab_small_style(theme, tertiary.color, tertiary.text, status)
+}
+
+pub fn fab_tertiary_large(theme: &Theme, status: Status) -> Style {
+    let tertiary = theme.colors().tertiary;
+
+    fab_large_style(theme, tertiary.color, tertiary.text, status)
 }
 
 pub fn fab_surface(theme: &Theme, status: Status) -> Style {
     let colors = theme.colors();
 
     fab_style(
+        theme,
+        colors.surface.container.high,
+        colors.primary.color,
+        status,
+    )
+}
+
+pub fn fab_surface_small(theme: &Theme, status: Status) -> Style {
+    let colors = theme.colors();
+
+    fab_small_style(
+        theme,
+        colors.surface.container.high,
+        colors.primary.color,
+        status,
+    )
+}
+
+pub fn fab_surface_large(theme: &Theme, status: Status) -> Style {
+    let colors = theme.colors();
+
+    fab_large_style(
+        theme,
+        colors.surface.container.high,
+        colors.primary.color,
+        status,
+    )
+}
+
+pub fn extended_fab_primary(theme: &Theme, status: Status) -> Style {
+    let primary = theme.colors().primary;
+
+    extended_fab_style(theme, primary.color, primary.text, status)
+}
+
+pub fn extended_fab_secondary(theme: &Theme, status: Status) -> Style {
+    let secondary = theme.colors().secondary;
+
+    extended_fab_style(theme, secondary.color, secondary.text, status)
+}
+
+pub fn extended_fab_tertiary(theme: &Theme, status: Status) -> Style {
+    let tertiary = theme.colors().tertiary;
+
+    extended_fab_style(theme, tertiary.color, tertiary.text, status)
+}
+
+pub fn extended_fab_surface(theme: &Theme, status: Status) -> Style {
+    let colors = theme.colors();
+
+    extended_fab_style(
         theme,
         colors.surface.container.high,
         colors.primary.color,
@@ -688,9 +837,9 @@ mod tests {
         let active = fab_primary(&theme, Status::Active);
         assert_eq!(
             active.background,
-            Some(Background::Color(colors.primary.container))
+            Some(Background::Color(colors.primary.color))
         );
-        assert_eq!(active.text_color, colors.primary.container_text);
+        assert_eq!(active.text_color, colors.primary.text);
         assert_eq!(
             active.border.radius.top_left,
             tokens::component::fab::CONTAINER_SHAPE
@@ -708,6 +857,36 @@ mod tests {
     }
 
     #[test]
+    fn fab_size_variants_use_m3_shape_tokens() {
+        let theme = Theme::Light;
+
+        let small = fab_primary_small(&theme, Status::Active);
+        assert_eq!(
+            small.border.radius.top_left,
+            tokens::component::fab::SMALL_CONTAINER_SHAPE
+        );
+
+        let large = fab_primary_large(&theme, Status::Active);
+        assert_eq!(
+            large.border.radius.top_left,
+            tokens::component::fab::LARGE_CONTAINER_SHAPE
+        );
+    }
+
+    #[test]
+    fn fab_tertiary_uses_m3_filled_color_roles() {
+        let theme = Theme::Light;
+        let colors = theme.colors();
+        let style = fab_tertiary(&theme, Status::Active);
+
+        assert_eq!(
+            style.background,
+            Some(Background::Color(colors.tertiary.color))
+        );
+        assert_eq!(style.text_color, colors.tertiary.text);
+    }
+
+    #[test]
     fn fab_surface_uses_m3_surface_container_high_and_primary_icon() {
         let theme = Theme::Light;
         let colors = theme.colors();
@@ -718,6 +897,29 @@ mod tests {
             Some(Background::Color(colors.surface.container.high))
         );
         assert_eq!(style.text_color, colors.primary.color);
+    }
+
+    #[test]
+    fn extended_fab_uses_m3_shape_color_and_elevation_tokens() {
+        let theme = Theme::Light;
+        let colors = theme.colors();
+
+        let active = extended_fab_primary(&theme, Status::Active);
+        assert_eq!(
+            active.background,
+            Some(Background::Color(colors.primary.color))
+        );
+        assert_eq!(active.text_color, colors.primary.text);
+        assert_eq!(
+            active.border.radius.top_left,
+            tokens::component::fab::EXTENDED_CONTAINER_SHAPE
+        );
+        assert_eq!(active.shadow.offset.y, 4.0);
+        assert_eq!(active.shadow.blur_radius, 8.0);
+
+        let hovered = extended_fab_primary(&theme, Status::Hovered);
+        assert_eq!(hovered.shadow.offset.y, 6.0);
+        assert_eq!(hovered.shadow.blur_radius, 10.0);
     }
 
     #[test]

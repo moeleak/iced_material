@@ -31,10 +31,14 @@ enum Message {
     SelectChanged(&'static str),
     ComboSelected(&'static str),
     ComboInputChanged(String),
+    SearchChanged(String),
     SliderChanged(f32),
     EnabledChanged(bool),
     DarkModeChanged(bool),
     ChoiceSelected(RadioChoice),
+    SegmentSelected(SegmentChoice),
+    PrimaryTabSelected(TabChoice),
+    SecondaryTabSelected(TabChoice),
     MenuPressed,
     WindowResized(Size),
     Frame(Instant),
@@ -47,6 +51,7 @@ enum ShowcasePage {
     Feedback,
     Surfaces,
     Navigation,
+    Structure,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,6 +61,40 @@ enum RadioChoice {
     Dense,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SegmentChoice {
+    List,
+    Grid,
+    Map,
+}
+
+impl SegmentChoice {
+    const fn index(self) -> usize {
+        match self {
+            Self::List => 0,
+            Self::Grid => 1,
+            Self::Map => 2,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TabChoice {
+    Inputs,
+    Controls,
+    Feedback,
+}
+
+impl TabChoice {
+    const fn index(self) -> usize {
+        match self {
+            Self::Inputs => 0,
+            Self::Controls => 1,
+            Self::Feedback => 2,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 struct InventoryRow {
     component: &'static str,
@@ -63,12 +102,13 @@ struct InventoryRow {
     count: u32,
 }
 
-const NAV_DESTINATIONS: [navigation::Destination<ShowcasePage>; 5] = [
+const NAV_DESTINATIONS: [navigation::Destination<ShowcasePage>; 6] = [
     navigation::Destination::new(ShowcasePage::Inputs, "input", "Inputs"),
     navigation::Destination::new(ShowcasePage::Controls, "tune", "Controls"),
     navigation::Destination::new(ShowcasePage::Feedback, "info", "Feedback").badge("3"),
     navigation::Destination::new(ShowcasePage::Surfaces, "layers", "Surfaces").small_badge(),
     navigation::Destination::new(ShowcasePage::Navigation, "navigation", "Navigation"),
+    navigation::Destination::new(ShowcasePage::Structure, "layers", "Structure"),
 ];
 
 const INVENTORY_ROWS: [InventoryRow; 3] = [
@@ -100,10 +140,18 @@ struct Showcase {
     combo_options: material::widget::combo_box::State<&'static str>,
     combo_choice: Option<&'static str>,
     combo_input: String,
+    search_query: String,
     progress: f32,
     enabled: bool,
     dark_mode: bool,
     radio_choice: Option<RadioChoice>,
+    segment_choice: SegmentChoice,
+    segment_state: material::widget::segmented_button::State,
+    primary_tab: TabChoice,
+    primary_tab_state: material::widget::tabs::State,
+    secondary_tab: TabChoice,
+    secondary_tab_state: material::widget::tabs::State,
+    progress_animation: material::widget::progress_bar::IndeterminateState,
     visible_scheme: ColorScheme,
     animation: Option<ColorSchemeTransition>,
 }
@@ -127,10 +175,22 @@ impl Default for Showcase {
             ),
             combo_choice: Some("Suggestion"),
             combo_input: String::new(),
+            search_query: String::new(),
             progress: 42.0,
             enabled: true,
             dark_mode: true,
             radio_choice: Some(RadioChoice::Standard),
+            segment_choice: SegmentChoice::List,
+            segment_state: material::widget::segmented_button::State::new(
+                SegmentChoice::List.index(),
+            ),
+            primary_tab: TabChoice::Inputs,
+            primary_tab_state: material::widget::tabs::State::new(TabChoice::Inputs.index()),
+            secondary_tab: TabChoice::Controls,
+            secondary_tab_state: material::widget::tabs::State::new(TabChoice::Controls.index()),
+            progress_animation: material::widget::progress_bar::IndeterminateState::new(
+                Instant::now(),
+            ),
             visible_scheme: initial_theme.colors(),
             animation: None,
         }
@@ -173,9 +233,30 @@ fn update(state: &mut Showcase, message: Message) {
             state.combo_input = input;
             state.combo_choice = None;
         }
+        Message::SearchChanged(query) => state.search_query = query,
         Message::SliderChanged(progress) => state.progress = progress,
         Message::EnabledChanged(enabled) => state.enabled = enabled,
         Message::ChoiceSelected(choice) => state.radio_choice = Some(choice),
+        Message::SegmentSelected(choice) => {
+            state.segment_choice = choice;
+            state.segment_state.select(choice.index(), Instant::now());
+        }
+        Message::PrimaryTabSelected(choice) => {
+            state.primary_tab = choice;
+            state.primary_tab_state.select(
+                choice.index(),
+                Instant::now(),
+                material::widget::tabs::Variant::Primary,
+            );
+        }
+        Message::SecondaryTabSelected(choice) => {
+            state.secondary_tab = choice;
+            state.secondary_tab_state.select(
+                choice.index(),
+                Instant::now(),
+                material::widget::tabs::Variant::Secondary,
+            );
+        }
         Message::MenuPressed => state.navigation.toggle_menu_now(),
         Message::WindowResized(size) => state.window_size = size,
         Message::DarkModeChanged(dark_mode) => {
@@ -203,6 +284,10 @@ fn update(state: &mut Showcase, message: Message) {
             }
 
             let _ = state.navigation.advance(now);
+            let _ = state.segment_state.advance(now);
+            let _ = state.primary_tab_state.advance(now);
+            let _ = state.secondary_tab_state.advance(now);
+            state.progress_animation.advance(now);
         }
     }
 }
@@ -215,7 +300,14 @@ fn subscription(state: &Showcase) -> Subscription<Message> {
     let mut subscriptions =
         vec![iced::window::resize_events().map(|(_id, size)| Message::WindowResized(size))];
 
-    if state.animation.is_some() || state.navigation.is_animating() {
+    if state.animation.is_some()
+        || state.navigation.is_animating()
+        || state.segment_state.is_animating()
+        || state.primary_tab_state.is_animating()
+        || state.secondary_tab_state.is_animating()
+        || (state.navigation.selected() == ShowcasePage::Feedback
+            && state.progress_animation.is_animating())
+    {
         subscriptions.push(iced::window::frames().map(Message::Frame));
     }
 
@@ -277,7 +369,7 @@ mod tests {
         assert_eq!(material::fonts::all().len(), 8);
         assert_eq!(
             NAV_DESTINATIONS.map(|destination| destination.icon),
-            ["input", "tune", "info", "layers", "navigation"]
+            ["input", "tune", "info", "layers", "navigation", "layers"]
         );
 
         for destination in NAV_DESTINATIONS {
@@ -287,7 +379,7 @@ mod tests {
 
     #[test]
     fn navigation_showcase_rail_height_fits_all_destinations() {
-        assert_eq!(pages::navigation_showcase_rail_height(), 468.0);
+        assert_eq!(pages::navigation_showcase_rail_height(), 536.0);
         assert!(
             pages::navigation_showcase_rail_height()
                 > material::widget::navigation::navigation_rail_min_height(4, true)

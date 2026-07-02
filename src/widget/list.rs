@@ -6,7 +6,7 @@ use iced_widget::text;
 use iced_widget::{Column, Container, Row, Text};
 
 use super::absolute_line_height;
-use crate::{Theme, list as list_style, text as text_style, tokens};
+use crate::{Theme, fonts, list as list_style, text as text_style, tokens};
 
 pub fn one_line<'a, Message, Renderer>(
     label: impl text::IntoFragment<'a>,
@@ -30,6 +30,7 @@ pub fn one_line_with_leading_icon<'a, Message, Renderer>(
 where
     Message: 'a,
     Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    iced_widget::core::Font: Into<Renderer::Font>,
 {
     item(
         Row::<Message, Theme, Renderer>::new()
@@ -167,12 +168,14 @@ where
 fn leading_icon<'a, Renderer>(icon: impl text::IntoFragment<'a>) -> Text<'a, Theme, Renderer>
 where
     Renderer: core_text::Renderer,
+    iced_widget::core::Font: Into<Renderer::Font>,
 {
-    Text::new(icon)
-        .size(tokens::component::list::LEADING_ICON_SIZE)
-        .line_height(absolute_line_height(
-            tokens::component::list::LEADING_ICON_SIZE,
-        ))
+    let icon_size = tokens::component::list::LEADING_ICON_SIZE;
+
+    fonts::icon(icon, icon_size)
+        .width(Length::Fixed(icon_size))
+        .height(Length::Fixed(icon_size))
+        .center()
         .style(text_style::surface_variant)
 }
 

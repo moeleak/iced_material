@@ -23,7 +23,7 @@ use iced_widget::text_input as iced_text_input;
 use iced_widget::toggler as iced_toggler;
 use iced_widget::tooltip as iced_tooltip;
 use iced_widget::{
-    Button, Container, ProgressBar, Rule, Slider, Text, TextEditor as IcedTextEditor,
+    Button, Container, Row, Rule, Slider, Text, TextEditor as IcedTextEditor,
     TextInput as IcedTextInput, Tooltip,
 };
 
@@ -31,11 +31,12 @@ use crate::utils::mix;
 use crate::{Theme, tokens};
 use crate::{
     button as button_style, checkbox as checkbox_style, container as container_style,
-    menu as menu_style, pick_list as pick_list_style, progress_bar as progress_bar_style,
-    rule as rule_style, slider as slider_style, text_editor as text_editor_style,
-    text_input as text_input_style, toggler as toggler_style, tooltip as tooltip_style,
+    menu as menu_style, pick_list as pick_list_style, rule as rule_style, slider as slider_style,
+    text_editor as text_editor_style, text_input as text_input_style, toggler as toggler_style,
+    tooltip as tooltip_style,
 };
 
+pub mod app_bar;
 pub mod badge;
 pub mod card;
 pub mod combo_box;
@@ -43,8 +44,14 @@ pub mod data_table;
 pub mod list;
 pub mod navigation;
 pub mod page;
+pub mod progress_bar;
+pub mod search;
+pub mod segmented_button;
 pub mod select;
+pub mod sheet;
+pub mod snackbar;
 mod support;
+pub mod tabs;
 
 use support::{
     AnimatedScalar, SelectionState, TextFieldState, alpha_border, alpha_color, bool_value,
@@ -156,11 +163,90 @@ where
     Message: 'a,
     Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
 {
-    let icon = centered_icon_text(icon, tokens::component::fab::ICON_SIZE);
+    sized_fab_content(
+        icon,
+        tokens::component::fab::CONTAINER_WIDTH,
+        tokens::component::fab::CONTAINER_HEIGHT,
+        tokens::component::fab::ICON_SIZE,
+    )
+}
+
+fn sized_fab_content<'a, Message, Renderer>(
+    icon: impl text::IntoFragment<'a>,
+    width: f32,
+    height: f32,
+    icon_size: f32,
+) -> Container<'a, Message, Theme, Renderer>
+where
+    Message: 'a,
+    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+{
+    let icon = centered_icon_text(icon, icon_size);
 
     Container::new(icon)
-        .center_x(Length::Fixed(tokens::component::fab::CONTAINER_WIDTH))
-        .center_y(Length::Fixed(tokens::component::fab::CONTAINER_HEIGHT))
+        .center_x(Length::Fixed(width))
+        .center_y(Length::Fixed(height))
+}
+
+fn extended_fab_content<'a, Message, Renderer>(
+    label: impl text::IntoFragment<'a>,
+) -> Container<'a, Message, Theme, Renderer>
+where
+    Message: 'a,
+    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+{
+    let label_text = tokens::component::fab::EXTENDED_LABEL_TEXT;
+
+    Container::new(text_with_metrics(
+        label,
+        label_text.size,
+        label_text.line_height,
+    ))
+    .height(Length::Fixed(
+        tokens::component::fab::EXTENDED_CONTAINER_HEIGHT,
+    ))
+    .padding(Padding {
+        top: 0.0,
+        right: tokens::component::fab::EXTENDED_TRAILING_SPACE,
+        bottom: 0.0,
+        left: tokens::component::fab::EXTENDED_LEADING_SPACE,
+    })
+    .align_y(alignment::Vertical::Center)
+}
+
+fn extended_fab_icon_content<'a, Message, Renderer>(
+    icon: impl text::IntoFragment<'a>,
+    label: impl text::IntoFragment<'a>,
+) -> Container<'a, Message, Theme, Renderer>
+where
+    Message: 'a,
+    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+{
+    let label_text = tokens::component::fab::EXTENDED_LABEL_TEXT;
+    let content = Row::new()
+        .push(centered_icon_text(
+            icon,
+            tokens::component::fab::EXTENDED_ICON_SIZE,
+        ))
+        .push(text_with_metrics(
+            label,
+            label_text.size,
+            label_text.line_height,
+        ))
+        .spacing(tokens::component::fab::EXTENDED_ICON_LABEL_SPACE)
+        .align_y(alignment::Vertical::Center);
+
+    Container::new(content)
+        .height(Length::Fixed(
+            tokens::component::fab::EXTENDED_CONTAINER_HEIGHT,
+        ))
+        .padding(Padding {
+            top: 0.0,
+            right: tokens::component::fab::EXTENDED_TRAILING_SPACE,
+            bottom: 0.0,
+            left: tokens::component::fab::EXTENDED_LEADING_SPACE,
+        })
+        .align_y(alignment::Vertical::Center)
 }
 
 pub mod button {
@@ -227,6 +313,24 @@ pub mod button {
             .style(style)
     }
 
+    fn sized_fab<'a, Message, Renderer>(
+        icon_content: impl text::IntoFragment<'a>,
+        width: f32,
+        height: f32,
+        icon_size: f32,
+        style: fn(&Theme, iced_widget::button::Status) -> iced_widget::button::Style,
+    ) -> Button<'a, Message, Theme, Renderer>
+    where
+        Message: Clone + 'a,
+        Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    {
+        Button::new(sized_fab_content(icon_content, width, height, icon_size))
+            .width(Length::Fixed(width))
+            .height(Length::Fixed(height))
+            .padding(Padding::ZERO)
+            .style(style)
+    }
+
     fn fab<'a, Message, Renderer>(
         icon_content: impl text::IntoFragment<'a>,
         style: fn(&Theme, iced_widget::button::Status) -> iced_widget::button::Style,
@@ -238,6 +342,73 @@ pub mod button {
         Button::new(fab_content(icon_content))
             .width(Length::Fixed(tokens::component::fab::CONTAINER_WIDTH))
             .height(Length::Fixed(tokens::component::fab::CONTAINER_HEIGHT))
+            .padding(Padding::ZERO)
+            .style(style)
+    }
+
+    fn small_fab<'a, Message, Renderer>(
+        icon_content: impl text::IntoFragment<'a>,
+        style: fn(&Theme, iced_widget::button::Status) -> iced_widget::button::Style,
+    ) -> Button<'a, Message, Theme, Renderer>
+    where
+        Message: Clone + 'a,
+        Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    {
+        sized_fab(
+            icon_content,
+            tokens::component::fab::SMALL_CONTAINER_WIDTH,
+            tokens::component::fab::SMALL_CONTAINER_HEIGHT,
+            tokens::component::fab::SMALL_ICON_SIZE,
+            style,
+        )
+    }
+
+    fn large_fab<'a, Message, Renderer>(
+        icon_content: impl text::IntoFragment<'a>,
+        style: fn(&Theme, iced_widget::button::Status) -> iced_widget::button::Style,
+    ) -> Button<'a, Message, Theme, Renderer>
+    where
+        Message: Clone + 'a,
+        Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    {
+        sized_fab(
+            icon_content,
+            tokens::component::fab::LARGE_CONTAINER_WIDTH,
+            tokens::component::fab::LARGE_CONTAINER_HEIGHT,
+            tokens::component::fab::LARGE_ICON_SIZE,
+            style,
+        )
+    }
+
+    fn extended_fab<'a, Message, Renderer>(
+        label: impl text::IntoFragment<'a>,
+        style: fn(&Theme, iced_widget::button::Status) -> iced_widget::button::Style,
+    ) -> Button<'a, Message, Theme, Renderer>
+    where
+        Message: Clone + 'a,
+        Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    {
+        Button::new(extended_fab_content(label))
+            .height(Length::Fixed(
+                tokens::component::fab::EXTENDED_CONTAINER_HEIGHT,
+            ))
+            .padding(Padding::ZERO)
+            .style(style)
+    }
+
+    fn extended_fab_with_icon<'a, Message, Renderer>(
+        icon_content: impl text::IntoFragment<'a>,
+        label: impl text::IntoFragment<'a>,
+        style: fn(&Theme, iced_widget::button::Status) -> iced_widget::button::Style,
+    ) -> Button<'a, Message, Theme, Renderer>
+    where
+        Message: Clone + 'a,
+        Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    {
+        Button::new(extended_fab_icon_content(icon_content, label))
+            .height(Length::Fixed(
+                tokens::component::fab::EXTENDED_CONTAINER_HEIGHT,
+            ))
             .padding(Padding::ZERO)
             .style(style)
     }
@@ -342,6 +513,26 @@ pub mod button {
         fab(icon_content, button_style::fab_primary)
     }
 
+    pub fn primary_small_fab<'a, Message, Renderer>(
+        icon_content: impl text::IntoFragment<'a>,
+    ) -> Button<'a, Message, Theme, Renderer>
+    where
+        Message: Clone + 'a,
+        Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    {
+        small_fab(icon_content, button_style::fab_primary_small)
+    }
+
+    pub fn primary_large_fab<'a, Message, Renderer>(
+        icon_content: impl text::IntoFragment<'a>,
+    ) -> Button<'a, Message, Theme, Renderer>
+    where
+        Message: Clone + 'a,
+        Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    {
+        large_fab(icon_content, button_style::fab_primary_large)
+    }
+
     pub fn secondary_fab<'a, Message, Renderer>(
         icon_content: impl text::IntoFragment<'a>,
     ) -> Button<'a, Message, Theme, Renderer>
@@ -352,6 +543,56 @@ pub mod button {
         fab(icon_content, button_style::fab_secondary)
     }
 
+    pub fn secondary_small_fab<'a, Message, Renderer>(
+        icon_content: impl text::IntoFragment<'a>,
+    ) -> Button<'a, Message, Theme, Renderer>
+    where
+        Message: Clone + 'a,
+        Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    {
+        small_fab(icon_content, button_style::fab_secondary_small)
+    }
+
+    pub fn secondary_large_fab<'a, Message, Renderer>(
+        icon_content: impl text::IntoFragment<'a>,
+    ) -> Button<'a, Message, Theme, Renderer>
+    where
+        Message: Clone + 'a,
+        Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    {
+        large_fab(icon_content, button_style::fab_secondary_large)
+    }
+
+    pub fn tertiary_fab<'a, Message, Renderer>(
+        icon_content: impl text::IntoFragment<'a>,
+    ) -> Button<'a, Message, Theme, Renderer>
+    where
+        Message: Clone + 'a,
+        Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    {
+        fab(icon_content, button_style::fab_tertiary)
+    }
+
+    pub fn tertiary_small_fab<'a, Message, Renderer>(
+        icon_content: impl text::IntoFragment<'a>,
+    ) -> Button<'a, Message, Theme, Renderer>
+    where
+        Message: Clone + 'a,
+        Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    {
+        small_fab(icon_content, button_style::fab_tertiary_small)
+    }
+
+    pub fn tertiary_large_fab<'a, Message, Renderer>(
+        icon_content: impl text::IntoFragment<'a>,
+    ) -> Button<'a, Message, Theme, Renderer>
+    where
+        Message: Clone + 'a,
+        Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    {
+        large_fab(icon_content, button_style::fab_tertiary_large)
+    }
+
     pub fn surface_fab<'a, Message, Renderer>(
         icon_content: impl text::IntoFragment<'a>,
     ) -> Button<'a, Message, Theme, Renderer>
@@ -360,6 +601,110 @@ pub mod button {
         Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
     {
         fab(icon_content, button_style::fab_surface)
+    }
+
+    pub fn surface_small_fab<'a, Message, Renderer>(
+        icon_content: impl text::IntoFragment<'a>,
+    ) -> Button<'a, Message, Theme, Renderer>
+    where
+        Message: Clone + 'a,
+        Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    {
+        small_fab(icon_content, button_style::fab_surface_small)
+    }
+
+    pub fn surface_large_fab<'a, Message, Renderer>(
+        icon_content: impl text::IntoFragment<'a>,
+    ) -> Button<'a, Message, Theme, Renderer>
+    where
+        Message: Clone + 'a,
+        Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    {
+        large_fab(icon_content, button_style::fab_surface_large)
+    }
+
+    pub fn primary_extended_fab<'a, Message, Renderer>(
+        label: impl text::IntoFragment<'a>,
+    ) -> Button<'a, Message, Theme, Renderer>
+    where
+        Message: Clone + 'a,
+        Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    {
+        extended_fab(label, button_style::extended_fab_primary)
+    }
+
+    pub fn primary_extended_fab_with_icon<'a, Message, Renderer>(
+        icon_content: impl text::IntoFragment<'a>,
+        label: impl text::IntoFragment<'a>,
+    ) -> Button<'a, Message, Theme, Renderer>
+    where
+        Message: Clone + 'a,
+        Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    {
+        extended_fab_with_icon(icon_content, label, button_style::extended_fab_primary)
+    }
+
+    pub fn secondary_extended_fab<'a, Message, Renderer>(
+        label: impl text::IntoFragment<'a>,
+    ) -> Button<'a, Message, Theme, Renderer>
+    where
+        Message: Clone + 'a,
+        Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    {
+        extended_fab(label, button_style::extended_fab_secondary)
+    }
+
+    pub fn secondary_extended_fab_with_icon<'a, Message, Renderer>(
+        icon_content: impl text::IntoFragment<'a>,
+        label: impl text::IntoFragment<'a>,
+    ) -> Button<'a, Message, Theme, Renderer>
+    where
+        Message: Clone + 'a,
+        Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    {
+        extended_fab_with_icon(icon_content, label, button_style::extended_fab_secondary)
+    }
+
+    pub fn tertiary_extended_fab<'a, Message, Renderer>(
+        label: impl text::IntoFragment<'a>,
+    ) -> Button<'a, Message, Theme, Renderer>
+    where
+        Message: Clone + 'a,
+        Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    {
+        extended_fab(label, button_style::extended_fab_tertiary)
+    }
+
+    pub fn tertiary_extended_fab_with_icon<'a, Message, Renderer>(
+        icon_content: impl text::IntoFragment<'a>,
+        label: impl text::IntoFragment<'a>,
+    ) -> Button<'a, Message, Theme, Renderer>
+    where
+        Message: Clone + 'a,
+        Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    {
+        extended_fab_with_icon(icon_content, label, button_style::extended_fab_tertiary)
+    }
+
+    pub fn surface_extended_fab<'a, Message, Renderer>(
+        label: impl text::IntoFragment<'a>,
+    ) -> Button<'a, Message, Theme, Renderer>
+    where
+        Message: Clone + 'a,
+        Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    {
+        extended_fab(label, button_style::extended_fab_surface)
+    }
+
+    pub fn surface_extended_fab_with_icon<'a, Message, Renderer>(
+        icon_content: impl text::IntoFragment<'a>,
+        label: impl text::IntoFragment<'a>,
+    ) -> Button<'a, Message, Theme, Renderer>
+    where
+        Message: Clone + 'a,
+        Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    {
+        extended_fab_with_icon(icon_content, label, button_style::extended_fab_surface)
     }
 
     pub fn assist_chip<'a, Message, Renderer>(
@@ -461,25 +806,6 @@ pub mod slider {
         Slider::new(range, value, on_change)
             .height(tokens::component::slider::STATE_LAYER_SIZE)
             .style(slider_style::default)
-    }
-}
-
-pub mod progress_bar {
-    //! Material 3 progress indicator constructors with token-backed layout defaults.
-
-    use super::*;
-    use std::ops::RangeInclusive;
-
-    pub fn linear<'a>(range: RangeInclusive<f32>, value: f32) -> ProgressBar<'a, Theme> {
-        ProgressBar::new(range, value)
-            .girth(Length::Fixed(
-                tokens::component::linear_progress::TRACK_HEIGHT,
-            ))
-            .style(progress_bar_style::default)
-    }
-
-    pub fn vertical_linear<'a>(range: RangeInclusive<f32>, value: f32) -> ProgressBar<'a, Theme> {
-        linear(range, value).vertical()
     }
 }
 
@@ -3189,8 +3515,36 @@ mod tests {
             .into();
         let _: TestElement<'_> = button::outlined_icon("+").on_press(Message::Pressed).into();
         let _: TestElement<'_> = button::primary_fab("+").on_press(Message::Pressed).into();
+        let _: TestElement<'_> = button::primary_small_fab("+")
+            .on_press(Message::Pressed)
+            .into();
+        let _: TestElement<'_> = button::primary_large_fab("+")
+            .on_press(Message::Pressed)
+            .into();
         let _: TestElement<'_> = button::secondary_fab("+").on_press(Message::Pressed).into();
+        let _: TestElement<'_> = button::tertiary_fab("+").on_press(Message::Pressed).into();
         let _: TestElement<'_> = button::surface_fab("+").on_press(Message::Pressed).into();
+        let _: TestElement<'_> = button::surface_small_fab("+")
+            .on_press(Message::Pressed)
+            .into();
+        let _: TestElement<'_> = button::surface_large_fab("+")
+            .on_press(Message::Pressed)
+            .into();
+        let _: TestElement<'_> = button::primary_extended_fab("Create")
+            .on_press(Message::Pressed)
+            .into();
+        let _: TestElement<'_> = button::primary_extended_fab_with_icon("+", "Create")
+            .on_press(Message::Pressed)
+            .into();
+        let _: TestElement<'_> = button::secondary_extended_fab("Share")
+            .on_press(Message::Pressed)
+            .into();
+        let _: TestElement<'_> = button::tertiary_extended_fab_with_icon("+", "Add")
+            .on_press(Message::Pressed)
+            .into();
+        let _: TestElement<'_> = button::surface_extended_fab("Reroute")
+            .on_press(Message::Pressed)
+            .into();
         let _: TestElement<'_> = button::assist_chip("Assist")
             .on_press(Message::Pressed)
             .into();
@@ -3332,6 +3686,48 @@ mod tests {
     }
 
     #[test]
+    fn material_tabs_constructors_compile_to_elements() {
+        let _: TestElement<'_> = tabs::bar([
+            tabs::primary_icon_label("input", "Inputs", true)
+                .on_press(Message::Pressed)
+                .into(),
+            tabs::primary_inline_icon_label("tune", "Controls", false)
+                .on_press(Message::Pressed)
+                .into(),
+            tabs::primary_label("Feedback", false)
+                .on_press(Message::Pressed)
+                .into(),
+        ])
+        .into();
+
+        let _: TestElement<'_> = tabs::bar([
+            tabs::secondary_icon_label("info", "Overview", true)
+                .on_press(Message::Pressed)
+                .into(),
+            tabs::secondary_label("Details", false)
+                .on_press(Message::Pressed)
+                .into(),
+        ])
+        .into();
+
+        let tab_state = tabs::State::new(0);
+        let _: TestElement<'_> = tabs::animated_bar(
+            tabs::Variant::Primary,
+            2,
+            &tab_state,
+            [
+                tabs::primary_label_for_animated_bar("Inputs", true)
+                    .on_press(Message::Pressed)
+                    .into(),
+                tabs::primary_inline_icon_label_for_animated_bar("tune", "Controls", false)
+                    .on_press(Message::Pressed)
+                    .into(),
+            ],
+        )
+        .into();
+    }
+
+    #[test]
     fn material_pick_list_constructor_compiles_to_element() {
         let options = ["Assist", "Suggestion", "Filter"];
         let _: TestElement<'_> = pick_list::outlined(options, Some("Assist"), |_| Message::Pressed)
@@ -3362,11 +3758,27 @@ mod tests {
     #[test]
     fn material_list_item_constructors_compile_to_elements() {
         let _: TestElement<'_> = list::one_line("Single line").into();
-        let _: TestElement<'_> = list::one_line_with_leading_icon("*", "With leading icon").into();
+        let _: TestElement<'_> =
+            list::one_line_with_leading_icon("info", "With leading icon").into();
         let _: TestElement<'_> = list::two_line("Two line", "Supporting text").into();
         let _: TestElement<'_> = list::two_line_with_trailing("Inventory", "In stock", "42").into();
         let _: TestElement<'_> =
             list::three_line("Three line", "Supporting text", "Second supporting line").into();
+    }
+
+    #[test]
+    fn material_sheet_constructors_compile_to_elements() {
+        let content: TestElement<'_> = Text::new("Sheet content").into();
+        let _: TestElement<'_> = sheet::modal_bottom(content).into();
+
+        let content: TestElement<'_> = Text::new("Sheet content").into();
+        let _: TestElement<'_> = sheet::standard_bottom(content).into();
+
+        let content: TestElement<'_> = Text::new("Scrim content").into();
+        let _: TestElement<'_> = sheet::scrim(content).into();
+
+        let content: TestElement<'_> = Text::new("Modal overlay content").into();
+        let _: TestElement<'_> = sheet::modal_overlay(content).into();
     }
 
     #[test]
@@ -3422,8 +3834,12 @@ mod tests {
     #[test]
     fn material_slider_and_progress_constructors_compile_to_elements() {
         let _: TestElement<'_> = slider::continuous(0.0..=100.0, 42.0, |_| Message::Pressed).into();
-        let _: TestElement<'_> = progress_bar::linear(0.0..=100.0, 42.0).into();
-        let _: TestElement<'_> = progress_bar::vertical_linear(0.0..=100.0, 42.0).into();
+        let _: TestElement<'_> = progress_bar::linear(0.42, 0.0).into();
+        let _: TestElement<'_> = progress_bar::linear_indeterminate(0.0, true).into();
+        let _: TestElement<'_> = progress_bar::loading_indicator(0.0).into();
+        let _: TestElement<'_> = progress_bar::contained_loading_indicator(0.0).into();
+        let _: TestElement<'_> = progress_bar::determinate_loading_indicator(0.42).into();
+        let _: TestElement<'_> = progress_bar::determinate_contained_loading_indicator(0.42).into();
     }
 
     #[test]

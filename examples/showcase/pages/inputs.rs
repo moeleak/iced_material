@@ -38,8 +38,23 @@ pub(super) fn view(state: &Showcase) -> material::Element<'_, Message> {
             page::stack([select.into(), combo_box.into()]),
         )
         .into(),
+        page::section("Search", search_bar(state)).into(),
         page::section("Dividers", dividers()).into(),
     ])
+    .into()
+}
+
+fn search_bar(state: &Showcase) -> material::Element<'_, Message> {
+    material::widget::search::bar_with_trailing(
+        "Search Material components",
+        &state.search_query,
+        Message::SearchChanged,
+        Some(
+            material::widget::app_bar::icon_button("tune")
+                .on_press(Message::Increment)
+                .into(),
+        ),
+    )
     .into()
 }
 

@@ -44,8 +44,9 @@ repository = "https://github.com/moeleak/iced_material"
 
 [features]
 animate = ["dep:iced_anim"]
+canvas = ["iced_widget/canvas"]
 crisp = ["iced_widget/crisp"]
-default = ["svg", "animate"]
+default = ["svg", "animate", "canvas"]
 dialog = ["dep:iced_dialog"]
 markdown = ["iced_widget/markdown"]
 qr_code = ["iced_widget/qr_code"]

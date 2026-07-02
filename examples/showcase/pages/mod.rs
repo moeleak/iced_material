@@ -2,6 +2,7 @@ mod controls;
 mod feedback;
 mod inputs;
 mod navigation;
+mod structure;
 mod surfaces;
 
 use iced_material as material;
@@ -16,6 +17,7 @@ pub(super) fn view(state: &Showcase) -> material::Element<'_, Message> {
         ShowcasePage::Feedback => feedback::view(state),
         ShowcasePage::Surfaces => surfaces::view(),
         ShowcasePage::Navigation => navigation::view(state),
+        ShowcasePage::Structure => structure::view(state),
     };
 
     material::widget::page::surface(header(page), content).into()
@@ -39,6 +41,7 @@ fn page_label(page: ShowcasePage) -> &'static str {
         ShowcasePage::Feedback => "Feedback",
         ShowcasePage::Surfaces => "Surfaces",
         ShowcasePage::Navigation => "Navigation",
+        ShowcasePage::Structure => "Structure",
     }
 }
 

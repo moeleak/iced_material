@@ -7,6 +7,7 @@ pub(super) fn view(state: &Showcase) -> material::Element<'_, Message> {
     page::sections([
         page::section("Progress", progress_indicators(state)).into(),
         page::section("Badges", badges()).into(),
+        page::section("Snackbars", snackbars()).into(),
         page::section(
             "Tooltip",
             material::widget::tooltip::plain(
@@ -22,6 +23,10 @@ pub(super) fn view(state: &Showcase) -> material::Element<'_, Message> {
 }
 
 fn progress_indicators(state: &Showcase) -> material::Element<'_, Message> {
+    let progress = state.progress / 100.0;
+    let linear_phase = state.progress_animation.linear_phase();
+    let loading_phase = state.progress_animation.loading_phase();
+
     page::stack([
         page::row([
             material::text::body_large("Progress")
@@ -33,7 +38,17 @@ fn progress_indicators(state: &Showcase) -> material::Element<'_, Message> {
         material::widget::slider::continuous(0.0..=100.0, state.progress, Message::SliderChanged)
             .step(1.0)
             .into(),
-        material::widget::progress_bar::linear(0.0..=100.0, state.progress).into(),
+        material::widget::progress_bar::linear(progress, linear_phase).into(),
+        material::widget::progress_bar::linear_indeterminate(linear_phase, false).into(),
+        page::row([
+            material::widget::progress_bar::determinate_loading_indicator(progress).into(),
+            material::widget::progress_bar::loading_indicator(loading_phase).into(),
+            material::widget::progress_bar::determinate_contained_loading_indicator(progress)
+                .into(),
+            material::widget::progress_bar::contained_loading_indicator(loading_phase).into(),
+        ])
+        .spacing(16)
+        .into(),
     ])
     .spacing(10)
     .into()
@@ -46,5 +61,22 @@ fn badges() -> material::Element<'static, Message> {
         material::widget::badge::large("3").into(),
         material::widget::badge::large("99+").into(),
     ])
+    .into()
+}
+
+fn snackbars() -> material::Element<'static, Message> {
+    page::stack([
+        material::widget::snackbar::single_line_with_action(
+            "Photo archived",
+            material::widget::snackbar::action("Undo").on_press(Message::Decrement),
+        )
+        .into(),
+        material::widget::snackbar::two_line_with_action(
+            "Offline changes will sync when the device reconnects.",
+            material::widget::snackbar::icon_action("close").on_press(Message::Increment),
+        )
+        .into(),
+    ])
+    .spacing(8)
     .into()
 }

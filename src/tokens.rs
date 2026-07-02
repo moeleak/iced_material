@@ -387,8 +387,43 @@ pub mod component {
     pub mod linear_progress {
         pub const ACTIVE_INDICATOR_HEIGHT: f32 = 4.0;
         pub const ACTIVE_INDICATOR_SHAPE: f32 = super::super::shape::CORNER_NONE;
+        pub const ACTIVE_WAVE_AMPLITUDE: f32 = 3.0;
+        pub const ACTIVE_WAVE_WAVELENGTH: f32 = 40.0;
+        pub const INDETERMINATE_ACTIVE_WAVE_WAVELENGTH: f32 = 20.0;
+        pub const STOP_SIZE: f32 = 4.0;
+        pub const STOP_TRAILING_SPACE: f32 = 0.0;
+        pub const TRACK_ACTIVE_SPACE: f32 = 4.0;
         pub const TRACK_HEIGHT: f32 = 4.0;
         pub const TRACK_SHAPE: f32 = super::super::shape::CORNER_NONE;
+        pub const TRACK_THICKNESS: f32 = 4.0;
+        pub const WAVE_HEIGHT: f32 = 10.0;
+        pub const DETERMINATE_TRANSITION_DURATION_MS: u16 =
+            super::super::motion::DURATION_MEDIUM1_MS;
+        pub const INDETERMINATE_DURATION_MS: u16 = 1750;
+        pub const FIRST_LINE_HEAD_DURATION_MS: u16 = 1000;
+        pub const FIRST_LINE_TAIL_DURATION_MS: u16 = 1000;
+        pub const SECOND_LINE_HEAD_DURATION_MS: u16 = 850;
+        pub const SECOND_LINE_TAIL_DURATION_MS: u16 = 850;
+        pub const FIRST_LINE_HEAD_DELAY_MS: u16 = 0;
+        pub const FIRST_LINE_TAIL_DELAY_MS: u16 = 250;
+        pub const SECOND_LINE_HEAD_DELAY_MS: u16 = 650;
+        pub const SECOND_LINE_TAIL_DELAY_MS: u16 = 900;
+        pub const DETERMINATE_EASING: super::super::motion::CubicBezier =
+            super::super::motion::CubicBezier::new(0.4, 0.0, 0.6, 1.0);
+    }
+
+    pub mod loading_indicator {
+        pub const CONTAINER_WIDTH: f32 = 48.0;
+        pub const CONTAINER_HEIGHT: f32 = 48.0;
+        pub const CONTAINER_SHAPE: f32 = super::super::shape::CORNER_FULL;
+        pub const ACTIVE_SIZE: f32 = 38.0;
+        pub const MORPH_INTERVAL_MS: u16 = 650;
+        pub const GLOBAL_ROTATION_DURATION_MS: u16 = 4666;
+        pub const INDETERMINATE_SHAPE_COUNT: usize = 7;
+        pub const DETERMINATE_SHAPE_COUNT: usize = 2;
+        pub const MORPH_SPRING_DAMPING_RATIO: f32 = 0.6;
+        pub const MORPH_SPRING_STIFFNESS: f32 = 200.0;
+        pub const ACTIVE_INDICATOR_SCALE: f32 = ACTIVE_SIZE / CONTAINER_WIDTH;
     }
 
     pub mod radio {
@@ -624,6 +659,22 @@ pub mod component {
         pub const CONTAINER_HEIGHT: f32 = 56.0;
         pub const CONTAINER_SHAPE: f32 = super::super::shape::CORNER_LARGE;
         pub const ICON_SIZE: f32 = 24.0;
+        pub const SMALL_CONTAINER_WIDTH: f32 = 40.0;
+        pub const SMALL_CONTAINER_HEIGHT: f32 = 40.0;
+        pub const SMALL_CONTAINER_SHAPE: f32 = super::super::shape::CORNER_MEDIUM;
+        pub const SMALL_ICON_SIZE: f32 = 24.0;
+        pub const LARGE_CONTAINER_WIDTH: f32 = 96.0;
+        pub const LARGE_CONTAINER_HEIGHT: f32 = 96.0;
+        pub const LARGE_CONTAINER_SHAPE: f32 = super::super::shape::CORNER_EXTRA_LARGE;
+        pub const LARGE_ICON_SIZE: f32 = 36.0;
+        pub const EXTENDED_CONTAINER_HEIGHT: f32 = 56.0;
+        pub const EXTENDED_CONTAINER_SHAPE: f32 = super::super::shape::CORNER_LARGE;
+        pub const EXTENDED_ICON_SIZE: f32 = 24.0;
+        pub const EXTENDED_ICON_LABEL_SPACE: f32 = 12.0;
+        pub const EXTENDED_LEADING_SPACE: f32 = 16.0;
+        pub const EXTENDED_TRAILING_SPACE: f32 = 20.0;
+        pub const EXTENDED_LABEL_TEXT: super::super::typography::TypeScale =
+            super::super::typography::LABEL_LARGE;
 
         pub const ELEVATION: super::button::ElevationLevels = super::button::ElevationLevels {
             active: 3,
@@ -632,6 +683,20 @@ pub mod component {
             disabled: 0,
         };
         pub const LOWERED_ELEVATION: super::button::ElevationLevels =
+            super::button::ElevationLevels {
+                active: 1,
+                hovered: 2,
+                pressed: 1,
+                disabled: 0,
+            };
+        pub const EXTENDED_ELEVATION: super::button::ElevationLevels =
+            super::button::ElevationLevels {
+                active: 3,
+                hovered: 4,
+                pressed: 3,
+                disabled: 0,
+            };
+        pub const EXTENDED_LOWERED_ELEVATION: super::button::ElevationLevels =
             super::button::ElevationLevels {
                 active: 1,
                 hovered: 2,
@@ -694,6 +759,176 @@ pub mod component {
                 pressed: 1,
                 disabled: 0,
             };
+    }
+
+    pub mod segmented_button {
+        pub const CONTAINER_HEIGHT: f32 = 40.0;
+        pub const CONTAINER_SHAPE: f32 = super::super::shape::CORNER_FULL;
+        pub const OUTLINE_WIDTH: f32 = 1.0;
+        pub const WITH_ICON_ICON_SIZE: f32 = 18.0;
+        pub const LEADING_SPACE: f32 = 12.0;
+        pub const TRAILING_SPACE: f32 = 12.0;
+        pub const ICON_LABEL_SPACE: f32 = 8.0;
+        pub const LABEL_TEXT: super::super::typography::TypeScale =
+            super::super::typography::LABEL_LARGE;
+        pub const DISABLED_ICON_OPACITY: f32 = 0.38;
+        pub const DISABLED_LABEL_TEXT_OPACITY: f32 = 0.38;
+        pub const DISABLED_OUTLINE_OPACITY: f32 = 0.12;
+        pub const SELECT_TRANSITION_DURATION_MS: u16 = super::super::motion::DURATION_SHORT4_MS;
+        pub const SELECT_TRANSITION_EASING: super::super::motion::CubicBezier =
+            super::super::motion::EASING_EMPHASIZED;
+        pub const FOCUS_STATE_LAYER_OPACITY: f32 = super::super::state::FOCUS_STATE_LAYER_OPACITY;
+        pub const HOVER_STATE_LAYER_OPACITY: f32 = super::super::state::HOVER_STATE_LAYER_OPACITY;
+        pub const PRESSED_STATE_LAYER_OPACITY: f32 = super::super::state::FOCUS_STATE_LAYER_OPACITY;
+    }
+
+    pub mod snackbar {
+        pub const ICON_SIZE: f32 = 24.0;
+        pub const WITH_SINGLE_LINE_CONTAINER_HEIGHT: f32 = 48.0;
+        pub const WITH_TWO_LINES_CONTAINER_HEIGHT: f32 = 68.0;
+        pub const CONTAINER_ELEVATION_LEVEL: u8 = 3;
+        pub const CONTAINER_SHAPE: f32 = super::super::shape::CORNER_EXTRA_SMALL;
+        pub const SUPPORTING_TEXT: super::super::typography::TypeScale =
+            super::super::typography::BODY_MEDIUM;
+        pub const ACTION_LABEL_TEXT: super::super::typography::TypeScale =
+            super::super::typography::LABEL_LARGE;
+    }
+
+    pub mod search_bar {
+        pub const AVATAR_SIZE: f32 = 30.0;
+        pub const CONTAINER_HEIGHT: f32 = 56.0;
+        pub const ICON_SIZE: f32 = 24.0;
+        pub const LEADING_SPACE: f32 = 16.0;
+        pub const TRAILING_SPACE: f32 = 16.0;
+        pub const LEADING_ICON_LABEL_SPACE: f32 = 16.0;
+        pub const TRAILING_ICON_LABEL_SPACE: f32 = 16.0;
+        pub const CONTAINER_ELEVATION_LEVEL: u8 = 3;
+        pub const CONTAINER_SHAPE: f32 = super::super::shape::CORNER_FULL;
+        pub const INPUT_TEXT: super::super::typography::TypeScale =
+            super::super::typography::BODY_LARGE;
+        pub const SUPPORTING_TEXT: super::super::typography::TypeScale =
+            super::super::typography::BODY_LARGE;
+        pub const HOVER_STATE_LAYER_OPACITY: f32 = super::super::state::HOVER_STATE_LAYER_OPACITY;
+        pub const PRESSED_STATE_LAYER_OPACITY: f32 =
+            super::super::state::PRESSED_STATE_LAYER_OPACITY;
+    }
+
+    pub mod search_view {
+        pub const DOCKED_HEADER_CONTAINER_HEIGHT: f32 = 56.0;
+        pub const FULL_SCREEN_HEADER_CONTAINER_HEIGHT: f32 = 72.0;
+        pub const LEADING_SPACE: f32 = 16.0;
+        pub const TRAILING_SPACE: f32 = 16.0;
+        pub const LEADING_ICON_LABEL_SPACE: f32 = 16.0;
+        pub const TRAILING_ICON_LABEL_SPACE: f32 = 16.0;
+        pub const CONTAINER_ELEVATION_LEVEL: u8 = 3;
+        pub const DOCKED_CONTAINER_SHAPE: f32 = super::super::shape::CORNER_EXTRA_LARGE;
+        pub const FULL_SCREEN_CONTAINER_SHAPE: f32 = super::super::shape::CORNER_NONE;
+        pub const HEADER_INPUT_TEXT: super::super::typography::TypeScale =
+            super::super::typography::BODY_LARGE;
+        pub const HEADER_SUPPORTING_TEXT: super::super::typography::TypeScale =
+            super::super::typography::BODY_LARGE;
+    }
+
+    pub mod app_bar {
+        pub const AVATAR_SIZE: f32 = 32.0;
+        pub const ICON_BUTTON_SPACE: f32 = 0.0;
+        pub const ICON_SIZE: f32 = 24.0;
+        pub const LEADING_SPACE: f32 = 4.0;
+        pub const TRAILING_SPACE: f32 = 4.0;
+        pub const CONTAINER_ELEVATION_LEVEL: u8 = 0;
+        pub const CONTAINER_SHAPE: f32 = super::super::shape::CORNER_NONE;
+        pub const ON_SCROLL_CONTAINER_ELEVATION_LEVEL: u8 = 2;
+
+        pub const SMALL_CONTAINER_HEIGHT: f32 = 64.0;
+        pub const SMALL_SEARCH_CONTAINER_HEIGHT: f32 = 56.0;
+        pub const SMALL_SEARCH_CONTAINER_SHAPE: f32 = super::super::shape::CORNER_FULL;
+        pub const SMALL_TITLE_TEXT: super::super::typography::TypeScale =
+            super::super::typography::TITLE_LARGE;
+        pub const SMALL_SUBTITLE_TEXT: super::super::typography::TypeScale =
+            super::super::typography::LABEL_MEDIUM;
+
+        pub const MEDIUM_CONTAINER_HEIGHT: f32 = 112.0;
+        pub const MEDIUM_TITLE_TEXT: super::super::typography::TypeScale =
+            super::super::typography::HEADLINE_SMALL;
+        pub const MEDIUM_SUBTITLE_TEXT: super::super::typography::TypeScale =
+            super::super::typography::LABEL_LARGE;
+
+        pub const LARGE_CONTAINER_HEIGHT: f32 = 152.0;
+        pub const LARGE_TITLE_TEXT: super::super::typography::TypeScale =
+            super::super::typography::HEADLINE_MEDIUM;
+        pub const LARGE_SUBTITLE_TEXT: super::super::typography::TypeScale =
+            super::super::typography::TITLE_MEDIUM;
+    }
+
+    pub mod bottom_app_bar {
+        pub const CONTAINER_HEIGHT: f32 = 80.0;
+        pub const CONTAINER_ELEVATION_LEVEL: u8 = 2;
+        pub const CONTAINER_SHAPE: f32 = super::super::shape::CORNER_NONE;
+    }
+
+    pub mod bottom_sheet {
+        pub const CONTAINER_SHAPE_TOP: f32 = super::super::shape::CORNER_EXTRA_LARGE;
+        pub const CONTAINER_SHAPE_BOTTOM: f32 = super::super::shape::CORNER_NONE;
+        pub const HIDDEN_CONTAINER_SHAPE: f32 = super::super::shape::CORNER_NONE;
+        pub const MODAL_CONTAINER_ELEVATION_LEVEL: u8 = 1;
+        pub const STANDARD_CONTAINER_ELEVATION_LEVEL: u8 = 1;
+        pub const DRAG_HANDLE_WIDTH: f32 = 32.0;
+        pub const DRAG_HANDLE_HEIGHT: f32 = 4.0;
+        pub const DRAG_HANDLE_VERTICAL_PADDING: f32 = 22.0;
+        pub const SHEET_PEEK_HEIGHT: f32 = 56.0;
+        pub const SHEET_MAX_WIDTH: f32 = 640.0;
+        pub const SCRIM_OPACITY: f32 = 0.32;
+        pub const POSITIONAL_THRESHOLD: f32 = 56.0;
+        pub const VELOCITY_THRESHOLD: f32 = 125.0;
+        pub const ANIMATION_DURATION_MS: u16 = super::super::motion::DURATION_MEDIUM2_MS;
+        pub const ANIMATION_EASING: super::super::motion::CubicBezier =
+            super::super::motion::EASING_LEGACY;
+    }
+
+    pub mod primary_tab {
+        pub const CONTAINER_HEIGHT: f32 = 48.0;
+        pub const WITH_ICON_AND_LABEL_TEXT_CONTAINER_HEIGHT: f32 = 64.0;
+        pub const CONTAINER_ELEVATION_LEVEL: u8 = 0;
+        pub const CONTAINER_SHAPE: f32 = super::super::shape::CORNER_NONE;
+        pub const ACTIVE_INDICATOR_HEIGHT: f32 = 3.0;
+        pub const ACTIVE_INDICATOR_SHAPE_TOP: f32 = 3.0;
+        pub const ACTIVE_INDICATOR_SHAPE_BOTTOM: f32 = 0.0;
+        pub const ICON_SIZE: f32 = 24.0;
+        pub const HORIZONTAL_SPACE: f32 = 16.0;
+        pub const INLINE_ICON_LABEL_SPACE: f32 = 8.0;
+        pub const STACKED_ICON_LABEL_SPACE: f32 = 2.0;
+        pub const LABEL_TEXT: super::super::typography::TypeScale =
+            super::super::typography::TITLE_SMALL;
+        pub const ACTIVE_HOVER_STATE_LAYER_OPACITY: f32 =
+            super::super::state::HOVER_STATE_LAYER_OPACITY;
+        pub const ACTIVE_PRESSED_STATE_LAYER_OPACITY: f32 =
+            super::super::state::PRESSED_STATE_LAYER_OPACITY;
+        pub const INACTIVE_HOVER_STATE_LAYER_OPACITY: f32 =
+            super::super::state::HOVER_STATE_LAYER_OPACITY;
+        pub const INACTIVE_PRESSED_STATE_LAYER_OPACITY: f32 =
+            super::super::state::PRESSED_STATE_LAYER_OPACITY;
+        pub const INDICATOR_ANIMATION_DURATION_MS: u16 = super::super::motion::DURATION_MEDIUM1_MS;
+        pub const INDICATOR_ANIMATION_EASING: super::super::motion::CubicBezier =
+            super::super::motion::EASING_EMPHASIZED;
+    }
+
+    pub mod secondary_tab {
+        pub const CONTAINER_HEIGHT: f32 = 48.0;
+        pub const CONTAINER_ELEVATION_LEVEL: u8 = 0;
+        pub const CONTAINER_SHAPE: f32 = super::super::shape::CORNER_NONE;
+        pub const ACTIVE_INDICATOR_HEIGHT: f32 = 2.0;
+        pub const ACTIVE_INDICATOR_SHAPE: f32 = super::super::shape::CORNER_NONE;
+        pub const ICON_SIZE: f32 = 24.0;
+        pub const HORIZONTAL_SPACE: f32 = 16.0;
+        pub const ICON_LABEL_SPACE: f32 = 8.0;
+        pub const LABEL_TEXT: super::super::typography::TypeScale =
+            super::super::typography::TITLE_SMALL;
+        pub const HOVER_STATE_LAYER_OPACITY: f32 = super::super::state::HOVER_STATE_LAYER_OPACITY;
+        pub const PRESSED_STATE_LAYER_OPACITY: f32 =
+            super::super::state::PRESSED_STATE_LAYER_OPACITY;
+        pub const INDICATOR_ANIMATION_DURATION_MS: u16 = super::super::motion::DURATION_MEDIUM1_MS;
+        pub const INDICATOR_ANIMATION_EASING: super::super::motion::CubicBezier =
+            super::super::motion::EASING_EMPHASIZED;
     }
 
     pub mod tooltip {
@@ -854,6 +1089,51 @@ mod tests {
         assert_eq!(component::slider::LABEL_CONTAINER_HEIGHT, 28.0);
         assert_eq!(component::linear_progress::TRACK_HEIGHT, 4.0);
         assert_eq!(component::linear_progress::ACTIVE_INDICATOR_HEIGHT, 4.0);
+        assert_eq!(component::linear_progress::ACTIVE_WAVE_AMPLITUDE, 3.0);
+        assert_eq!(component::linear_progress::ACTIVE_WAVE_WAVELENGTH, 40.0);
+        assert_eq!(
+            component::linear_progress::INDETERMINATE_ACTIVE_WAVE_WAVELENGTH,
+            20.0
+        );
+        assert_eq!(component::linear_progress::STOP_SIZE, 4.0);
+        assert_eq!(component::linear_progress::TRACK_ACTIVE_SPACE, 4.0);
+        assert_eq!(component::linear_progress::TRACK_THICKNESS, 4.0);
+        assert_eq!(component::linear_progress::WAVE_HEIGHT, 10.0);
+        assert_eq!(
+            component::linear_progress::DETERMINATE_TRANSITION_DURATION_MS,
+            250
+        );
+        assert_eq!(component::linear_progress::INDETERMINATE_DURATION_MS, 1750);
+        assert_eq!(
+            component::linear_progress::FIRST_LINE_HEAD_DURATION_MS,
+            1000
+        );
+        assert_eq!(component::linear_progress::FIRST_LINE_TAIL_DELAY_MS, 250);
+        assert_eq!(component::linear_progress::SECOND_LINE_HEAD_DELAY_MS, 650);
+        assert_eq!(component::linear_progress::SECOND_LINE_TAIL_DELAY_MS, 900);
+        assert_eq!(
+            component::linear_progress::DETERMINATE_EASING,
+            motion::CubicBezier::new(0.4, 0.0, 0.6, 1.0)
+        );
+        assert_eq!(component::loading_indicator::CONTAINER_WIDTH, 48.0);
+        assert_eq!(component::loading_indicator::CONTAINER_HEIGHT, 48.0);
+        assert_eq!(
+            component::loading_indicator::CONTAINER_SHAPE,
+            shape::CORNER_FULL
+        );
+        assert_eq!(component::loading_indicator::ACTIVE_SIZE, 38.0);
+        assert_eq!(component::loading_indicator::MORPH_INTERVAL_MS, 650);
+        assert_eq!(
+            component::loading_indicator::GLOBAL_ROTATION_DURATION_MS,
+            4666
+        );
+        assert_eq!(component::loading_indicator::INDETERMINATE_SHAPE_COUNT, 7);
+        assert_eq!(component::loading_indicator::DETERMINATE_SHAPE_COUNT, 2);
+        assert_eq!(
+            component::loading_indicator::MORPH_SPRING_DAMPING_RATIO,
+            0.6
+        );
+        assert_eq!(component::loading_indicator::MORPH_SPRING_STIFFNESS, 200.0);
         assert_eq!(component::radio::ICON_SIZE, 20.0);
         assert_eq!(component::radio::TARGET_SIZE, 48.0);
         assert_eq!(component::radio::STATE_LAYER_SIZE, 40.0);
@@ -1014,8 +1294,31 @@ mod tests {
         assert_eq!(component::fab::CONTAINER_HEIGHT, 56.0);
         assert_eq!(component::fab::CONTAINER_SHAPE, 16.0);
         assert_eq!(component::fab::ICON_SIZE, 24.0);
+        assert_eq!(component::fab::SMALL_CONTAINER_WIDTH, 40.0);
+        assert_eq!(component::fab::SMALL_CONTAINER_HEIGHT, 40.0);
+        assert_eq!(component::fab::SMALL_CONTAINER_SHAPE, shape::CORNER_MEDIUM);
+        assert_eq!(component::fab::SMALL_ICON_SIZE, 24.0);
+        assert_eq!(component::fab::LARGE_CONTAINER_WIDTH, 96.0);
+        assert_eq!(component::fab::LARGE_CONTAINER_HEIGHT, 96.0);
+        assert_eq!(
+            component::fab::LARGE_CONTAINER_SHAPE,
+            shape::CORNER_EXTRA_LARGE
+        );
+        assert_eq!(component::fab::LARGE_ICON_SIZE, 36.0);
+        assert_eq!(component::fab::EXTENDED_CONTAINER_HEIGHT, 56.0);
+        assert_eq!(
+            component::fab::EXTENDED_CONTAINER_SHAPE,
+            shape::CORNER_LARGE
+        );
+        assert_eq!(component::fab::EXTENDED_ICON_SIZE, 24.0);
+        assert_eq!(component::fab::EXTENDED_ICON_LABEL_SPACE, 12.0);
+        assert_eq!(component::fab::EXTENDED_LEADING_SPACE, 16.0);
+        assert_eq!(component::fab::EXTENDED_TRAILING_SPACE, 20.0);
+        assert_eq!(component::fab::EXTENDED_LABEL_TEXT, typography::LABEL_LARGE);
         assert_eq!(component::fab::ELEVATION.active, 3);
         assert_eq!(component::fab::ELEVATION.hovered, 4);
+        assert_eq!(component::fab::EXTENDED_ELEVATION.active, 3);
+        assert_eq!(component::fab::EXTENDED_ELEVATION.hovered, 4);
         assert_eq!(component::icon_button::CONTAINER_WIDTH, 40.0);
         assert_eq!(component::icon_button::CONTAINER_HEIGHT, 40.0);
         assert_eq!(component::icon_button::CONTAINER_SHAPE, 9999.0);
@@ -1039,6 +1342,169 @@ mod tests {
         assert_eq!(component::chip::ELEVATED_ELEVATION.active, 1);
         assert_eq!(component::chip::ELEVATED_ELEVATION.hovered, 2);
         assert_eq!(component::chip::SELECTED_FLAT_ELEVATION.hovered, 1);
+        assert_eq!(component::segmented_button::CONTAINER_HEIGHT, 40.0);
+        assert_eq!(
+            component::segmented_button::CONTAINER_SHAPE,
+            shape::CORNER_FULL
+        );
+        assert_eq!(component::segmented_button::OUTLINE_WIDTH, 1.0);
+        assert_eq!(component::segmented_button::WITH_ICON_ICON_SIZE, 18.0);
+        assert_eq!(component::segmented_button::LEADING_SPACE, 12.0);
+        assert_eq!(component::segmented_button::TRAILING_SPACE, 12.0);
+        assert_eq!(component::segmented_button::ICON_LABEL_SPACE, 8.0);
+        assert_eq!(
+            component::segmented_button::LABEL_TEXT,
+            typography::LABEL_LARGE
+        );
+        assert_eq!(
+            component::segmented_button::DISABLED_LABEL_TEXT_OPACITY,
+            0.38
+        );
+        assert_eq!(component::segmented_button::DISABLED_OUTLINE_OPACITY, 0.12);
+        assert_eq!(
+            component::segmented_button::SELECT_TRANSITION_DURATION_MS,
+            200
+        );
+        assert_eq!(
+            component::segmented_button::SELECT_TRANSITION_EASING,
+            motion::EASING_EMPHASIZED
+        );
+        assert_eq!(component::snackbar::ICON_SIZE, 24.0);
+        assert_eq!(component::snackbar::WITH_SINGLE_LINE_CONTAINER_HEIGHT, 48.0);
+        assert_eq!(component::snackbar::WITH_TWO_LINES_CONTAINER_HEIGHT, 68.0);
+        assert_eq!(component::snackbar::CONTAINER_ELEVATION_LEVEL, 3);
+        assert_eq!(
+            component::snackbar::CONTAINER_SHAPE,
+            shape::CORNER_EXTRA_SMALL
+        );
+        assert_eq!(
+            component::snackbar::SUPPORTING_TEXT,
+            typography::BODY_MEDIUM
+        );
+        assert_eq!(
+            component::snackbar::ACTION_LABEL_TEXT,
+            typography::LABEL_LARGE
+        );
+        assert_eq!(component::search_bar::AVATAR_SIZE, 30.0);
+        assert_eq!(component::search_bar::CONTAINER_HEIGHT, 56.0);
+        assert_eq!(component::search_bar::ICON_SIZE, 24.0);
+        assert_eq!(component::search_bar::LEADING_SPACE, 16.0);
+        assert_eq!(component::search_bar::TRAILING_SPACE, 16.0);
+        assert_eq!(component::search_bar::LEADING_ICON_LABEL_SPACE, 16.0);
+        assert_eq!(component::search_bar::CONTAINER_ELEVATION_LEVEL, 3);
+        assert_eq!(component::search_bar::CONTAINER_SHAPE, shape::CORNER_FULL);
+        assert_eq!(component::search_bar::INPUT_TEXT, typography::BODY_LARGE);
+        assert_eq!(component::search_view::DOCKED_HEADER_CONTAINER_HEIGHT, 56.0);
+        assert_eq!(
+            component::search_view::FULL_SCREEN_HEADER_CONTAINER_HEIGHT,
+            72.0
+        );
+        assert_eq!(
+            component::search_view::DOCKED_CONTAINER_SHAPE,
+            shape::CORNER_EXTRA_LARGE
+        );
+        assert_eq!(
+            component::search_view::FULL_SCREEN_CONTAINER_SHAPE,
+            shape::CORNER_NONE
+        );
+        assert_eq!(component::app_bar::AVATAR_SIZE, 32.0);
+        assert_eq!(component::app_bar::ICON_BUTTON_SPACE, 0.0);
+        assert_eq!(component::app_bar::ICON_SIZE, 24.0);
+        assert_eq!(component::app_bar::LEADING_SPACE, 4.0);
+        assert_eq!(component::app_bar::TRAILING_SPACE, 4.0);
+        assert_eq!(component::app_bar::CONTAINER_ELEVATION_LEVEL, 0);
+        assert_eq!(component::app_bar::ON_SCROLL_CONTAINER_ELEVATION_LEVEL, 2);
+        assert_eq!(component::app_bar::SMALL_CONTAINER_HEIGHT, 64.0);
+        assert_eq!(component::app_bar::SMALL_SEARCH_CONTAINER_HEIGHT, 56.0);
+        assert_eq!(
+            component::app_bar::SMALL_TITLE_TEXT,
+            typography::TITLE_LARGE
+        );
+        assert_eq!(component::app_bar::MEDIUM_CONTAINER_HEIGHT, 112.0);
+        assert_eq!(
+            component::app_bar::MEDIUM_TITLE_TEXT,
+            typography::HEADLINE_SMALL
+        );
+        assert_eq!(component::app_bar::LARGE_CONTAINER_HEIGHT, 152.0);
+        assert_eq!(
+            component::app_bar::LARGE_TITLE_TEXT,
+            typography::HEADLINE_MEDIUM
+        );
+        assert_eq!(component::bottom_app_bar::CONTAINER_HEIGHT, 80.0);
+        assert_eq!(component::bottom_app_bar::CONTAINER_ELEVATION_LEVEL, 2);
+        assert_eq!(
+            component::bottom_app_bar::CONTAINER_SHAPE,
+            shape::CORNER_NONE
+        );
+        assert_eq!(
+            component::bottom_sheet::CONTAINER_SHAPE_TOP,
+            shape::CORNER_EXTRA_LARGE
+        );
+        assert_eq!(component::bottom_sheet::CONTAINER_SHAPE_BOTTOM, 0.0);
+        assert_eq!(component::bottom_sheet::MODAL_CONTAINER_ELEVATION_LEVEL, 1);
+        assert_eq!(
+            component::bottom_sheet::STANDARD_CONTAINER_ELEVATION_LEVEL,
+            1
+        );
+        assert_eq!(component::bottom_sheet::DRAG_HANDLE_WIDTH, 32.0);
+        assert_eq!(component::bottom_sheet::DRAG_HANDLE_HEIGHT, 4.0);
+        assert_eq!(component::bottom_sheet::DRAG_HANDLE_VERTICAL_PADDING, 22.0);
+        assert_eq!(component::bottom_sheet::SHEET_PEEK_HEIGHT, 56.0);
+        assert_eq!(component::bottom_sheet::SHEET_MAX_WIDTH, 640.0);
+        assert_eq!(component::bottom_sheet::SCRIM_OPACITY, 0.32);
+        assert_eq!(component::bottom_sheet::POSITIONAL_THRESHOLD, 56.0);
+        assert_eq!(component::bottom_sheet::VELOCITY_THRESHOLD, 125.0);
+        assert_eq!(component::bottom_sheet::ANIMATION_DURATION_MS, 300);
+        assert_eq!(
+            component::bottom_sheet::ANIMATION_EASING,
+            motion::EASING_LEGACY
+        );
+        assert_eq!(component::primary_tab::CONTAINER_HEIGHT, 48.0);
+        assert_eq!(
+            component::primary_tab::WITH_ICON_AND_LABEL_TEXT_CONTAINER_HEIGHT,
+            64.0
+        );
+        assert_eq!(component::primary_tab::CONTAINER_ELEVATION_LEVEL, 0);
+        assert_eq!(component::primary_tab::CONTAINER_SHAPE, shape::CORNER_NONE);
+        assert_eq!(component::primary_tab::ACTIVE_INDICATOR_HEIGHT, 3.0);
+        assert_eq!(component::primary_tab::ACTIVE_INDICATOR_SHAPE_TOP, 3.0);
+        assert_eq!(component::primary_tab::ACTIVE_INDICATOR_SHAPE_BOTTOM, 0.0);
+        assert_eq!(component::primary_tab::ICON_SIZE, 24.0);
+        assert_eq!(component::primary_tab::HORIZONTAL_SPACE, 16.0);
+        assert_eq!(component::primary_tab::INLINE_ICON_LABEL_SPACE, 8.0);
+        assert_eq!(component::primary_tab::STACKED_ICON_LABEL_SPACE, 2.0);
+        assert_eq!(component::primary_tab::LABEL_TEXT, typography::TITLE_SMALL);
+        assert_eq!(component::primary_tab::INDICATOR_ANIMATION_DURATION_MS, 250);
+        assert_eq!(
+            component::primary_tab::INDICATOR_ANIMATION_EASING,
+            motion::EASING_EMPHASIZED
+        );
+        assert_eq!(component::secondary_tab::CONTAINER_HEIGHT, 48.0);
+        assert_eq!(component::secondary_tab::CONTAINER_ELEVATION_LEVEL, 0);
+        assert_eq!(
+            component::secondary_tab::CONTAINER_SHAPE,
+            shape::CORNER_NONE
+        );
+        assert_eq!(component::secondary_tab::ACTIVE_INDICATOR_HEIGHT, 2.0);
+        assert_eq!(
+            component::secondary_tab::ACTIVE_INDICATOR_SHAPE,
+            shape::CORNER_NONE
+        );
+        assert_eq!(component::secondary_tab::ICON_SIZE, 24.0);
+        assert_eq!(component::secondary_tab::HORIZONTAL_SPACE, 16.0);
+        assert_eq!(component::secondary_tab::ICON_LABEL_SPACE, 8.0);
+        assert_eq!(
+            component::secondary_tab::LABEL_TEXT,
+            typography::TITLE_SMALL
+        );
+        assert_eq!(
+            component::secondary_tab::INDICATOR_ANIMATION_DURATION_MS,
+            250
+        );
+        assert_eq!(
+            component::secondary_tab::INDICATOR_ANIMATION_EASING,
+            motion::EASING_EMPHASIZED
+        );
         assert_eq!(component::tooltip::SPACING_BETWEEN_TOOLTIP_AND_ANCHOR, 4.0);
         assert_eq!(component::tooltip::PLAIN_MIN_HEIGHT, 24.0);
         assert_eq!(component::tooltip::PLAIN_MIN_WIDTH, 40.0);
