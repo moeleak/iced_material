@@ -14,6 +14,7 @@ pub mod combo_box;
 pub mod container;
 #[cfg(feature = "dialog")]
 pub mod dialog;
+pub mod fonts;
 #[cfg(feature = "markdown")]
 pub mod markdown;
 pub mod list;

@@ -19,6 +19,7 @@ build = false
 exclude = [
     "examples/*",
     "assets/*",
+    "Cargo.toml.orig",
     ".cargo/config.toml",
     ".build.yml",
     "rustfmt.toml",

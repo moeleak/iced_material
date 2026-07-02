@@ -3,7 +3,7 @@
 use iced_widget::button;
 use iced_widget::core::text as core_text;
 use iced_widget::core::time::Instant;
-use iced_widget::core::{Background, Color, Element, Length, Padding, alignment, border};
+use iced_widget::core::{Background, Color, Element, Font, Length, Padding, alignment, border};
 use iced_widget::text::{self, LineHeight};
 use iced_widget::{Button, Column, Container, Row, Space, Stack, Text};
 
@@ -12,7 +12,7 @@ use super::support::{AnimatedScalar, lerp};
 use crate::utils::{
     HOVERED_LAYER_OPACITY, PRESSED_LAYER_OPACITY, mix, shadow_from_level, state_layer,
 };
-use crate::{Theme, tokens};
+use crate::{Theme, fonts, tokens};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AdaptiveLayout {
@@ -355,6 +355,7 @@ where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
     Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
     navigation_suite_for_layout(
@@ -377,6 +378,7 @@ where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
     Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
     let content = content.into();
@@ -406,6 +408,7 @@ where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
     Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
     let mut items = Row::new()
@@ -445,6 +448,7 @@ where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
     Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
     let mut items = Column::new()
@@ -487,6 +491,7 @@ where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
     Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
     let headline_scale = tokens::component::navigation_drawer::HEADLINE_TEXT;
@@ -543,6 +548,7 @@ where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
     Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
     let size_progress = selection.size_progress(destination.id);
@@ -601,6 +607,7 @@ where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
     Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
     let size_progress = selection.size_progress(destination.id);
@@ -654,6 +661,7 @@ where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
     Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
     let size_progress = selection.size_progress(destination.id);
@@ -757,6 +765,7 @@ fn indicator_icon_stack<'a, Message, Renderer>(
 where
     Message: Clone + 'a,
     Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Font: Into<Renderer::Font>,
 {
     Stack::new()
         .width(Length::Fixed(indicator_width))
@@ -895,6 +904,7 @@ fn destination_icon_anchor<'a, Message, Renderer>(
 where
     Message: 'a,
     Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Font: Into<Renderer::Font>,
 {
     let icon: Element<'a, Message, Theme, Renderer> =
         destination_icon::<Renderer>(icon, size, progress, drawer).into();
@@ -918,6 +928,7 @@ fn destination_badge<'a, Message, Renderer>(badge: Badge) -> Element<'a, Message
 where
     Message: 'a,
     Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Font: Into<Renderer::Font>,
 {
     match badge {
         Badge::Small => badge_widget::small().into(),
@@ -940,10 +951,9 @@ fn destination_icon<'a, Renderer>(
 ) -> Text<'a, Theme, Renderer>
 where
     Renderer: core_text::Renderer + 'a,
+    Font: Into<Renderer::Font>,
 {
-    Text::new(icon)
-        .size(size)
-        .line_height(LineHeight::Absolute(size.into()))
+    fonts::icon(icon, size)
         .width(Length::Fixed(size))
         .height(Length::Fixed(size))
         .center()
@@ -964,8 +974,10 @@ fn type_text<'a, Renderer>(
 ) -> Text<'a, Theme, Renderer>
 where
     Renderer: core_text::Renderer + 'a,
+    Font: Into<Renderer::Font>,
 {
     Text::new(content)
+        .font(fonts::roboto_for_type_scale(scale))
         .size(scale.size)
         .line_height(LineHeight::Absolute(scale.line_height.into()))
 }

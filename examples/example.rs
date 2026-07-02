@@ -15,6 +15,11 @@ pub fn main() -> iced::Result {
 
     iced::application(Demo::default, update, view)
         .title("iced_material example")
+        .font(material::fonts::ROBOTO_REGULAR_BYTES)
+        .font(material::fonts::ROBOTO_MEDIUM_BYTES)
+        .font(material::fonts::ROBOTO_BOLD_BYTES)
+        .font(material::fonts::MATERIAL_SYMBOLS_ROUNDED_BYTES)
+        .default_font(material::fonts::ROBOTO)
         .subscription(subscription)
         .theme(theme)
         .window(window::Settings {
@@ -68,12 +73,17 @@ struct InventoryRow {
 }
 
 const NAV_DESTINATIONS: [material::widget::navigation::Destination<DemoPage>; 5] = [
-    material::widget::navigation::Destination::new(DemoPage::Inputs, "I", "Inputs"),
-    material::widget::navigation::Destination::new(DemoPage::Controls, "C", "Controls"),
-    material::widget::navigation::Destination::new(DemoPage::Feedback, "F", "Feedback").badge("3"),
-    material::widget::navigation::Destination::new(DemoPage::Surfaces, "S", "Surfaces")
+    material::widget::navigation::Destination::new(DemoPage::Inputs, "input", "Inputs"),
+    material::widget::navigation::Destination::new(DemoPage::Controls, "tune", "Controls"),
+    material::widget::navigation::Destination::new(DemoPage::Feedback, "info", "Feedback")
+        .badge("3"),
+    material::widget::navigation::Destination::new(DemoPage::Surfaces, "layers", "Surfaces")
         .small_badge(),
-    material::widget::navigation::Destination::new(DemoPage::Navigation, "N", "Navigation"),
+    material::widget::navigation::Destination::new(
+        DemoPage::Navigation,
+        "navigation",
+        "Navigation",
+    ),
 ];
 
 const INVENTORY_ROWS: [InventoryRow; 3] = [
@@ -852,6 +862,16 @@ mod tests {
             0.0
         );
         assert_eq!(demo.navigation.selection().progress(DemoPage::Inputs), 1.0);
+    }
+
+    #[test]
+    fn navigation_uses_material_symbol_icon_names() {
+        assert_eq!(material::fonts::all().len(), 4);
+        assert_eq!(NAV_DESTINATIONS[0].icon, "input");
+        assert_eq!(NAV_DESTINATIONS[1].icon, "tune");
+        assert_eq!(NAV_DESTINATIONS[2].icon, "info");
+        assert_eq!(NAV_DESTINATIONS[3].icon, "layers");
+        assert_eq!(NAV_DESTINATIONS[4].icon, "navigation");
     }
 
     #[test]

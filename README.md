@@ -30,6 +30,7 @@ The crate provides Material-sized constructors and token-backed styles for:
 - Checkbox, switch, radio, slider, and progress indicator
 - Dividers, tooltips, badges, lists, cards, and data tables
 - Material color schemes, typography tokens, shape tokens, elevation, and motion constants
+- Bundled Roboto and Material Symbols Rounded font helpers
 
 ## Features
 
