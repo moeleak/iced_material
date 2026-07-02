@@ -1,6 +1,6 @@
 use iced::time::{Duration, Instant};
 use iced::widget::{column, row, scrollable, text};
-use iced::{Alignment, Color, Element, Length, Size, Subscription, window};
+use iced::{window, Alignment, Color, Element, Length, Size, Subscription};
 use iced_material as material;
 use material::{ColorQuartet, ColorScheme, Inverse, Outline, Surface, SurfaceContainer, Theme};
 
@@ -18,6 +18,9 @@ pub fn main() -> iced::Result {
         .font(material::fonts::ROBOTO_REGULAR_BYTES)
         .font(material::fonts::ROBOTO_MEDIUM_BYTES)
         .font(material::fonts::ROBOTO_BOLD_BYTES)
+        .font(material::fonts::NOTO_SANS_CJK_SC_REGULAR_BYTES)
+        .font(material::fonts::NOTO_SANS_CJK_SC_MEDIUM_BYTES)
+        .font(material::fonts::NOTO_SANS_CJK_SC_BOLD_BYTES)
         .font(material::fonts::MATERIAL_SYMBOLS_ROUNDED_BYTES)
         .default_font(material::fonts::ROBOTO)
         .subscription(subscription)
@@ -297,12 +300,20 @@ fn page_content(state: &Demo) -> Element<'_, Message, Theme> {
 fn header(page: DemoPage) -> Element<'static, Message, Theme> {
     let body_large = material::tokens::typography::BODY_LARGE;
     let headline_large = material::tokens::typography::HEADLINE_LARGE;
+    let chinese_sample = "中文字体 Noto Sans CJK";
 
     column![
         text("iced_material 0.14.2")
             .size(headline_large.size)
             .line_height(type_scale_line_height(headline_large)),
         text(page_label(page))
+            .size(body_large.size)
+            .line_height(type_scale_line_height(body_large)),
+        text(chinese_sample)
+            .font(material::fonts::font_for_content_type_scale(
+                chinese_sample,
+                body_large,
+            ))
             .size(body_large.size)
             .line_height(type_scale_line_height(body_large)),
     ]
@@ -866,12 +877,23 @@ mod tests {
 
     #[test]
     fn navigation_uses_material_symbol_icon_names() {
-        assert_eq!(material::fonts::all().len(), 4);
+        assert_eq!(material::fonts::all().len(), 7);
         assert_eq!(NAV_DESTINATIONS[0].icon, "input");
         assert_eq!(NAV_DESTINATIONS[1].icon, "tune");
         assert_eq!(NAV_DESTINATIONS[2].icon, "info");
         assert_eq!(NAV_DESTINATIONS[3].icon, "layers");
         assert_eq!(NAV_DESTINATIONS[4].icon, "navigation");
+    }
+
+    #[test]
+    fn chinese_sample_uses_bundled_noto_sans_cjk() {
+        assert_eq!(
+            material::fonts::font_for_content_type_scale(
+                "中文字体 Noto Sans CJK",
+                material::tokens::typography::BODY_LARGE,
+            ),
+            material::fonts::NOTO_SANS_CJK_SC
+        );
     }
 
     #[test]
