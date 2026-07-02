@@ -7,7 +7,7 @@ use iced_widget::core::{Background, Color, Element, Length, Padding, alignment, 
 use iced_widget::text::{self, LineHeight};
 use iced_widget::{Button, Column, Container, Row, Space, Stack, Text};
 
-use super::support::{AnimatedScalar, duration_ms};
+use super::support::{AnimatedScalar, duration_ms, lerp};
 use crate::button as button_style;
 use crate::utils::{mix, shadow_from_level};
 use crate::{Theme, tokens};
@@ -74,6 +74,8 @@ impl WindowSizeClass {
 pub struct Selection<Id> {
     selected: Id,
     previous: Option<Id>,
+    selected_start: f32,
+    previous_start: f32,
     progress: f32,
 }
 
@@ -82,14 +84,28 @@ impl<Id: Copy + Eq> Selection<Id> {
         Self {
             selected,
             previous: None,
+            selected_start: 1.0,
+            previous_start: 0.0,
             progress: 1.0,
         }
     }
 
     pub fn transitioning(selected: Id, previous: Id, progress: f32) -> Self {
+        Self::transitioning_from(selected, previous, 0.0, 1.0, progress)
+    }
+
+    pub fn transitioning_from(
+        selected: Id,
+        previous: Id,
+        selected_start: f32,
+        previous_start: f32,
+        progress: f32,
+    ) -> Self {
         Self {
             selected,
             previous: Some(previous),
+            selected_start: selected_start.clamp(0.0, 1.0),
+            previous_start: previous_start.clamp(0.0, 1.0),
             progress: progress.clamp(0.0, 1.0),
         }
     }
@@ -100,9 +116,9 @@ impl<Id: Copy + Eq> Selection<Id> {
 
     pub fn progress(self, id: Id) -> f32 {
         if id == self.selected {
-            self.progress
+            lerp(self.selected_start, 1.0, self.progress)
         } else if self.previous.is_some_and(|previous| previous == id) {
-            1.0 - self.progress
+            lerp(self.previous_start, 0.0, self.progress)
         } else {
             0.0
         }
@@ -113,6 +129,8 @@ impl<Id: Copy + Eq> Selection<Id> {
 pub struct NavigationState<Id> {
     selected: Id,
     previous: Option<Id>,
+    selected_start: f32,
+    previous_start: f32,
     progress: AnimatedScalar,
 }
 
@@ -121,6 +139,8 @@ impl<Id: Copy + Eq> NavigationState<Id> {
         Self {
             selected,
             previous: None,
+            selected_start: 1.0,
+            previous_start: 0.0,
             progress: AnimatedScalar::new(1.0),
         }
     }
@@ -131,7 +151,13 @@ impl<Id: Copy + Eq> NavigationState<Id> {
 
     pub fn selection(&self) -> Selection<Id> {
         if let Some(previous) = self.previous {
-            Selection::transitioning(self.selected, previous, self.progress.value)
+            Selection::transitioning_from(
+                self.selected,
+                previous,
+                self.selected_start,
+                self.previous_start,
+                self.progress.value,
+            )
         } else {
             Selection::new(self.selected)
         }
@@ -142,10 +168,15 @@ impl<Id: Copy + Eq> NavigationState<Id> {
             return;
         }
 
+        let current = self.selection();
         let previous = self.selected;
+        let selected_start = current.progress(selected);
+        let previous_start = current.progress(previous);
 
         self.selected = selected;
         self.previous = Some(previous);
+        self.selected_start = selected_start;
+        self.previous_start = previous_start;
         self.progress = AnimatedScalar::new(0.0);
         self.progress.set_target(
             1.0,
@@ -163,6 +194,8 @@ impl<Id: Copy + Eq> NavigationState<Id> {
         if !self.progress.advance(now) {
             self.progress.value = 1.0;
             self.previous = None;
+            self.selected_start = 1.0;
+            self.previous_start = 0.0;
             false
         } else {
             true
@@ -428,9 +461,6 @@ where
     });
     let content = Column::new()
         .width(Length::Fill)
-        .height(Length::Fixed(
-            tokens::component::navigation_bar::CONTAINER_HEIGHT,
-        ))
         .spacing(tokens::component::navigation_bar::INDICATOR_TO_LABEL_PADDING)
         .align_x(alignment::Horizontal::Center)
         .push(indicator)
@@ -440,15 +470,15 @@ where
         Container::new(content)
             .width(Length::Fill)
             .height(Length::Fixed(
-                tokens::component::navigation_bar::CONTAINER_HEIGHT
-                    - tokens::component::navigation_bar::INDICATOR_VERTICAL_OFFSET,
+                tokens::component::navigation_bar::CONTAINER_HEIGHT,
             ))
             .padding(Padding {
                 top: tokens::component::navigation_bar::INDICATOR_VERTICAL_OFFSET,
                 right: 0.0,
-                bottom: 0.0,
+                bottom: navigation_bar_item_bottom_padding(),
                 left: 0.0,
-            }),
+            })
+            .align_y(alignment::Vertical::Center),
     )
     .height(Length::Fixed(
         tokens::component::navigation_bar::CONTAINER_HEIGHT,
@@ -645,6 +675,17 @@ where
 fn animated_indicator_width(target_width: f32, progress: f32) -> f32 {
     // AndroidX Material3 measures the selected indicator width from animation progress.
     target_width * progress.clamp(0.0, 1.0)
+}
+
+fn navigation_bar_item_bottom_padding() -> f32 {
+    let label = tokens::component::navigation_bar::LABEL_TEXT;
+
+    (tokens::component::navigation_bar::CONTAINER_HEIGHT
+        - tokens::component::navigation_bar::INDICATOR_VERTICAL_OFFSET
+        - tokens::component::navigation_bar::ACTIVE_INDICATOR_HEIGHT
+        - tokens::component::navigation_bar::INDICATOR_TO_LABEL_PADDING
+        - label.line_height)
+        .max(0.0)
 }
 
 fn destination_icon<'a, Renderer>(
@@ -871,6 +912,29 @@ mod tests {
     }
 
     #[test]
+    fn navigation_state_preserves_progress_when_transition_is_interrupted() {
+        let start = Instant::now();
+        let mut state = NavigationState::new(Page::One);
+
+        state.select(Page::Two, start, AdaptiveLayout::NavigationRail);
+        let _ = state.advance(
+            start + duration_ms(tokens::component::navigation_rail::ITEM_ANIMATION_DURATION_MS / 2),
+        );
+
+        let two_progress = state.selection().progress(Page::Two);
+
+        state.select(
+            Page::One,
+            start + duration_ms(tokens::component::navigation_rail::ITEM_ANIMATION_DURATION_MS / 2),
+            AdaptiveLayout::NavigationRail,
+        );
+
+        assert_eq!(state.selected(), Page::One);
+        assert_eq!(state.selection().progress(Page::Two), two_progress);
+        assert!(state.selection().progress(Page::One) > 0.0);
+    }
+
+    #[test]
     fn active_indicator_width_follows_selection_progress() {
         let target = tokens::component::navigation_bar::ACTIVE_INDICATOR_WIDTH;
 
@@ -879,5 +943,10 @@ mod tests {
         assert_eq!(animated_indicator_width(target, 0.5), target / 2.0);
         assert_eq!(animated_indicator_width(target, 1.0), target);
         assert_eq!(animated_indicator_width(target, 2.0), target);
+    }
+
+    #[test]
+    fn navigation_bar_item_geometry_matches_material_vertical_offsets() {
+        assert_eq!(navigation_bar_item_bottom_padding(), 16.0);
     }
 }
