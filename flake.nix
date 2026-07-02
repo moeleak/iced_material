@@ -49,7 +49,7 @@
 
         packages.default = rustPlatform.buildRustPackage {
           pname = "iced_material";
-          version = "0.14.2";
+          version = "0.2.0";
           src = ./.;
           cargoLock = {
             lockFile = ./Cargo.lock;

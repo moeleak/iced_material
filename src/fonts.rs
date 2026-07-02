@@ -18,9 +18,6 @@ pub const MATERIAL_SYMBOLS_ROUNDED_FILLED_FAMILY: &str = "Material Symbols Round
 pub const ROBOTO_REGULAR_BYTES: &[u8] = include_bytes!("fonts/Roboto-Regular.ttf");
 pub const ROBOTO_MEDIUM_BYTES: &[u8] = include_bytes!("fonts/Roboto-Medium.ttf");
 pub const ROBOTO_BOLD_BYTES: &[u8] = include_bytes!("fonts/Roboto-Bold.ttf");
-pub const NOTO_SANS_CJK_SC_REGULAR_BYTES: &[u8] = include_bytes!("fonts/NotoSansCJKsc-Regular.otf");
-pub const NOTO_SANS_CJK_SC_MEDIUM_BYTES: &[u8] = include_bytes!("fonts/NotoSansCJKsc-Medium.otf");
-pub const NOTO_SANS_CJK_SC_BOLD_BYTES: &[u8] = include_bytes!("fonts/NotoSansCJKsc-Bold.otf");
 pub const MATERIAL_SYMBOLS_ROUNDED_BYTES: &[u8] =
     include_bytes!("fonts/MaterialSymbolsRounded-Regular.ttf");
 pub const MATERIAL_SYMBOLS_ROUNDED_FILLED_BYTES: &[u8] =
@@ -47,14 +44,11 @@ pub const MATERIAL_SYMBOLS_ROUNDED_FILLED: Font = Font {
     style: Style::Normal,
 };
 
-pub fn all() -> [Cow<'static, [u8]>; 8] {
+pub fn all() -> [Cow<'static, [u8]>; 5] {
     [
         Cow::Borrowed(ROBOTO_REGULAR_BYTES),
         Cow::Borrowed(ROBOTO_MEDIUM_BYTES),
         Cow::Borrowed(ROBOTO_BOLD_BYTES),
-        Cow::Borrowed(NOTO_SANS_CJK_SC_REGULAR_BYTES),
-        Cow::Borrowed(NOTO_SANS_CJK_SC_MEDIUM_BYTES),
-        Cow::Borrowed(NOTO_SANS_CJK_SC_BOLD_BYTES),
         Cow::Borrowed(MATERIAL_SYMBOLS_ROUNDED_BYTES),
         Cow::Borrowed(MATERIAL_SYMBOLS_ROUNDED_FILLED_BYTES),
     ]
@@ -190,12 +184,9 @@ mod tests {
         assert!(is_font_asset(ROBOTO_REGULAR_BYTES));
         assert!(is_font_asset(ROBOTO_MEDIUM_BYTES));
         assert!(is_font_asset(ROBOTO_BOLD_BYTES));
-        assert!(is_font_asset(NOTO_SANS_CJK_SC_REGULAR_BYTES));
-        assert!(is_font_asset(NOTO_SANS_CJK_SC_MEDIUM_BYTES));
-        assert!(is_font_asset(NOTO_SANS_CJK_SC_BOLD_BYTES));
         assert!(is_font_asset(MATERIAL_SYMBOLS_ROUNDED_BYTES));
         assert!(is_font_asset(MATERIAL_SYMBOLS_ROUNDED_FILLED_BYTES));
-        assert_eq!(all().len(), 8);
+        assert_eq!(all().len(), 5);
     }
 
     #[test]

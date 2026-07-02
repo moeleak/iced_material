@@ -366,7 +366,7 @@ mod tests {
 
     #[test]
     fn navigation_uses_material_symbol_icon_names() {
-        assert_eq!(material::fonts::all().len(), 8);
+        assert_eq!(material::fonts::all().len(), 5);
         assert_eq!(
             NAV_DESTINATIONS.map(|destination| destination.icon),
             ["input", "tune", "info", "layers", "navigation", "layers"]
@@ -387,7 +387,7 @@ mod tests {
     }
 
     #[test]
-    fn chinese_sample_uses_bundled_noto_sans_cjk() {
+    fn chinese_sample_selects_noto_sans_cjk_family() {
         assert_eq!(
             material::fonts::font_for_content_type_scale(
                 "中文字体 Noto Sans CJK",

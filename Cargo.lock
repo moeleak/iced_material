@@ -1365,7 +1365,7 @@ dependencies = [
 
 [[package]]
 name = "iced_material"
-version = "0.14.2"
+version = "0.2.0"
 dependencies = [
  "iced",
  "iced_anim",

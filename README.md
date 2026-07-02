@@ -11,7 +11,7 @@ Material 3 inspired widgets and theme defaults for
 ```toml
 [dependencies]
 iced = "0.14"
-iced_material = "0.14.2"
+iced_material = "0.2.0"
 ```
 
 Run the 91-line animated quick start app:
@@ -65,6 +65,7 @@ The crate provides Material-sized constructors and token-backed styles for:
 - Application, centered window, page surface, and adaptive navigation helpers
 - Material color schemes, typography tokens, shape tokens, elevation, and motion constants
 - Bundled Roboto and Material Symbols Rounded font helpers
+- Noto Sans CJK SC font family helpers for applications that provide CJK fonts
 
 ## Features
 

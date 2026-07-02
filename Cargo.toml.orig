@@ -1,8 +1,8 @@
 [package]
 name = "iced_material"
 description = "A Material3 inspired theme for `iced`"
-authors = ["pml68 <contact@pml68.dev>"]
-version = "0.14.2"
+authors = ["pml68 <contact@pml68.dev>", "MoeLeak <i@leak.moe>"]
+version = "0.2.0"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/moeleak/iced_material"
@@ -10,7 +10,6 @@ categories = ["gui"]
 keywords = ["gui", "ui", "graphics", "interface", "widgets"]
 rust-version = "1.88"
 exclude = [
-  "examples/*",
   "assets/*",
   ".cargo/config.toml",
   ".build.yml",
@@ -37,6 +36,8 @@ markdown = ["iced_widget/markdown"]
 svg = ["iced_widget/svg"]
 # Provides support for the QR code widget.
 qr_code = ["iced_widget/qr_code"]
+# Builds the WebAssembly showcase binary used by Trunk.
+__showcase_web = []
 
 [dependencies]
 iced = "0.14"
@@ -58,6 +59,7 @@ path = "examples/showcase/app.rs"
 [[bin]]
 name = "showcase_web"
 path = "web/showcase_web.rs"
+required-features = ["__showcase_web"]
 
 [lints.rust]
 missing_debug_implementations = "deny"
