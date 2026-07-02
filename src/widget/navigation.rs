@@ -35,7 +35,6 @@ const RIPPLE_OPACITY_HOLD_DURATION_MS: u16 = RIPPLE_OPACITY_ENTER_DURATION_MS + 
 const RIPPLE_START_RADIUS_FACTOR: f32 = 0.3;
 const RIPPLE_CLIP_MIN_SAMPLES: usize = 24;
 const RIPPLE_CLIP_MAX_SAMPLES: usize = 96;
-const MAX_RIPPLES: usize = 10;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AdaptiveLayout {
@@ -1750,6 +1749,10 @@ impl NavigationPressSurfaceState {
         self.is_hovered = is_hovered;
 
         if !self.is_pressed {
+            if !is_hovered {
+                self.clear_ripples();
+            }
+
             self.animate_to_interaction_target(now);
         }
 
@@ -1757,12 +1760,8 @@ impl NavigationPressSurfaceState {
     }
 
     fn press(&mut self, origin: Point, now: Instant) {
-        if let Some(mut ripple) = self.active_ripple.take() {
-            ripple.exit(now);
-            self.push_exiting(ripple);
-        }
-
         self.is_pressed = true;
+        self.exiting_ripples.clear();
         self.active_ripple = Some(NavigationRipple::new(origin, now));
         self.now = Some(now);
         self.animate_to_interaction_target(now);
@@ -1772,9 +1771,13 @@ impl NavigationPressSurfaceState {
         self.is_pressed = false;
         self.is_hovered = is_hovered;
 
-        if let Some(mut ripple) = self.active_ripple.take() {
-            ripple.exit(now);
-            self.push_exiting(ripple);
+        if is_hovered {
+            if let Some(mut ripple) = self.active_ripple.take() {
+                ripple.exit(now);
+                self.replace_exiting(ripple);
+            }
+        } else {
+            self.clear_ripples();
         }
 
         self.now = Some(now);
@@ -1784,11 +1787,7 @@ impl NavigationPressSurfaceState {
     fn cancel(&mut self, now: Instant) {
         self.is_pressed = false;
         self.is_hovered = false;
-
-        if let Some(mut ripple) = self.active_ripple.take() {
-            ripple.exit(now);
-            self.push_exiting(ripple);
-        }
+        self.clear_ripples();
 
         self.now = Some(now);
         self.animate_to_interaction_target(now);
@@ -1814,12 +1813,14 @@ impl NavigationPressSurfaceState {
         );
     }
 
-    fn push_exiting(&mut self, ripple: NavigationRipple) {
-        if self.exiting_ripples.len() >= MAX_RIPPLES {
-            let _ = self.exiting_ripples.remove(0);
-        }
-
+    fn replace_exiting(&mut self, ripple: NavigationRipple) {
+        self.exiting_ripples.clear();
         self.exiting_ripples.push(ripple);
+    }
+
+    fn clear_ripples(&mut self) {
+        self.active_ripple = None;
+        self.exiting_ripples.clear();
     }
 
     fn prune(&mut self, now: Instant) {
@@ -2167,10 +2168,8 @@ fn navigation_surface_state_layer_opacity(is_hovered: bool, is_pressed: bool) ->
     )
 }
 
-fn navigation_interaction_state_layer_target(is_hovered: bool, is_pressed: bool) -> f32 {
-    if is_pressed {
-        0.0
-    } else if is_hovered {
+fn navigation_interaction_state_layer_target(is_hovered: bool, _is_pressed: bool) -> f32 {
+    if is_hovered {
         HOVERED_LAYER_OPACITY
     } else {
         0.0
@@ -3589,6 +3588,10 @@ mod tests {
         );
         assert_eq!(navigation_surface_state_layer_opacity(false, true), 0.0);
         assert_eq!(
+            navigation_surface_state_layer_opacity(true, true),
+            HOVERED_LAYER_OPACITY
+        );
+        assert_eq!(
             navigation_state_layer_color(&theme, NavigationStateLayer::BarOrRail),
             theme.colors().surface.text
         );
@@ -3606,6 +3609,26 @@ mod tests {
     }
 
     #[test]
+    fn navigation_press_surface_click_does_not_animate_hover_layer() {
+        let start = Instant::now();
+        let mut state = NavigationPressSurfaceState::default();
+
+        assert!(state.sync_hover(true, start));
+        let _ = state.advance(start + duration_ms(tokens::motion::DURATION_SHORT2_MS));
+        assert_eq!(state.opacity(), HOVERED_LAYER_OPACITY);
+
+        state.press(Point::new(32.0, 16.0), start + duration_ms(200));
+
+        assert_eq!(state.opacity(), HOVERED_LAYER_OPACITY);
+        assert!(state.has_visible_ripples(start + duration_ms(220)));
+
+        state.release(true, start + duration_ms(240));
+
+        assert_eq!(state.opacity(), HOVERED_LAYER_OPACITY);
+        assert!(state.has_visible_ripples(start + duration_ms(260)));
+    }
+
+    #[test]
     fn navigation_press_surface_keeps_release_ripple_visible() {
         let start = Instant::now();
         let mut state = NavigationPressSurfaceState::default();
@@ -3616,7 +3639,7 @@ mod tests {
         assert_eq!(state.opacity(), 0.0);
         assert!(state.has_visible_ripples(start + duration_ms(75)));
 
-        state.release(false, start);
+        state.release(true, start);
         let still_animating = state.advance(start + Duration::from_millis(50));
 
         assert!(still_animating);
@@ -3625,10 +3648,51 @@ mod tests {
         let finished = state.advance(start + duration_ms(RIPPLE_OPACITY_HOLD_DURATION_MS + 151));
 
         assert!(!finished);
-        assert_eq!(state.opacity(), 0.0);
+        assert_eq!(state.opacity(), HOVERED_LAYER_OPACITY);
         assert!(
             !state.has_visible_ripples(start + duration_ms(RIPPLE_OPACITY_HOLD_DURATION_MS + 151))
         );
+    }
+
+    #[test]
+    fn navigation_press_surface_clears_release_ripple_when_pointer_leaves_item() {
+        let start = Instant::now();
+        let mut state = NavigationPressSurfaceState::default();
+
+        assert!(state.sync_hover(true, start));
+        state.press(Point::new(32.0, 16.0), start);
+        state.release(true, start);
+
+        assert!(state.has_visible_ripples(start + duration_ms(75)));
+        assert!(state.sync_hover(false, start + duration_ms(80)));
+        assert!(!state.has_visible_ripples(start + duration_ms(80)));
+    }
+
+    #[test]
+    fn navigation_press_surface_discards_ripple_released_outside_item() {
+        let start = Instant::now();
+        let mut state = NavigationPressSurfaceState::default();
+
+        assert!(state.sync_hover(true, start));
+        state.press(Point::new(32.0, 16.0), start);
+        state.release(false, start + duration_ms(20));
+
+        assert!(!state.has_visible_ripples(start + duration_ms(75)));
+        assert_eq!(state.exiting_ripples.len(), 0);
+    }
+
+    #[test]
+    fn navigation_press_surface_replaces_fast_repeated_ripples() {
+        let start = Instant::now();
+        let mut state = NavigationPressSurfaceState::default();
+
+        assert!(state.sync_hover(true, start));
+        state.press(Point::new(20.0, 16.0), start);
+        state.release(true, start + duration_ms(20));
+        state.press(Point::new(44.0, 16.0), start + duration_ms(40));
+
+        assert!(state.active_ripple.is_some());
+        assert_eq!(state.exiting_ripples.len(), 0);
     }
 
     #[test]
