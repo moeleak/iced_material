@@ -9,7 +9,9 @@ use iced_widget::{Button, Column, Container, Row, Space, Stack, Text};
 
 use super::support::{AnimatedScalar, duration_ms, lerp};
 use crate::button as button_style;
-use crate::utils::{mix, shadow_from_level};
+use crate::utils::{
+    HOVERED_LAYER_OPACITY, PRESSED_LAYER_OPACITY, mix, shadow_from_level, state_layer,
+};
 use crate::{Theme, tokens};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -448,6 +450,7 @@ where
 {
     let progress = selection.progress(destination.id);
     let scale = tokens::component::navigation_bar::LABEL_TEXT;
+    let message = on_select(destination.id);
     let indicator = indicator_icon_stack(
         destination.icon,
         tokens::component::navigation_bar::ICON_SIZE,
@@ -455,6 +458,7 @@ where
         tokens::component::navigation_bar::ACTIVE_INDICATOR_HEIGHT,
         progress,
         false,
+        message.clone(),
     );
     let label = type_text(destination.label, scale).style(move |theme| text::Style {
         color: Some(bar_or_rail_label_color(theme, progress)),
@@ -485,7 +489,7 @@ where
     ))
     .padding(Padding::ZERO)
     .style(navigation_button)
-    .on_press(on_select(destination.id))
+    .on_press(message)
 }
 
 fn navigation_rail_item<'a, Id, Message, Renderer, F>(
@@ -501,6 +505,7 @@ where
 {
     let progress = selection.progress(destination.id);
     let scale = tokens::component::navigation_rail::LABEL_TEXT;
+    let message = on_select(destination.id);
     let indicator = indicator_icon_stack(
         destination.icon,
         tokens::component::navigation_rail::ICON_SIZE,
@@ -508,6 +513,7 @@ where
         tokens::component::navigation_rail::ACTIVE_INDICATOR_HEIGHT,
         progress,
         false,
+        message.clone(),
     );
     let label = type_text(destination.label, scale).style(move |theme| text::Style {
         color: Some(bar_or_rail_label_color(theme, progress)),
@@ -533,7 +539,7 @@ where
         ))
         .padding(Padding::ZERO)
         .style(navigation_button)
-        .on_press(on_select(destination.id))
+        .on_press(message)
 }
 
 fn navigation_drawer_item<'a, Id, Message, Renderer, F>(
@@ -549,6 +555,7 @@ where
 {
     let progress = selection.progress(destination.id);
     let scale = tokens::component::navigation_drawer::LABEL_TEXT;
+    let message = on_select(destination.id);
     let icon = destination_icon::<Renderer>(
         destination.icon,
         tokens::component::navigation_drawer::ICON_SIZE,
@@ -602,6 +609,12 @@ where
             tokens::component::navigation_drawer::ACTIVE_INDICATOR_HEIGHT,
             progress,
         ))
+        .push(indicator_state_layer(
+            tokens::component::navigation_drawer::ACTIVE_INDICATOR_WIDTH,
+            tokens::component::navigation_drawer::ACTIVE_INDICATOR_HEIGHT,
+            progress,
+            message.clone(),
+        ))
         .push(content);
 
     Button::new(indicator)
@@ -613,7 +626,7 @@ where
         ))
         .padding(Padding::ZERO)
         .style(navigation_button)
-        .on_press(on_select(destination.id))
+        .on_press(message)
 }
 
 fn indicator_icon_stack<'a, Message, Renderer>(
@@ -623,9 +636,10 @@ fn indicator_icon_stack<'a, Message, Renderer>(
     indicator_height: f32,
     progress: f32,
     drawer: bool,
+    on_press: Message,
 ) -> Stack<'a, Message, Theme, Renderer>
 where
-    Message: 'a,
+    Message: Clone + 'a,
     Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
 {
     Stack::new()
@@ -637,6 +651,12 @@ where
                 .height(Length::Fixed(indicator_height)),
         )
         .push(indicator_layer(indicator_width, indicator_height, progress))
+        .push(indicator_state_layer(
+            indicator_width,
+            indicator_height,
+            progress,
+            on_press,
+        ))
         .push(
             Container::new(destination_icon::<Renderer>(
                 icon, icon_size, progress, drawer,
@@ -646,6 +666,28 @@ where
             .align_x(alignment::Horizontal::Center)
             .align_y(alignment::Vertical::Center),
         )
+}
+
+fn indicator_state_layer<'a, Message, Renderer>(
+    target_width: f32,
+    height: f32,
+    progress: f32,
+    on_press: Message,
+) -> Button<'a, Message, Theme, Renderer>
+where
+    Message: Clone + 'a,
+    Renderer: iced_widget::core::Renderer + 'a,
+{
+    Button::new(
+        Space::new()
+            .width(Length::Fixed(target_width))
+            .height(Length::Fixed(height)),
+    )
+    .width(Length::Fixed(target_width))
+    .height(Length::Fixed(height))
+    .padding(Padding::ZERO)
+    .style(move |theme, status| indicator_state_layer_style(theme, status, progress))
+    .on_press(on_press)
 }
 
 fn indicator_layer<'a, Message, Renderer>(
@@ -670,6 +712,27 @@ where
         .height(Length::Fixed(height))
         .align_x(alignment::Horizontal::Center)
         .align_y(alignment::Vertical::Center)
+}
+
+fn indicator_state_layer_style(
+    theme: &Theme,
+    status: button::Status,
+    progress: f32,
+) -> button::Style {
+    let layer_color = navigation_state_layer_color(theme, progress);
+    let opacity = match status {
+        button::Status::Hovered => HOVERED_LAYER_OPACITY,
+        button::Status::Pressed => PRESSED_LAYER_OPACITY,
+        button::Status::Active | button::Status::Disabled => 0.0,
+    };
+
+    button::Style {
+        background: (opacity > 0.0).then_some(Background::Color(state_layer(layer_color, opacity))),
+        text_color: layer_color,
+        border: border::rounded(tokens::shape::CORNER_FULL),
+        snap: cfg!(feature = "crisp"),
+        ..button::Style::default()
+    }
 }
 
 fn animated_indicator_width(target_width: f32, progress: f32) -> f32 {
@@ -820,6 +883,16 @@ fn drawer_content_color(theme: &Theme, progress: f32) -> Color {
     )
 }
 
+fn navigation_state_layer_color(theme: &Theme, progress: f32) -> Color {
+    let colors = theme.colors();
+
+    mix(
+        colors.surface.text,
+        colors.secondary.container_text,
+        progress,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -948,5 +1021,35 @@ mod tests {
     #[test]
     fn navigation_bar_item_geometry_matches_material_vertical_offsets() {
         assert_eq!(navigation_bar_item_bottom_padding(), 16.0);
+    }
+
+    #[test]
+    fn indicator_state_layer_uses_material_state_opacity_on_pill_only() {
+        let theme = Theme::Light;
+
+        let active = indicator_state_layer_style(&theme, button::Status::Active, 1.0);
+        assert_eq!(active.background, None);
+
+        let inactive_hover = indicator_state_layer_style(&theme, button::Status::Hovered, 0.0);
+        assert_eq!(
+            inactive_hover.background,
+            Some(Background::Color(state_layer(
+                theme.colors().surface.text,
+                HOVERED_LAYER_OPACITY
+            )))
+        );
+
+        let selected_pressed = indicator_state_layer_style(&theme, button::Status::Pressed, 1.0);
+        assert_eq!(
+            selected_pressed.background,
+            Some(Background::Color(state_layer(
+                theme.colors().secondary.container_text,
+                PRESSED_LAYER_OPACITY
+            )))
+        );
+        assert_eq!(
+            selected_pressed.border.radius.top_left,
+            tokens::shape::CORNER_FULL
+        );
     }
 }
