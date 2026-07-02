@@ -1768,10 +1768,14 @@ impl NavigationPressSurfaceState {
     }
 
     fn release(&mut self, is_hovered: bool, now: Instant) {
+        self.release_with_hover(is_hovered, is_hovered, now);
+    }
+
+    fn release_with_hover(&mut self, keep_ripple: bool, is_hovered: bool, now: Instant) {
         self.is_pressed = false;
         self.is_hovered = is_hovered;
 
-        if is_hovered {
+        if keep_ripple {
             if let Some(mut ripple) = self.active_ripple.take() {
                 ripple.exit(now);
                 self.replace_exiting(ripple);
@@ -2019,7 +2023,8 @@ where
             Event::Window(window::Event::RedrawRequested(now)) => Some(*now),
             _ => None,
         };
-        let is_hovered = cursor.is_over(layout.bounds());
+        let is_touch_event = matches!(event, Event::Touch(_));
+        let is_hovered = !is_touch_event && cursor.is_over(layout.bounds());
 
         if state.sync_hover(is_hovered, now.unwrap_or_else(Instant::now)) {
             shell.request_redraw();
@@ -2028,7 +2033,7 @@ where
         match event {
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
             | Event::Touch(touch::Event::FingerPressed { .. }) => {
-                if is_hovered {
+                if navigation_event_is_over(event, layout.bounds(), cursor) {
                     let indicator_bounds = self.indicator.bounds(layout.bounds());
 
                     if let Some(origin) = navigation_press_origin(event, indicator_bounds, cursor) {
@@ -2041,10 +2046,21 @@ where
             Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left))
             | Event::Touch(touch::Event::FingerLifted { .. }) => {
                 if state.is_pressed {
-                    state.release(is_hovered, now.unwrap_or_else(Instant::now));
+                    let is_released_over = navigation_event_is_over(event, layout.bounds(), cursor);
+                    let is_touch_release = matches!(event, Event::Touch(_));
+
+                    if is_touch_release {
+                        state.release_with_hover(
+                            is_released_over,
+                            false,
+                            now.unwrap_or_else(Instant::now),
+                        );
+                    } else {
+                        state.release(is_released_over, now.unwrap_or_else(Instant::now));
+                    }
                     shell.request_redraw();
 
-                    if is_hovered {
+                    if is_released_over {
                         shell.publish(self.on_press.clone());
                     }
 
@@ -2185,12 +2201,25 @@ fn navigation_press_origin(
     indicator_bounds: Rectangle,
     cursor: mouse::Cursor,
 ) -> Option<Point> {
-    let position = match event {
-        Event::Touch(touch::Event::FingerPressed { position, .. }) => Some(*position),
-        _ => cursor.position(),
-    }?;
+    let position = navigation_event_position(event).or_else(|| cursor.position())?;
 
     Some(position - Vector::new(indicator_bounds.x, indicator_bounds.y))
+}
+
+fn navigation_event_is_over(event: &Event, bounds: Rectangle, cursor: mouse::Cursor) -> bool {
+    navigation_event_position(event)
+        .map(|position| bounds.contains(position))
+        .unwrap_or_else(|| cursor.is_over(bounds))
+}
+
+fn navigation_event_position(event: &Event) -> Option<Point> {
+    match event {
+        Event::Touch(touch::Event::FingerPressed { position, .. })
+        | Event::Touch(touch::Event::FingerMoved { position, .. })
+        | Event::Touch(touch::Event::FingerLifted { position, .. })
+        | Event::Touch(touch::Event::FingerLost { position, .. }) => Some(*position),
+        _ => None,
+    }
 }
 
 fn draw_navigation_ripples<Renderer>(
@@ -3655,6 +3684,19 @@ mod tests {
     }
 
     #[test]
+    fn navigation_press_surface_touch_release_keeps_ripple_without_hover_layer() {
+        let start = Instant::now();
+        let mut state = NavigationPressSurfaceState::default();
+
+        state.press(Point::new(32.0, 16.0), start);
+        state.release_with_hover(true, false, start + duration_ms(20));
+
+        assert!(!state.is_hovered);
+        assert!(state.has_visible_ripples(start + duration_ms(75)));
+        assert_eq!(state.state_layer_opacity.to, 0.0);
+    }
+
+    #[test]
     fn navigation_press_surface_clears_release_ripple_when_pointer_leaves_item() {
         let start = Instant::now();
         let mut state = NavigationPressSurfaceState::default();
@@ -3719,6 +3761,36 @@ mod tests {
             navigation_press_origin(&event, indicator_bounds, mouse::Cursor::Unavailable).unwrap();
 
         assert_eq!(origin, Point::new(-8.0, 44.0));
+    }
+
+    #[test]
+    fn navigation_touch_hit_test_uses_finger_position_without_cursor() {
+        let bounds = Rectangle::new(Point::new(0.0, 720.0), Size::new(120.0, 80.0));
+        let event = Event::Touch(touch::Event::FingerPressed {
+            id: touch::Finger(0),
+            position: Point::new(48.0, 760.0),
+        });
+
+        assert!(navigation_event_is_over(
+            &event,
+            bounds,
+            mouse::Cursor::Unavailable
+        ));
+    }
+
+    #[test]
+    fn navigation_touch_hit_test_rejects_positions_outside_bounds() {
+        let bounds = Rectangle::new(Point::new(0.0, 720.0), Size::new(120.0, 80.0));
+        let event = Event::Touch(touch::Event::FingerPressed {
+            id: touch::Finger(0),
+            position: Point::new(48.0, 680.0),
+        });
+
+        assert!(!navigation_event_is_over(
+            &event,
+            bounds,
+            mouse::Cursor::Unavailable
+        ));
     }
 
     #[test]
