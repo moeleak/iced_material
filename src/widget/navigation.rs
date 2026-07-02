@@ -1,5 +1,6 @@
 //! Material 3 navigation bar, rail, drawer, and adaptive layout helpers.
 
+use iced_widget::canvas;
 use iced_widget::core::layout;
 use iced_widget::core::mouse;
 use iced_widget::core::overlay;
@@ -10,19 +11,31 @@ use iced_widget::core::touch;
 use iced_widget::core::widget::Operation;
 use iced_widget::core::widget::tree::{self, Tree};
 use iced_widget::core::{
-    Background, Clipboard, Color, Element, Event, Font, Layout, Length, Padding, Rectangle, Shell,
-    Size, Vector, Widget, alignment, border, window,
+    Background, Clipboard, Color, Element, Event, Font, Layout, Length, Padding, Point, Rectangle,
+    Shell, Size, Vector, Widget, alignment, border, window,
 };
+use iced_widget::graphics::geometry;
 use iced_widget::text::{self, LineHeight};
-use iced_widget::{Button, Column, Container, Row, Space, Stack, Text};
+use iced_widget::{Column, Container, Row, Space, Stack, Text};
 
 use super::badge as badge_widget;
+use super::button::Button;
 use super::support::{AnimatedScalar, alpha_color, duration_ms, lerp};
 use crate::button as button_style;
 use crate::utils::{
     HOVERED_LAYER_OPACITY, PRESSED_LAYER_OPACITY, mix, shadow_from_level, state_layer,
 };
 use crate::{Theme, fonts, tokens};
+
+const RIPPLE_ENTER_DURATION_MS: u16 = 225;
+const RIPPLE_ORIGIN_DURATION_MS: u16 = 225;
+const RIPPLE_OPACITY_ENTER_DURATION_MS: u16 = 75;
+const RIPPLE_OPACITY_EXIT_DURATION_MS: u16 = 150;
+const RIPPLE_OPACITY_HOLD_DURATION_MS: u16 = RIPPLE_OPACITY_ENTER_DURATION_MS + 150;
+const RIPPLE_START_RADIUS_FACTOR: f32 = 0.3;
+const RIPPLE_CLIP_MIN_SAMPLES: usize = 24;
+const RIPPLE_CLIP_MAX_SAMPLES: usize = 96;
+const MAX_RIPPLES: usize = 10;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AdaptiveLayout {
@@ -92,7 +105,6 @@ pub struct Selection<Id> {
     selected_alpha_start: f32,
     previous_alpha_start: f32,
     alpha_progress: f32,
-    activation_progress: f32,
 }
 
 impl<Id: Copy + Eq> Selection<Id> {
@@ -106,7 +118,6 @@ impl<Id: Copy + Eq> Selection<Id> {
             selected_alpha_start: 1.0,
             previous_alpha_start: 0.0,
             alpha_progress: 1.0,
-            activation_progress: 0.0,
         }
     }
 
@@ -144,7 +155,6 @@ impl<Id: Copy + Eq> Selection<Id> {
             selected_alpha_start: alpha.selected_start,
             previous_alpha_start: alpha.previous_start,
             alpha_progress: alpha.progress,
-            activation_progress: 0.0,
         }
     }
 
@@ -175,14 +185,6 @@ impl<Id: Copy + Eq> Selection<Id> {
             0.0
         }
     }
-
-    pub fn activation_progress(self, id: Id) -> f32 {
-        if id == self.selected {
-            self.activation_progress.clamp(0.0, 1.0)
-        } else {
-            0.0
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -195,7 +197,6 @@ pub struct NavigationState<Id> {
     previous_alpha_start: f32,
     size_progress: AnimatedScalar,
     alpha_progress: AnimatedScalar,
-    activation_progress: AnimatedScalar,
     rail_expansion: NavigationRailExpansionState,
 }
 
@@ -210,7 +211,6 @@ impl<Id: Copy + Eq> NavigationState<Id> {
             previous_alpha_start: 0.0,
             size_progress: AnimatedScalar::new(1.0),
             alpha_progress: AnimatedScalar::new(1.0),
-            activation_progress: AnimatedScalar::new(0.0),
             rail_expansion: NavigationRailExpansionState::new(false),
         }
     }
@@ -221,7 +221,7 @@ impl<Id: Copy + Eq> NavigationState<Id> {
 
     pub fn selection(&self) -> Selection<Id> {
         if let Some(previous) = self.previous {
-            let mut selection = Selection::transitioning_from_tracks(
+            Selection::transitioning_from_tracks(
                 self.selected,
                 previous,
                 TrackProgress::new(
@@ -234,19 +234,14 @@ impl<Id: Copy + Eq> NavigationState<Id> {
                     self.previous_alpha_start,
                     self.alpha_progress.value,
                 ),
-            );
-            selection.activation_progress = self.activation_progress.value;
-            selection
+            )
         } else {
-            let mut selection = Selection::new(self.selected);
-            selection.activation_progress = self.activation_progress.value;
-            selection
+            Selection::new(self.selected)
         }
     }
 
     pub fn select(&mut self, selected: Id, now: Instant, layout: AdaptiveLayout) {
         if selected == self.selected {
-            self.start_activation_pulse(now);
             return;
         }
 
@@ -270,7 +265,6 @@ impl<Id: Copy + Eq> NavigationState<Id> {
             .set_target(1.0, now, duration, tokens::motion::EASING_LEGACY);
         self.alpha_progress
             .set_target(1.0, now, duration, tokens::motion::EASING_LEGACY);
-        self.start_activation_pulse(now);
     }
 
     pub fn select_for_size(&mut self, selected: Id, now: Instant, size: Size) {
@@ -302,9 +296,7 @@ impl<Id: Copy + Eq> NavigationState<Id> {
     }
 
     pub fn is_animating(&self) -> bool {
-        self.previous.is_some()
-            || (self.activation_progress.value - self.activation_progress.to).abs() > 0.001
-            || self.rail_expansion.is_animating()
+        self.previous.is_some() || self.rail_expansion.is_animating()
     }
 
     pub fn subscription<Message, F>(&self, on_frame: F) -> iced::Subscription<Message>
@@ -320,9 +312,8 @@ impl<Id: Copy + Eq> NavigationState<Id> {
     }
 
     pub fn advance(&mut self, now: Instant) -> bool {
-        let navigation_animating = self.size_progress.advance(now)
-            | self.alpha_progress.advance(now)
-            | self.activation_progress.advance(now);
+        let navigation_animating =
+            self.size_progress.advance(now) | self.alpha_progress.advance(now);
         let menu_animating = self.rail_expansion.advance(now);
 
         if !navigation_animating {
@@ -340,16 +331,6 @@ impl<Id: Copy + Eq> NavigationState<Id> {
 
     pub fn advance_frame(&mut self, now: Instant) {
         let _ = self.advance(now);
-    }
-
-    fn start_activation_pulse(&mut self, now: Instant) {
-        self.activation_progress = AnimatedScalar::new(1.0);
-        self.activation_progress.set_target(
-            0.0,
-            now,
-            duration_ms(tokens::motion::DURATION_SHORT4_MS),
-            tokens::motion::EASING_STANDARD,
-        );
     }
 }
 
@@ -586,7 +567,7 @@ impl<'a, Id> Suite<'a, Id> {
     where
         Id: Copy + Eq + 'a,
         Message: Clone + 'a,
-        Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+        Renderer: geometry::Renderer + core_text::Renderer + 'a,
         Font: Into<Renderer::Font>,
         F: Fn(Id) -> Message + Clone + 'a,
     {
@@ -636,7 +617,7 @@ impl<'a, Id, Message> SuiteWithMenu<'a, Id, Message> {
     where
         Id: Copy + Eq + 'a,
         Message: Clone + 'a,
-        Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+        Renderer: geometry::Renderer + core_text::Renderer + 'a,
         Font: Into<Renderer::Font>,
         F: Fn(Id) -> Message + Clone + 'a,
     {
@@ -663,7 +644,7 @@ pub fn navigation_suite<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -686,7 +667,7 @@ pub fn navigation_suite_for_layout<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -721,7 +702,7 @@ pub fn navigation_suite_with_menu<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -748,7 +729,7 @@ pub fn navigation_suite_for_layout_with_menu<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -790,7 +771,7 @@ pub fn navigation_bar<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -834,7 +815,7 @@ pub fn navigation_rail<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -850,7 +831,7 @@ pub fn navigation_rail_with_header<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -866,7 +847,7 @@ pub fn navigation_rail_with_menu<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -888,7 +869,7 @@ pub fn navigation_rail_expanded_with_menu<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -913,7 +894,7 @@ pub fn navigation_rail_expanded_with_menu_at_width<'a, Id, Message, Renderer, F>
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -964,7 +945,7 @@ fn navigation_rail_with_optional_header<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -1011,7 +992,7 @@ pub fn navigation_drawer<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -1034,7 +1015,7 @@ pub fn navigation_drawer_at_width<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -1058,7 +1039,7 @@ pub fn navigation_drawer_with_menu<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -1083,7 +1064,7 @@ pub fn navigation_drawer_with_menu_at_width<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -1108,7 +1089,7 @@ fn navigation_drawer_with_optional_header<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -1183,13 +1164,12 @@ fn navigation_bar_item<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
     let size_progress = selection.size_progress(destination.id);
     let alpha_progress = selection.alpha_progress(destination.id);
-    let activation_progress = selection.activation_progress(destination.id);
     let scale = tokens::component::navigation_bar::LABEL_TEXT;
     let message = on_select(destination.id);
     let indicator = indicator_icon_stack(
@@ -1232,7 +1212,6 @@ where
             width: tokens::component::navigation_bar::ACTIVE_INDICATOR_WIDTH,
             height: tokens::component::navigation_bar::ACTIVE_INDICATOR_HEIGHT,
         },
-        activation_progress,
     )
     .into()
 }
@@ -1245,13 +1224,12 @@ fn navigation_rail_item<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
     let size_progress = selection.size_progress(destination.id);
     let alpha_progress = selection.alpha_progress(destination.id);
-    let activation_progress = selection.activation_progress(destination.id);
     let scale = tokens::component::navigation_rail::LABEL_TEXT;
     let message = on_select(destination.id);
     let indicator = indicator_icon_stack(
@@ -1297,7 +1275,6 @@ where
             width: tokens::component::navigation_rail::ACTIVE_INDICATOR_WIDTH,
             height: tokens::component::navigation_rail::ACTIVE_INDICATOR_HEIGHT,
         },
-        activation_progress,
     )
     .into()
 }
@@ -1307,7 +1284,7 @@ fn navigation_rail_header<'a, Message, Renderer>(
 ) -> Container<'a, Message, Theme, Renderer>
 where
     Message: 'a,
-    Renderer: iced_widget::core::Renderer + 'a,
+    Renderer: geometry::Renderer + 'a,
 {
     Container::new(header)
         .width(Length::Fixed(
@@ -1322,12 +1299,10 @@ where
         .align_x(alignment::Horizontal::Center)
 }
 
-fn navigation_menu_button<'a, Message, Renderer>(
-    on_press: Message,
-) -> Button<'a, Message, Theme, Renderer>
+fn navigation_menu_button<'a, Message, Renderer>(on_press: Message) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
 {
     let icon = fonts::icon("menu", tokens::component::icon_button::ICON_SIZE)
@@ -1362,7 +1337,7 @@ fn navigation_rail_expanded_header<'a, Message, Renderer>(
 ) -> Container<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
 {
     let headline_scale = tokens::component::navigation_drawer::HEADLINE_TEXT;
@@ -1404,13 +1379,12 @@ fn navigation_rail_expanded_item<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
     let size_progress = selection.size_progress(destination.id);
     let alpha_progress = selection.alpha_progress(destination.id);
-    let activation_progress = selection.activation_progress(destination.id);
     let indicator_height =
         navigation_rail_expanded_indicator_height_for_progress(expansion_progress);
     let vertical_inset =
@@ -1511,7 +1485,6 @@ where
             width: indicator_width,
             height: indicator_height,
         },
-        activation_progress,
     )
     .into()
 }
@@ -1522,7 +1495,7 @@ fn navigation_drawer_menu_header<'a, Message, Renderer>(
 ) -> Container<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
 {
     let headline_scale = tokens::component::navigation_drawer::HEADLINE_TEXT;
@@ -1558,13 +1531,12 @@ fn navigation_drawer_item<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
     let size_progress = selection.size_progress(destination.id);
     let alpha_progress = selection.alpha_progress(destination.id);
-    let activation_progress = selection.activation_progress(destination.id);
     let scale = tokens::component::navigation_drawer::LABEL_TEXT;
     let message = on_select(destination.id);
     let icon = destination_icon::<Message, Renderer>(
@@ -1631,7 +1603,6 @@ where
             progress: alpha_progress,
         },
         NavigationIndicatorPlacement::Full,
-        activation_progress,
     )
     .into()
 }
@@ -1648,7 +1619,7 @@ fn indicator_icon_stack<'a, Message, Renderer>(
 ) -> Stack<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
 {
     Stack::new()
@@ -1683,30 +1654,27 @@ fn navigation_press_surface<'a, Message, Renderer>(
     on_press: Message,
     layer: NavigationStateLayer,
     indicator: NavigationIndicatorPlacement,
-    activation_progress: f32,
 ) -> NavigationPressSurface<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + 'a,
+    Renderer: geometry::Renderer + 'a,
 {
     NavigationPressSurface {
         content: content.into(),
         on_press,
         layer,
         indicator,
-        activation_progress,
     }
 }
 
 struct NavigationPressSurface<'a, Message, Renderer>
 where
-    Renderer: iced_widget::core::Renderer,
+    Renderer: geometry::Renderer,
 {
     content: Element<'a, Message, Theme, Renderer>,
     on_press: Message,
     layer: NavigationStateLayer,
     indicator: NavigationIndicatorPlacement,
-    activation_progress: f32,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1755,6 +1723,9 @@ struct NavigationPressSurfaceState {
     is_hovered: bool,
     is_pressed: bool,
     state_layer_opacity: AnimatedScalar,
+    active_ripple: Option<NavigationRipple>,
+    exiting_ripples: Vec<NavigationRipple>,
+    now: Option<Instant>,
 }
 
 impl Default for NavigationPressSurfaceState {
@@ -1763,6 +1734,9 @@ impl Default for NavigationPressSurfaceState {
             is_hovered: false,
             is_pressed: false,
             state_layer_opacity: AnimatedScalar::new(0.0),
+            active_ripple: None,
+            exiting_ripples: Vec::new(),
+            now: None,
         }
     }
 }
@@ -1782,32 +1756,53 @@ impl NavigationPressSurfaceState {
         true
     }
 
-    fn press(&mut self) {
+    fn press(&mut self, origin: Point, now: Instant) {
+        if let Some(mut ripple) = self.active_ripple.take() {
+            ripple.exit(now);
+            self.push_exiting(ripple);
+        }
+
         self.is_pressed = true;
-        self.state_layer_opacity = AnimatedScalar::new(PRESSED_LAYER_OPACITY);
+        self.active_ripple = Some(NavigationRipple::new(origin, now));
+        self.now = Some(now);
+        self.animate_to_interaction_target(now);
     }
 
     fn release(&mut self, is_hovered: bool, now: Instant) {
         self.is_pressed = false;
         self.is_hovered = is_hovered;
+
+        if let Some(mut ripple) = self.active_ripple.take() {
+            ripple.exit(now);
+            self.push_exiting(ripple);
+        }
+
+        self.now = Some(now);
         self.animate_to_interaction_target(now);
     }
 
     fn cancel(&mut self, now: Instant) {
         self.is_pressed = false;
         self.is_hovered = false;
+
+        if let Some(mut ripple) = self.active_ripple.take() {
+            ripple.exit(now);
+            self.push_exiting(ripple);
+        }
+
+        self.now = Some(now);
         self.animate_to_interaction_target(now);
     }
 
     fn advance(&mut self, now: Instant) -> bool {
-        self.state_layer_opacity.advance(now)
+        self.now = Some(now);
+        self.prune(now);
+
+        self.state_layer_opacity.advance(now) || self.has_visible_ripples(now)
     }
 
-    fn opacity(&self, activation_progress: f32) -> f32 {
-        navigation_surface_state_layer_opacity_from_interaction(
-            self.state_layer_opacity.value,
-            activation_progress,
-        )
+    fn opacity(&self) -> f32 {
+        navigation_surface_state_layer_opacity_from_interaction(self.state_layer_opacity.value)
     }
 
     fn animate_to_interaction_target(&mut self, now: Instant) {
@@ -1818,13 +1813,132 @@ impl NavigationPressSurfaceState {
             tokens::motion::EASING_STANDARD,
         );
     }
+
+    fn push_exiting(&mut self, ripple: NavigationRipple) {
+        if self.exiting_ripples.len() >= MAX_RIPPLES {
+            let _ = self.exiting_ripples.remove(0);
+        }
+
+        self.exiting_ripples.push(ripple);
+    }
+
+    fn prune(&mut self, now: Instant) {
+        self.exiting_ripples
+            .retain(|ripple| !ripple.has_finished_exit(now));
+    }
+
+    fn has_visible_ripples(&self, now: Instant) -> bool {
+        self.active_ripple
+            .is_some_and(|ripple| ripple.opacity(now) > 0.0)
+            || self
+                .exiting_ripples
+                .iter()
+                .any(|ripple| ripple.opacity(now) > 0.0)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct NavigationRipple {
+    origin: Point,
+    started_at: Instant,
+    exit_started_at: Option<Instant>,
+    exit_delay: iced_widget::core::time::Duration,
+}
+
+impl NavigationRipple {
+    fn new(origin: Point, started_at: Instant) -> Self {
+        Self {
+            origin,
+            started_at,
+            exit_started_at: None,
+            exit_delay: iced_widget::core::time::Duration::ZERO,
+        }
+    }
+
+    fn exit(&mut self, now: Instant) {
+        let hold = duration_ms(RIPPLE_OPACITY_HOLD_DURATION_MS);
+        let elapsed = now.duration_since(self.started_at);
+
+        self.exit_started_at = Some(now);
+        self.exit_delay = hold.saturating_sub(elapsed);
+    }
+
+    fn circle(self, size: Size, now: Instant) -> NavigationRippleCircle {
+        let target_radius = navigation_ripple_target_radius(size);
+        let start_radius = size.width.max(size.height) * RIPPLE_START_RADIUS_FACTOR;
+        let clamped_origin =
+            navigation_clamped_ripple_origin(self.origin, size, target_radius, start_radius);
+        let radius_progress = navigation_timed_progress(
+            self.started_at,
+            now,
+            duration_ms(RIPPLE_ENTER_DURATION_MS),
+            tokens::motion::EASING_LEGACY,
+        );
+        let origin_progress = navigation_timed_progress(
+            self.started_at,
+            now,
+            duration_ms(RIPPLE_ORIGIN_DURATION_MS),
+            tokens::motion::EASING_LEGACY,
+        );
+        let center = Point::new(size.width / 2.0, size.height / 2.0);
+
+        NavigationRippleCircle {
+            center: Point::new(
+                lerp(clamped_origin.x, center.x, origin_progress),
+                lerp(clamped_origin.y, center.y, origin_progress),
+            ),
+            radius: lerp(start_radius, target_radius, radius_progress),
+            target_radius,
+        }
+    }
+
+    fn opacity(self, now: Instant) -> f32 {
+        let enter = navigation_timed_progress(
+            self.started_at,
+            now,
+            duration_ms(RIPPLE_OPACITY_ENTER_DURATION_MS),
+            tokens::motion::EASING_LINEAR,
+        );
+
+        let exit = self
+            .exit_started_at
+            .map(|exit_started_at| {
+                let elapsed = now.duration_since(exit_started_at);
+
+                if elapsed <= self.exit_delay {
+                    1.0
+                } else {
+                    let fade = elapsed - self.exit_delay;
+                    1.0 - (fade.as_secs_f32()
+                        / duration_ms(RIPPLE_OPACITY_EXIT_DURATION_MS).as_secs_f32())
+                    .clamp(0.0, 1.0)
+                }
+            })
+            .unwrap_or(1.0);
+
+        enter * exit
+    }
+
+    fn has_finished_exit(self, now: Instant) -> bool {
+        self.exit_started_at.is_some_and(|exit_started_at| {
+            now.duration_since(exit_started_at)
+                >= self.exit_delay + duration_ms(RIPPLE_OPACITY_EXIT_DURATION_MS)
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct NavigationRippleCircle {
+    center: Point,
+    radius: f32,
+    target_radius: f32,
 }
 
 impl<Message, Renderer> Widget<Message, Theme, Renderer>
     for NavigationPressSurface<'_, Message, Renderer>
 where
     Message: Clone,
-    Renderer: iced_widget::core::Renderer,
+    Renderer: geometry::Renderer,
 {
     fn tag(&self) -> tree::Tag {
         tree::Tag::of::<NavigationPressSurfaceState>()
@@ -1914,9 +2028,13 @@ where
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
             | Event::Touch(touch::Event::FingerPressed { .. }) => {
                 if is_hovered {
-                    state.press();
-                    shell.request_redraw();
-                    shell.capture_event();
+                    let indicator_bounds = self.indicator.bounds(layout.bounds());
+
+                    if let Some(origin) = navigation_press_origin(event, indicator_bounds, cursor) {
+                        state.press(origin, now.unwrap_or_else(Instant::now));
+                        shell.request_redraw();
+                        shell.capture_event();
+                    }
                 }
             }
             Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left))
@@ -1994,22 +2112,23 @@ where
         );
 
         let state = tree.state.downcast_ref::<NavigationPressSurfaceState>();
-        let opacity = state.opacity(self.activation_progress);
+        let indicator_bounds = self.indicator.bounds(layout.bounds());
+        let opacity = state.opacity();
+        let layer_color = navigation_state_layer_color(theme, self.layer);
 
-        if opacity <= 0.0 {
-            return;
+        if opacity > 0.0 {
+            renderer.fill_quad(
+                renderer::Quad {
+                    bounds: indicator_bounds,
+                    border: border::rounded(tokens::shape::CORNER_FULL),
+                    snap: cfg!(feature = "crisp"),
+                    ..renderer::Quad::default()
+                },
+                state_layer(layer_color, opacity),
+            );
         }
 
-        let layer_color = navigation_state_layer_color(theme, self.layer);
-        renderer.fill_quad(
-            renderer::Quad {
-                bounds: self.indicator.bounds(layout.bounds()),
-                border: border::rounded(tokens::shape::CORNER_FULL),
-                snap: cfg!(feature = "crisp"),
-                ..renderer::Quad::default()
-            },
-            state_layer(layer_color, opacity),
-        );
+        draw_navigation_ripples(renderer, indicator_bounds, state, layer_color);
     }
 
     fn overlay<'b>(
@@ -2034,7 +2153,7 @@ impl<'a, Message, Renderer> From<NavigationPressSurface<'a, Message, Renderer>>
     for Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + 'a,
+    Renderer: geometry::Renderer + 'a,
 {
     fn from(surface: NavigationPressSurface<'a, Message, Renderer>) -> Self {
         Element::new(surface)
@@ -2042,20 +2161,15 @@ where
 }
 
 #[cfg(test)]
-fn navigation_surface_state_layer_opacity(
-    is_hovered: bool,
-    is_pressed: bool,
-    activation_progress: f32,
-) -> f32 {
+fn navigation_surface_state_layer_opacity(is_hovered: bool, is_pressed: bool) -> f32 {
     navigation_surface_state_layer_opacity_from_interaction(
         navigation_interaction_state_layer_target(is_hovered, is_pressed),
-        activation_progress,
     )
 }
 
 fn navigation_interaction_state_layer_target(is_hovered: bool, is_pressed: bool) -> f32 {
     if is_pressed {
-        PRESSED_LAYER_OPACITY
+        0.0
     } else if is_hovered {
         HOVERED_LAYER_OPACITY
     } else {
@@ -2063,11 +2177,305 @@ fn navigation_interaction_state_layer_target(is_hovered: bool, is_pressed: bool)
     }
 }
 
-fn navigation_surface_state_layer_opacity_from_interaction(
-    interaction_opacity: f32,
-    activation_progress: f32,
+fn navigation_surface_state_layer_opacity_from_interaction(interaction_opacity: f32) -> f32 {
+    interaction_opacity
+}
+
+fn navigation_press_origin(
+    event: &Event,
+    indicator_bounds: Rectangle,
+    cursor: mouse::Cursor,
+) -> Option<Point> {
+    let position = match event {
+        Event::Touch(touch::Event::FingerPressed { position, .. }) => Some(*position),
+        _ => cursor.position(),
+    }?;
+
+    Some(position - Vector::new(indicator_bounds.x, indicator_bounds.y))
+}
+
+fn draw_navigation_ripples<Renderer>(
+    renderer: &mut Renderer,
+    bounds: Rectangle,
+    state: &NavigationPressSurfaceState,
+    color: Color,
+) where
+    Renderer: geometry::Renderer,
+{
+    let now = state.now.unwrap_or_else(Instant::now);
+
+    if !state.has_visible_ripples(now) {
+        return;
+    }
+
+    let mut frame = canvas::Frame::new(renderer, bounds.size());
+    let ripple_color = state_layer(color, PRESSED_LAYER_OPACITY);
+    let clip_radius = border::radius(tokens::shape::CORNER_FULL);
+
+    if let Some(ripple) = state.active_ripple {
+        fill_navigation_ripple(
+            &mut frame,
+            ripple,
+            bounds.size(),
+            ripple_color,
+            clip_radius,
+            now,
+        );
+    }
+
+    for ripple in &state.exiting_ripples {
+        fill_navigation_ripple(
+            &mut frame,
+            *ripple,
+            bounds.size(),
+            ripple_color,
+            clip_radius,
+            now,
+        );
+    }
+
+    let geometry = frame.into_geometry();
+
+    renderer.with_layer(bounds, |renderer| {
+        renderer.with_translation(Vector::new(bounds.x, bounds.y), |renderer| {
+            renderer.draw_geometry(geometry);
+        });
+    });
+}
+
+fn fill_navigation_ripple<Renderer>(
+    frame: &mut canvas::Frame<Renderer>,
+    ripple: NavigationRipple,
+    size: Size,
+    mut color: Color,
+    clip_radius: border::Radius,
+    now: Instant,
+) where
+    Renderer: geometry::Renderer,
+{
+    let opacity = ripple.opacity(now);
+
+    if opacity <= 0.0 {
+        return;
+    }
+
+    let circle = ripple.circle(size, now);
+
+    if circle.radius <= 0.0 {
+        return;
+    }
+
+    color.a *= opacity;
+
+    let path = navigation_bounded_ripple_path(size, clip_radius, circle);
+
+    frame.fill(&path, color);
+}
+
+fn navigation_bounded_ripple_path(
+    size: Size,
+    clip_radius: border::Radius,
+    circle: NavigationRippleCircle,
+) -> canvas::Path {
+    if circle.radius >= circle.target_radius - 0.5 {
+        return canvas::Path::rounded_rectangle(Point::ORIGIN, size, clip_radius);
+    }
+
+    navigation_clipped_circle_path(size, clip_radius, circle)
+        .unwrap_or_else(|| canvas::Path::circle(circle.center, circle.radius))
+}
+
+fn navigation_clipped_circle_path(
+    size: Size,
+    clip_radius: border::Radius,
+    circle: NavigationRippleCircle,
+) -> Option<canvas::Path> {
+    let top = (circle.center.y - circle.radius).max(0.0);
+    let bottom = (circle.center.y + circle.radius).min(size.height);
+
+    if bottom <= top {
+        return None;
+    }
+
+    let sample_count = navigation_ripple_clip_sample_count(circle.radius);
+    let step = (bottom - top) / (sample_count.saturating_sub(1) as f32);
+    let mut left_edge = Vec::with_capacity(sample_count);
+    let mut right_edge = Vec::with_capacity(sample_count);
+
+    for index in 0..sample_count {
+        let y = if index + 1 == sample_count {
+            bottom
+        } else {
+            top + step * index as f32
+        };
+
+        let Some((circle_left, circle_right)) = navigation_circle_span_at_y(circle, y) else {
+            continue;
+        };
+        let Some((clip_left, clip_right)) = navigation_rounded_rect_span_at_y(size, clip_radius, y)
+        else {
+            continue;
+        };
+
+        let left = circle_left.max(clip_left);
+        let right = circle_right.min(clip_right);
+
+        if left <= right {
+            left_edge.push(Point::new(left, y));
+            right_edge.push(Point::new(right, y));
+        }
+    }
+
+    if left_edge.len() < 2 || right_edge.len() < 2 {
+        return None;
+    }
+
+    Some(canvas::Path::new(|path| {
+        path.move_to(left_edge[0]);
+
+        for point in left_edge.iter().skip(1) {
+            path.line_to(*point);
+        }
+
+        for point in right_edge.iter().rev() {
+            path.line_to(*point);
+        }
+
+        path.close();
+    }))
+}
+
+fn navigation_ripple_clip_sample_count(radius: f32) -> usize {
+    ((radius * std::f32::consts::TAU).ceil() as usize)
+        .clamp(RIPPLE_CLIP_MIN_SAMPLES, RIPPLE_CLIP_MAX_SAMPLES)
+}
+
+fn navigation_circle_span_at_y(circle: NavigationRippleCircle, y: f32) -> Option<(f32, f32)> {
+    let dy = y - circle.center.y;
+    let distance_to_edge_squared = circle.radius * circle.radius - dy * dy;
+
+    if distance_to_edge_squared < 0.0 {
+        return None;
+    }
+
+    let dx = distance_to_edge_squared.sqrt();
+
+    Some((circle.center.x - dx, circle.center.x + dx))
+}
+
+fn navigation_rounded_rect_span_at_y(
+    size: Size,
+    radius: border::Radius,
+    y: f32,
+) -> Option<(f32, f32)> {
+    if y < 0.0 || y > size.height {
+        return None;
+    }
+
+    let [top_left, top_right, bottom_right, bottom_left] =
+        navigation_normalized_corner_radii(size, radius);
+    let mut left: f32 = 0.0;
+    let mut right = size.width;
+
+    if top_left > 0.0 && y < top_left {
+        left = left.max(navigation_corner_left_bound(top_left, y, top_left));
+    }
+
+    if bottom_left > 0.0 && y > size.height - bottom_left {
+        left = left.max(navigation_corner_left_bound(
+            bottom_left,
+            y,
+            size.height - bottom_left,
+        ));
+    }
+
+    if top_right > 0.0 && y < top_right {
+        right = right.min(navigation_corner_right_bound(
+            size.width, top_right, y, top_right,
+        ));
+    }
+
+    if bottom_right > 0.0 && y > size.height - bottom_right {
+        right = right.min(navigation_corner_right_bound(
+            size.width,
+            bottom_right,
+            y,
+            size.height - bottom_right,
+        ));
+    }
+
+    (left <= right).then_some((left, right))
+}
+
+fn navigation_normalized_corner_radii(size: Size, radius: border::Radius) -> [f32; 4] {
+    let max_radius = size.width.min(size.height) / 2.0;
+    let [top_left, top_right, bottom_right, bottom_left] = radius.into();
+
+    [
+        top_left.min(max_radius),
+        top_right.min(max_radius),
+        bottom_right.min(max_radius),
+        bottom_left.min(max_radius),
+    ]
+}
+
+fn navigation_corner_left_bound(radius: f32, y: f32, center_y: f32) -> f32 {
+    radius - navigation_circle_axis_delta(radius, y - center_y)
+}
+
+fn navigation_corner_right_bound(width: f32, radius: f32, y: f32, center_y: f32) -> f32 {
+    width - radius + navigation_circle_axis_delta(radius, y - center_y)
+}
+
+fn navigation_circle_axis_delta(radius: f32, offset: f32) -> f32 {
+    (radius * radius - offset * offset).max(0.0).sqrt()
+}
+
+fn navigation_timed_progress(
+    started_at: Instant,
+    now: Instant,
+    duration: iced_widget::core::time::Duration,
+    easing: tokens::motion::CubicBezier,
 ) -> f32 {
-    interaction_opacity.max(activation_progress.clamp(0.0, 1.0) * PRESSED_LAYER_OPACITY)
+    if duration.is_zero() {
+        return 1.0;
+    }
+
+    let progress =
+        (now.duration_since(started_at).as_secs_f32() / duration.as_secs_f32()).clamp(0.0, 1.0);
+
+    easing.transform(progress)
+}
+
+fn navigation_ripple_target_radius(size: Size) -> f32 {
+    let half_width = size.width / 2.0;
+    let half_height = size.height / 2.0;
+
+    (half_width * half_width + half_height * half_height).sqrt()
+}
+
+fn navigation_clamped_ripple_origin(
+    origin: Point,
+    size: Size,
+    target_radius: f32,
+    start_radius: f32,
+) -> Point {
+    let center = Point::new(size.width / 2.0, size.height / 2.0);
+    let dx = origin.x - center.x;
+    let dy = origin.y - center.y;
+    let radius = (target_radius - start_radius).max(0.0);
+    let distance_squared = dx * dx + dy * dy;
+
+    if radius > 0.0 && distance_squared > radius * radius {
+        let angle = dy.atan2(dx);
+
+        Point::new(
+            center.x + angle.cos() * radius,
+            center.y + angle.sin() * radius,
+        )
+    } else {
+        origin
+    }
 }
 
 fn indicator_layer<'a, Message, Renderer>(
@@ -2078,7 +2486,7 @@ fn indicator_layer<'a, Message, Renderer>(
 ) -> Container<'a, Message, Theme, Renderer>
 where
     Message: 'a,
-    Renderer: iced_widget::core::Renderer + 'a,
+    Renderer: geometry::Renderer + 'a,
 {
     let indicator = Container::new(Space::new())
         .width(Length::Fixed(animated_indicator_width(
@@ -2324,7 +2732,7 @@ fn navigation_rail_expanded_icon_layer<'a, Message, Renderer>(
 ) -> Container<'a, Message, Theme, Renderer>
 where
     Message: 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
 {
     let icon = destination_icon_anchor::<Message, Renderer>(
@@ -2351,7 +2759,7 @@ fn navigation_rail_expanded_collapsed_label<'a, Message, Renderer>(
 ) -> Container<'a, Message, Theme, Renderer>
 where
     Message: 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
 {
     let alpha = alpha.clamp(0.0, 1.0);
@@ -2379,7 +2787,7 @@ fn destination_icon_anchor<'a, Message, Renderer>(
 ) -> Container<'a, Message, Theme, Renderer>
 where
     Message: 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
 {
     let icon: Element<'a, Message, Theme, Renderer> =
@@ -2403,7 +2811,7 @@ where
 fn destination_badge<'a, Message, Renderer>(badge: Badge) -> Element<'a, Message, Theme, Renderer>
 where
     Message: 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
 {
     match badge {
@@ -2418,7 +2826,7 @@ fn destination_badge_with_alpha<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
 {
     let alpha = alpha.clamp(0.0, 1.0);
@@ -2459,7 +2867,7 @@ fn destination_icon<'a, Message, Renderer>(
 ) -> Stack<'a, Message, Theme, Renderer>
 where
     Message: 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
 {
     let outline = fonts::icon(icon, size)
@@ -2741,15 +3149,12 @@ mod tests {
         assert!(state.is_animating());
         assert_eq!(state.selection().progress(Page::Two), 0.0);
         assert_eq!(state.selection().progress(Page::One), 1.0);
-        assert_eq!(state.selection().activation_progress(Page::Two), 1.0);
-        assert_eq!(state.selection().activation_progress(Page::One), 0.0);
 
         let still_animating = state.advance(start + Duration::from_millis(50));
 
         assert!(still_animating);
         assert!(state.selection().progress(Page::Two) > 0.0);
         assert!(state.selection().progress(Page::One) < 1.0);
-        assert!(state.selection().activation_progress(Page::Two) < 1.0);
         assert_eq!(
             state.selection().size_progress(Page::Two),
             state.selection().alpha_progress(Page::Two)
@@ -2761,7 +3166,6 @@ mod tests {
         assert!(!state.is_animating());
         assert_eq!(state.selection().progress(Page::Two), 1.0);
         assert_eq!(state.selection().progress(Page::One), 0.0);
-        assert_eq!(state.selection().activation_progress(Page::Two), 0.0);
     }
 
     #[test]
@@ -2821,27 +3225,18 @@ mod tests {
     }
 
     #[test]
-    fn navigation_state_reselect_starts_click_feedback() {
+    fn navigation_state_reselect_does_not_start_duplicate_state_layer_feedback() {
         let start = Instant::now();
         let mut state = NavigationState::new(Page::One);
 
         state.select(Page::One, start, AdaptiveLayout::NavigationRail);
 
         assert_eq!(state.selected(), Page::One);
-        assert!(state.is_animating());
-        assert_eq!(state.selection().progress(Page::One), 1.0);
-        assert_eq!(state.selection().activation_progress(Page::One), 1.0);
-
-        let still_animating = state.advance(start + Duration::from_millis(50));
-
-        assert!(still_animating);
-        assert!(state.selection().activation_progress(Page::One) < 1.0);
-
-        let finished = state.advance(start + Duration::from_millis(250));
-
-        assert!(!finished);
         assert!(!state.is_animating());
-        assert_eq!(state.selection().activation_progress(Page::One), 0.0);
+        assert_eq!(state.selection().progress(Page::One), 1.0);
+
+        assert!(!state.advance(start + Duration::from_millis(50)));
+        assert!(!state.is_animating());
     }
 
     #[test]
@@ -3187,26 +3582,12 @@ mod tests {
     fn navigation_press_surface_uses_material_state_opacity_on_pill_only() {
         let theme = Theme::Light;
 
+        assert_eq!(navigation_surface_state_layer_opacity(false, false), 0.0);
         assert_eq!(
-            navigation_surface_state_layer_opacity(false, false, 0.0),
-            0.0
-        );
-        assert_eq!(
-            navigation_surface_state_layer_opacity(true, false, 0.0),
+            navigation_surface_state_layer_opacity(true, false),
             HOVERED_LAYER_OPACITY
         );
-        assert_eq!(
-            navigation_surface_state_layer_opacity(false, true, 0.0),
-            PRESSED_LAYER_OPACITY
-        );
-        assert_eq!(
-            navigation_surface_state_layer_opacity(false, false, 1.0),
-            PRESSED_LAYER_OPACITY
-        );
-        assert_eq!(
-            navigation_surface_state_layer_opacity(true, false, 1.0),
-            PRESSED_LAYER_OPACITY
-        );
+        assert_eq!(navigation_surface_state_layer_opacity(false, true), 0.0);
         assert_eq!(
             navigation_state_layer_color(&theme, NavigationStateLayer::BarOrRail),
             theme.colors().surface.text
@@ -3218,38 +3599,83 @@ mod tests {
         assert_eq!(
             state_layer(
                 navigation_state_layer_color(&theme, NavigationStateLayer::BarOrRail),
-                navigation_surface_state_layer_opacity(false, true, 0.0)
+                navigation_surface_state_layer_opacity(true, false)
             ),
-            state_layer(theme.colors().surface.text, PRESSED_LAYER_OPACITY)
+            state_layer(theme.colors().surface.text, HOVERED_LAYER_OPACITY)
         );
     }
 
     #[test]
-    fn navigation_press_surface_keeps_release_feedback_visible() {
+    fn navigation_press_surface_keeps_release_ripple_visible() {
         let start = Instant::now();
         let mut state = NavigationPressSurfaceState::default();
 
         assert!(state.sync_hover(true, start));
-        state.press();
+        state.press(Point::new(32.0, 16.0), start);
 
-        assert_eq!(
-            state.opacity(0.0),
-            tokens::state::PRESSED_STATE_LAYER_OPACITY
-        );
+        assert_eq!(state.opacity(), 0.0);
+        assert!(state.has_visible_ripples(start + duration_ms(75)));
 
         state.release(false, start);
         let still_animating = state.advance(start + Duration::from_millis(50));
 
         assert!(still_animating);
-        assert!(state.opacity(0.0) > 0.0);
-        assert!(state.opacity(0.0) < tokens::state::PRESSED_STATE_LAYER_OPACITY);
+        assert!(state.has_visible_ripples(start + Duration::from_millis(50)));
 
-        let finished = state.advance(
-            start + Duration::from_millis(u64::from(tokens::motion::DURATION_SHORT2_MS) + 20),
-        );
+        let finished = state.advance(start + duration_ms(RIPPLE_OPACITY_HOLD_DURATION_MS + 151));
 
         assert!(!finished);
-        assert_eq!(state.opacity(0.0), 0.0);
+        assert_eq!(state.opacity(), 0.0);
+        assert!(
+            !state.has_visible_ripples(start + duration_ms(RIPPLE_OPACITY_HOLD_DURATION_MS + 151))
+        );
+    }
+
+    #[test]
+    fn navigation_ripple_matches_android_auto_radius_for_indicator_bounds() {
+        let radius = navigation_ripple_target_radius(Size::new(64.0, 32.0));
+
+        assert!((radius - (32.0_f32 * 32.0 + 16.0 * 16.0).sqrt()).abs() < 0.001);
+    }
+
+    #[test]
+    fn navigation_ripple_origin_uses_indicator_local_coordinates() {
+        let indicator_bounds = Rectangle {
+            x: 28.0,
+            y: 12.0,
+            width: 64.0,
+            height: 32.0,
+        };
+        let event = Event::Touch(touch::Event::FingerPressed {
+            id: touch::Finger(0),
+            position: Point::new(20.0, 56.0),
+        });
+
+        let origin =
+            navigation_press_origin(&event, indicator_bounds, mouse::Cursor::Unavailable).unwrap();
+
+        assert_eq!(origin, Point::new(-8.0, 44.0));
+    }
+
+    #[test]
+    fn navigation_rounded_rect_span_clips_full_round_indicator() {
+        fn assert_close(actual: f32, expected: f32) {
+            assert!(
+                (actual - expected).abs() < 0.001,
+                "expected {expected}, got {actual}"
+            );
+        }
+
+        let size = Size::new(64.0, 32.0);
+        let radius = border::radius(tokens::shape::CORNER_FULL);
+
+        let top = navigation_rounded_rect_span_at_y(size, radius, 0.0).unwrap();
+        assert_close(top.0, 16.0);
+        assert_close(top.1, 48.0);
+
+        let middle = navigation_rounded_rect_span_at_y(size, radius, 16.0).unwrap();
+        assert_close(middle.0, 0.0);
+        assert_close(middle.1, 64.0);
     }
 
     #[test]
