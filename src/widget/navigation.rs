@@ -8,7 +8,7 @@ use iced_widget::text::{self, LineHeight};
 use iced_widget::{Button, Column, Container, Row, Space, Stack, Text};
 
 use super::badge as badge_widget;
-use super::support::{AnimatedScalar, lerp};
+use super::support::{AnimatedScalar, duration_ms, lerp};
 use crate::button as button_style;
 use crate::utils::{
     HOVERED_LAYER_OPACITY, PRESSED_LAYER_OPACITY, mix, shadow_from_level, state_layer,
@@ -83,6 +83,7 @@ pub struct Selection<Id> {
     selected_alpha_start: f32,
     previous_alpha_start: f32,
     alpha_progress: f32,
+    activation_progress: f32,
 }
 
 impl<Id: Copy + Eq> Selection<Id> {
@@ -96,6 +97,7 @@ impl<Id: Copy + Eq> Selection<Id> {
             selected_alpha_start: 1.0,
             previous_alpha_start: 0.0,
             alpha_progress: 1.0,
+            activation_progress: 0.0,
         }
     }
 
@@ -133,6 +135,7 @@ impl<Id: Copy + Eq> Selection<Id> {
             selected_alpha_start: alpha.selected_start,
             previous_alpha_start: alpha.previous_start,
             alpha_progress: alpha.progress,
+            activation_progress: 0.0,
         }
     }
 
@@ -163,6 +166,14 @@ impl<Id: Copy + Eq> Selection<Id> {
             0.0
         }
     }
+
+    pub fn activation_progress(self, id: Id) -> f32 {
+        if id == self.selected {
+            self.activation_progress.clamp(0.0, 1.0)
+        } else {
+            0.0
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -175,6 +186,7 @@ pub struct NavigationState<Id> {
     previous_alpha_start: f32,
     size_progress: AnimatedScalar,
     alpha_progress: AnimatedScalar,
+    activation_progress: AnimatedScalar,
 }
 
 impl<Id: Copy + Eq> NavigationState<Id> {
@@ -188,6 +200,7 @@ impl<Id: Copy + Eq> NavigationState<Id> {
             previous_alpha_start: 0.0,
             size_progress: AnimatedScalar::new(1.0),
             alpha_progress: AnimatedScalar::new(1.0),
+            activation_progress: AnimatedScalar::new(0.0),
         }
     }
 
@@ -197,7 +210,7 @@ impl<Id: Copy + Eq> NavigationState<Id> {
 
     pub fn selection(&self) -> Selection<Id> {
         if let Some(previous) = self.previous {
-            Selection::transitioning_from_tracks(
+            let mut selection = Selection::transitioning_from_tracks(
                 self.selected,
                 previous,
                 TrackProgress::new(
@@ -210,14 +223,19 @@ impl<Id: Copy + Eq> NavigationState<Id> {
                     self.previous_alpha_start,
                     self.alpha_progress.value,
                 ),
-            )
+            );
+            selection.activation_progress = self.activation_progress.value;
+            selection
         } else {
-            Selection::new(self.selected)
+            let mut selection = Selection::new(self.selected);
+            selection.activation_progress = self.activation_progress.value;
+            selection
         }
     }
 
     pub fn select(&mut self, selected: Id, now: Instant, _layout: AdaptiveLayout) {
         if selected == self.selected {
+            self.start_activation_pulse(now);
             return;
         }
 
@@ -240,14 +258,18 @@ impl<Id: Copy + Eq> NavigationState<Id> {
             .set_spring_target(1.0, now, tokens::motion::EXPRESSIVE_FAST_SPATIAL);
         self.alpha_progress
             .set_spring_target(1.0, now, tokens::motion::EXPRESSIVE_DEFAULT_EFFECTS);
+        self.start_activation_pulse(now);
     }
 
     pub fn is_animating(&self) -> bool {
         self.previous.is_some()
+            || (self.activation_progress.value - self.activation_progress.to).abs() > 0.001
     }
 
     pub fn advance(&mut self, now: Instant) -> bool {
-        let animating = self.size_progress.advance(now) | self.alpha_progress.advance(now);
+        let animating = self.size_progress.advance(now)
+            | self.alpha_progress.advance(now)
+            | self.activation_progress.advance(now);
 
         if !animating {
             self.size_progress.value = 1.0;
@@ -261,6 +283,16 @@ impl<Id: Copy + Eq> NavigationState<Id> {
         } else {
             true
         }
+    }
+
+    fn start_activation_pulse(&mut self, now: Instant) {
+        self.activation_progress = AnimatedScalar::new(1.0);
+        self.activation_progress.set_target(
+            0.0,
+            now,
+            duration_ms(tokens::motion::DURATION_SHORT4_MS),
+            tokens::motion::EASING_STANDARD,
+        );
     }
 }
 
@@ -852,6 +884,7 @@ where
 {
     let size_progress = selection.size_progress(destination.id);
     let alpha_progress = selection.alpha_progress(destination.id);
+    let activation_progress = selection.activation_progress(destination.id);
     let scale = tokens::component::navigation_bar::LABEL_TEXT;
     let message = on_select(destination.id);
     let indicator = indicator_icon_stack(
@@ -861,6 +894,7 @@ where
         tokens::component::navigation_bar::ACTIVE_INDICATOR_HEIGHT,
         size_progress,
         alpha_progress,
+        activation_progress,
         destination.badge,
         false,
         message.clone(),
@@ -911,6 +945,7 @@ where
 {
     let size_progress = selection.size_progress(destination.id);
     let alpha_progress = selection.alpha_progress(destination.id);
+    let activation_progress = selection.activation_progress(destination.id);
     let scale = tokens::component::navigation_rail::LABEL_TEXT;
     let message = on_select(destination.id);
     let indicator = indicator_icon_stack(
@@ -920,6 +955,7 @@ where
         tokens::component::navigation_rail::ACTIVE_INDICATOR_HEIGHT,
         size_progress,
         alpha_progress,
+        activation_progress,
         destination.badge,
         false,
         message.clone(),
@@ -1063,6 +1099,7 @@ where
 {
     let size_progress = selection.size_progress(destination.id);
     let alpha_progress = selection.alpha_progress(destination.id);
+    let activation_progress = selection.activation_progress(destination.id);
     let scale = tokens::component::navigation_drawer::LABEL_TEXT;
     let message = on_select(destination.id);
     let icon = destination_icon::<Renderer>(
@@ -1126,6 +1163,7 @@ where
             NavigationStateLayer::Drawer {
                 progress: alpha_progress,
             },
+            activation_progress,
             message.clone(),
         ))
         .push(content);
@@ -1188,6 +1226,7 @@ where
 {
     let size_progress = selection.size_progress(destination.id);
     let alpha_progress = selection.alpha_progress(destination.id);
+    let activation_progress = selection.activation_progress(destination.id);
     let scale = tokens::component::navigation_drawer::LABEL_TEXT;
     let message = on_select(destination.id);
     let icon = destination_icon::<Renderer>(
@@ -1251,6 +1290,7 @@ where
             NavigationStateLayer::Drawer {
                 progress: alpha_progress,
             },
+            activation_progress,
             message.clone(),
         ))
         .push(content);
@@ -1272,6 +1312,7 @@ fn indicator_icon_stack<'a, Message, Renderer>(
     indicator_height: f32,
     size_progress: f32,
     alpha_progress: f32,
+    activation_progress: f32,
     badge: Option<Badge>,
     drawer: bool,
     on_press: Message,
@@ -1299,6 +1340,7 @@ where
             indicator_width,
             indicator_height,
             NavigationStateLayer::BarOrRail,
+            activation_progress,
             on_press,
         ))
         .push(
@@ -1318,6 +1360,7 @@ fn indicator_state_layer<'a, Message, Renderer>(
     target_width: f32,
     height: f32,
     layer: NavigationStateLayer,
+    activation_progress: f32,
     on_press: Message,
 ) -> Button<'a, Message, Theme, Renderer>
 where
@@ -1332,7 +1375,9 @@ where
     .width(Length::Fixed(target_width))
     .height(Length::Fixed(height))
     .padding(Padding::ZERO)
-    .style(move |theme, status| indicator_state_layer_style(theme, status, layer))
+    .style(move |theme, status| {
+        indicator_state_layer_style(theme, status, layer, activation_progress)
+    })
     .on_press(on_press)
 }
 
@@ -1365,13 +1410,16 @@ fn indicator_state_layer_style(
     theme: &Theme,
     status: button::Status,
     layer: NavigationStateLayer,
+    activation_progress: f32,
 ) -> button::Style {
     let layer_color = navigation_state_layer_color(theme, layer);
-    let opacity = match status {
+    let interaction_opacity = match status {
         button::Status::Hovered => HOVERED_LAYER_OPACITY,
         button::Status::Pressed => PRESSED_LAYER_OPACITY,
         button::Status::Active | button::Status::Disabled => 0.0,
     };
+    let opacity =
+        interaction_opacity.max(activation_progress.clamp(0.0, 1.0) * PRESSED_LAYER_OPACITY);
 
     button::Style {
         background: (opacity > 0.0).then_some(Background::Color(state_layer(layer_color, opacity))),
@@ -1782,12 +1830,15 @@ mod tests {
         assert!(state.is_animating());
         assert_eq!(state.selection().progress(Page::Two), 0.0);
         assert_eq!(state.selection().progress(Page::One), 1.0);
+        assert_eq!(state.selection().activation_progress(Page::Two), 1.0);
+        assert_eq!(state.selection().activation_progress(Page::One), 0.0);
 
         let still_animating = state.advance(start + Duration::from_millis(50));
 
         assert!(still_animating);
         assert!(state.selection().progress(Page::Two) > 0.0);
         assert!(state.selection().progress(Page::One) < 1.0);
+        assert!(state.selection().activation_progress(Page::Two) < 1.0);
         assert_ne!(
             state.selection().size_progress(Page::Two),
             state.selection().alpha_progress(Page::Two)
@@ -1799,6 +1850,7 @@ mod tests {
         assert!(!state.is_animating());
         assert_eq!(state.selection().progress(Page::Two), 1.0);
         assert_eq!(state.selection().progress(Page::One), 0.0);
+        assert_eq!(state.selection().activation_progress(Page::Two), 0.0);
     }
 
     #[test]
@@ -1820,6 +1872,30 @@ mod tests {
         assert_eq!(state.selected(), Page::One);
         assert_eq!(state.selection().progress(Page::Two), two_progress);
         assert!(state.selection().progress(Page::One) > 0.0);
+    }
+
+    #[test]
+    fn navigation_state_reselect_starts_click_feedback() {
+        let start = Instant::now();
+        let mut state = NavigationState::new(Page::One);
+
+        state.select(Page::One, start, AdaptiveLayout::NavigationRail);
+
+        assert_eq!(state.selected(), Page::One);
+        assert!(state.is_animating());
+        assert_eq!(state.selection().progress(Page::One), 1.0);
+        assert_eq!(state.selection().activation_progress(Page::One), 1.0);
+
+        let still_animating = state.advance(start + Duration::from_millis(50));
+
+        assert!(still_animating);
+        assert!(state.selection().activation_progress(Page::One) < 1.0);
+
+        let finished = state.advance(start + Duration::from_millis(250));
+
+        assert!(!finished);
+        assert!(!state.is_animating());
+        assert_eq!(state.selection().activation_progress(Page::One), 0.0);
     }
 
     #[test]
@@ -1993,13 +2069,29 @@ mod tests {
             &theme,
             button::Status::Active,
             NavigationStateLayer::BarOrRail,
+            0.0,
         );
         assert_eq!(active.background, None);
+
+        let active_activation = indicator_state_layer_style(
+            &theme,
+            button::Status::Active,
+            NavigationStateLayer::BarOrRail,
+            1.0,
+        );
+        assert_eq!(
+            active_activation.background,
+            Some(Background::Color(state_layer(
+                theme.colors().surface.text,
+                PRESSED_LAYER_OPACITY
+            )))
+        );
 
         let inactive_hover = indicator_state_layer_style(
             &theme,
             button::Status::Hovered,
             NavigationStateLayer::BarOrRail,
+            0.0,
         );
         assert_eq!(
             inactive_hover.background,
@@ -2013,6 +2105,7 @@ mod tests {
             &theme,
             button::Status::Pressed,
             NavigationStateLayer::BarOrRail,
+            0.0,
         );
         assert_eq!(
             selected_pressed.background,
@@ -2026,6 +2119,7 @@ mod tests {
             &theme,
             button::Status::Pressed,
             NavigationStateLayer::Drawer { progress: 1.0 },
+            0.0,
         );
         assert_eq!(
             drawer_selected_pressed.background,
