@@ -1,7 +1,11 @@
 #![allow(dead_code)]
-use iced_widget::text::{Catalog, Style, StyleFn};
+use iced_widget::text::{Catalog, LineHeight, Style, StyleFn};
 
-use crate::Theme;
+use crate::{Theme, tokens};
+
+pub fn line_height(scale: tokens::typography::TypeScale) -> LineHeight {
+    LineHeight::Absolute(scale.line_height.into())
+}
 
 impl Catalog for Theme {
     type Class<'a> = StyleFn<'a, Self>;

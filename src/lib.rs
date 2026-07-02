@@ -7,6 +7,7 @@ use iced_widget::core::{
 };
 use utils::{lightness, mix};
 
+pub mod animation;
 pub mod badge;
 pub mod button;
 pub mod checkbox;
@@ -369,9 +370,97 @@ impl ColorScheme {
     };
 }
 
+impl ColorScheme {
+    pub fn interpolate(from: Self, to: Self, amount: f32) -> Self {
+        Self {
+            primary: interpolate_color_quartet(from.primary, to.primary, amount),
+            secondary: interpolate_color_quartet(from.secondary, to.secondary, amount),
+            tertiary: interpolate_color_quartet(from.tertiary, to.tertiary, amount),
+            error: interpolate_color_quartet(from.error, to.error, amount),
+            surface: interpolate_surface(from.surface, to.surface, amount),
+            inverse: interpolate_inverse(from.inverse, to.inverse, amount),
+            outline: interpolate_outline(from.outline, to.outline, amount),
+            shadow: interpolate_color(from.shadow, to.shadow, amount),
+            scrim: interpolate_color(from.scrim, to.scrim, amount),
+        }
+    }
+}
+
+fn interpolate_color_quartet(from: ColorQuartet, to: ColorQuartet, amount: f32) -> ColorQuartet {
+    ColorQuartet {
+        color: interpolate_color(from.color, to.color, amount),
+        text: interpolate_color(from.text, to.text, amount),
+        container: interpolate_color(from.container, to.container, amount),
+        container_text: interpolate_color(from.container_text, to.container_text, amount),
+    }
+}
+
+fn interpolate_surface(from: Surface, to: Surface, amount: f32) -> Surface {
+    Surface {
+        color: interpolate_color(from.color, to.color, amount),
+        text: interpolate_color(from.text, to.text, amount),
+        text_variant: interpolate_color(from.text_variant, to.text_variant, amount),
+        container: interpolate_surface_container(from.container, to.container, amount),
+    }
+}
+
+fn interpolate_surface_container(
+    from: SurfaceContainer,
+    to: SurfaceContainer,
+    amount: f32,
+) -> SurfaceContainer {
+    SurfaceContainer {
+        lowest: interpolate_color(from.lowest, to.lowest, amount),
+        low: interpolate_color(from.low, to.low, amount),
+        base: interpolate_color(from.base, to.base, amount),
+        high: interpolate_color(from.high, to.high, amount),
+        highest: interpolate_color(from.highest, to.highest, amount),
+    }
+}
+
+fn interpolate_inverse(from: Inverse, to: Inverse, amount: f32) -> Inverse {
+    Inverse {
+        inverse_surface: interpolate_color(from.inverse_surface, to.inverse_surface, amount),
+        inverse_surface_text: interpolate_color(
+            from.inverse_surface_text,
+            to.inverse_surface_text,
+            amount,
+        ),
+        inverse_primary: interpolate_color(from.inverse_primary, to.inverse_primary, amount),
+    }
+}
+
+fn interpolate_outline(from: Outline, to: Outline, amount: f32) -> Outline {
+    Outline {
+        color: interpolate_color(from.color, to.color, amount),
+        variant: interpolate_color(from.variant, to.variant, amount),
+    }
+}
+
+fn interpolate_color(from: Color, to: Color, amount: f32) -> Color {
+    if amount <= 0.0 {
+        return from;
+    }
+
+    if amount >= 1.0 {
+        return to;
+    }
+
+    Color {
+        r: interpolate_component(from.r, to.r, amount),
+        g: interpolate_component(from.g, to.g, amount),
+        b: interpolate_component(from.b, to.b, amount),
+        a: interpolate_component(from.a, to.a, amount),
+    }
+}
+
+fn interpolate_component(from: f32, to: f32, amount: f32) -> f32 {
+    from + (to - from) * amount
+}
+
 #[cfg(test)]
 mod color_scheme_tests {
-    use super::{color, ColorScheme};
+    use super::{ColorScheme, color};
 
     #[test]
     fn light_scheme_matches_m3_baseline_roles() {
@@ -397,6 +486,30 @@ mod color_scheme_tests {
         assert_eq!(scheme.surface.container.lowest, color!(0x0f0d13));
         assert_eq!(scheme.surface.container.highest, color!(0x36343b));
         assert_eq!(scheme.outline.color, color!(0x938f99));
+    }
+
+    #[test]
+    fn color_scheme_interpolation_clamps_to_endpoints() {
+        assert_eq!(
+            ColorScheme::interpolate(ColorScheme::DARK, ColorScheme::LIGHT, -1.0),
+            ColorScheme::DARK
+        );
+        assert_eq!(
+            ColorScheme::interpolate(ColorScheme::DARK, ColorScheme::LIGHT, 2.0),
+            ColorScheme::LIGHT
+        );
+    }
+
+    #[test]
+    fn color_scheme_interpolation_moves_all_roles() {
+        let midpoint = ColorScheme::interpolate(ColorScheme::DARK, ColorScheme::LIGHT, 0.5);
+
+        assert_ne!(midpoint.primary.color, ColorScheme::DARK.primary.color);
+        assert_ne!(midpoint.primary.color, ColorScheme::LIGHT.primary.color);
+        assert_ne!(midpoint.surface.color, ColorScheme::DARK.surface.color);
+        assert_ne!(midpoint.surface.color, ColorScheme::LIGHT.surface.color);
+        assert_ne!(midpoint.outline.color, ColorScheme::DARK.outline.color);
+        assert_ne!(midpoint.outline.color, ColorScheme::LIGHT.outline.color);
     }
 }
 

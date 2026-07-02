@@ -13,30 +13,6 @@ pub(super) fn lerp(from: f32, to: f32, progress: f32) -> f32 {
     from + (to - from) * progress
 }
 
-fn bezier_axis(t: f32, p1: f32, p2: f32) -> f32 {
-    let one_minus_t = 1.0 - t;
-
-    3.0 * one_minus_t * one_minus_t * t * p1 + 3.0 * one_minus_t * t * t * p2 + t * t * t
-}
-
-fn cubic_bezier(progress: f32, easing: tokens::motion::CubicBezier) -> f32 {
-    let target_x = progress.clamp(0.0, 1.0);
-    let mut start = 0.0;
-    let mut end = 1.0;
-
-    for _ in 0..20 {
-        let midpoint = (start + end) / 2.0;
-
-        if bezier_axis(midpoint, easing.x1, easing.x2) < target_x {
-            start = midpoint;
-        } else {
-            end = midpoint;
-        }
-    }
-
-    bezier_axis((start + end) / 2.0, easing.y1, easing.y2)
-}
-
 pub(super) fn bool_value(value: bool) -> f32 {
     if value { 1.0 } else { 0.0 }
 }
@@ -156,7 +132,7 @@ impl AnimatedScalar {
                     / duration.as_secs_f32())
                 .clamp(0.0, 1.0);
 
-                self.value = lerp(self.from, self.to, cubic_bezier(progress, easing));
+                self.value = lerp(self.from, self.to, easing.transform(progress));
 
                 if progress >= 1.0 {
                     self.value = self.to;

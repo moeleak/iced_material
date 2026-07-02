@@ -1,14 +1,8 @@
-use iced::time::{Duration, Instant};
+use iced::time::Instant;
 use iced::widget::{column, row, scrollable, text};
-use iced::{window, Alignment, Color, Element, Length, Size, Subscription};
+use iced::{Alignment, Element, Length, Size, Subscription, window};
 use iced_material as material;
-use material::{ColorQuartet, ColorScheme, Inverse, Outline, Surface, SurfaceContainer, Theme};
-
-fn type_scale_line_height(
-    scale: material::tokens::typography::TypeScale,
-) -> iced::widget::text::LineHeight {
-    iced::widget::text::LineHeight::Absolute(scale.line_height.into())
-}
+use material::{ColorScheme, Theme, animation::ColorSchemeTransition};
 
 pub fn main() -> iced::Result {
     let window_size = Size::new(1080.0, 980.0);
@@ -126,14 +120,7 @@ struct Demo {
     dark_mode: bool,
     radio_choice: Option<RadioChoice>,
     visible_scheme: ColorScheme,
-    animation: Option<ThemeAnimation>,
-}
-
-#[derive(Debug, Clone, Copy)]
-struct ThemeAnimation {
-    from: ColorScheme,
-    to: ColorScheme,
-    started_at: Instant,
+    animation: Option<ColorSchemeTransition>,
 }
 
 impl Default for Demo {
@@ -219,30 +206,18 @@ fn update(state: &mut Demo, message: Message) {
                 Theme::Light.colors()
             };
 
-            state.animation = Some(ThemeAnimation {
-                from: state.visible_scheme,
-                to: target,
-                started_at: Instant::now(),
-            });
+            state.animation = Some(ColorSchemeTransition::material_theme(
+                state.visible_scheme,
+                target,
+                Instant::now(),
+            ));
         }
         Message::Frame(now) => {
             if let Some(animation) = state.animation {
-                let duration =
-                    Duration::from_millis(u64::from(material::tokens::motion::DURATION_MEDIUM4_MS));
-                let progress = now
-                    .saturating_duration_since(animation.started_at)
-                    .as_secs_f32()
-                    / duration.as_secs_f32();
+                state.visible_scheme = animation.value_at(now);
 
-                if progress >= 1.0 {
-                    state.visible_scheme = animation.to;
+                if animation.is_finished_at(now) {
                     state.animation = None;
-                } else {
-                    state.visible_scheme = lerp_color_scheme(
-                        animation.from,
-                        animation.to,
-                        emphasized_decelerate(progress),
-                    );
                 }
             }
 
@@ -362,17 +337,17 @@ fn header(page: DemoPage) -> Element<'static, Message, Theme> {
     column![
         text("iced_material 0.14.2")
             .size(headline_large.size)
-            .line_height(type_scale_line_height(headline_large)),
+            .line_height(material::text::line_height(headline_large)),
         text(page_label(page))
             .size(body_large.size)
-            .line_height(type_scale_line_height(body_large)),
+            .line_height(material::text::line_height(body_large)),
         text(chinese_sample)
             .font(material::fonts::font_for_content_type_scale(
                 chinese_sample,
                 body_large,
             ))
             .size(body_large.size)
-            .line_height(type_scale_line_height(body_large)),
+            .line_height(material::text::line_height(body_large)),
     ]
     .spacing(6)
     .into()
@@ -519,7 +494,7 @@ fn section<'a>(
     column![
         text(title)
             .size(title_medium.size)
-            .line_height(type_scale_line_height(title_medium)),
+            .line_height(material::text::line_height(title_medium)),
         body
     ]
     .spacing(12)
@@ -534,7 +509,7 @@ fn counter_controls(state: &Demo) -> Element<'_, Message, Theme> {
         material::widget::button::outlined("Minus").on_press(Message::Decrement),
         text(state.count)
             .size(headline_medium.size)
-            .line_height(type_scale_line_height(headline_medium)),
+            .line_height(material::text::line_height(headline_medium)),
         material::widget::button::filled("Plus").on_press(Message::Increment),
     ]
     .spacing(12)
@@ -622,11 +597,11 @@ fn progress_indicators(state: &Demo) -> Element<'_, Message, Theme> {
         row![
             text("Progress")
                 .size(body_large.size)
-                .line_height(type_scale_line_height(body_large))
+                .line_height(material::text::line_height(body_large))
                 .width(Length::Fill),
             text(format!("{:.0}%", state.progress))
                 .size(body_large.size)
-                .line_height(type_scale_line_height(body_large)),
+                .line_height(material::text::line_height(body_large)),
         ]
         .spacing(12),
         material::widget::slider::continuous(0.0..=100.0, state.progress, Message::SliderChanged)
@@ -643,7 +618,7 @@ fn badges() -> Element<'static, Message, Theme> {
     row![
         text("Badges")
             .size(body_large.size)
-            .line_height(type_scale_line_height(body_large)),
+            .line_height(material::text::line_height(body_large)),
         material::widget::badge::small(),
         material::widget::badge::large("3"),
         material::widget::badge::large("99+"),
@@ -661,10 +636,10 @@ fn cards() -> Element<'static, Message, Theme> {
         column![
             text("Elevated")
                 .size(title_medium.size)
-                .line_height(type_scale_line_height(title_medium)),
+                .line_height(material::text::line_height(title_medium)),
             text("Level 1")
                 .size(body_medium.size)
-                .line_height(type_scale_line_height(body_medium)),
+                .line_height(material::text::line_height(body_medium)),
         ]
         .spacing(2),
     )
@@ -676,10 +651,10 @@ fn cards() -> Element<'static, Message, Theme> {
         column![
             text("Filled")
                 .size(title_medium.size)
-                .line_height(type_scale_line_height(title_medium)),
+                .line_height(material::text::line_height(title_medium)),
             text("Container")
                 .size(body_medium.size)
-                .line_height(type_scale_line_height(body_medium)),
+                .line_height(material::text::line_height(body_medium)),
         ]
         .spacing(2),
     )
@@ -691,10 +666,10 @@ fn cards() -> Element<'static, Message, Theme> {
         column![
             text("Outlined")
                 .size(title_medium.size)
-                .line_height(type_scale_line_height(title_medium)),
+                .line_height(material::text::line_height(title_medium)),
             text("1px stroke")
                 .size(body_medium.size)
-                .line_height(type_scale_line_height(body_medium)),
+                .line_height(material::text::line_height(body_medium)),
         ]
         .spacing(2),
     )
@@ -727,11 +702,11 @@ fn dividers() -> Element<'static, Message, Theme> {
         row![
             text("Full")
                 .size(body_large.size)
-                .line_height(type_scale_line_height(body_large)),
+                .line_height(material::text::line_height(body_large)),
             material::widget::rule::vertical_full_height(),
             text("Inset")
                 .size(body_large.size)
-                .line_height(type_scale_line_height(body_large)),
+                .line_height(material::text::line_height(body_large)),
         ]
         .height(Length::Fixed(32.0))
         .spacing(16)
@@ -769,145 +744,9 @@ fn page_label(page: DemoPage) -> &'static str {
     }
 }
 
-fn emphasized_decelerate(progress: f32) -> f32 {
-    if progress <= 0.0 {
-        return 0.0;
-    }
-
-    if progress >= 1.0 {
-        return 1.0;
-    }
-
-    let easing = material::tokens::motion::EASING_EMPHASIZED_DECELERATE;
-
-    cubic_bezier(progress, easing.x1, easing.y1, easing.x2, easing.y2)
-}
-
-fn cubic_bezier(progress: f32, x1: f32, y1: f32, x2: f32, y2: f32) -> f32 {
-    let progress = progress.clamp(0.0, 1.0);
-    let mut low = 0.0;
-    let mut high = 1.0;
-
-    for _ in 0..20 {
-        let mid = (low + high) * 0.5;
-
-        if bezier_axis(mid, x1, x2) < progress {
-            low = mid;
-        } else {
-            high = mid;
-        }
-    }
-
-    bezier_axis((low + high) * 0.5, y1, y2).clamp(0.0, 1.0)
-}
-
-fn bezier_axis(t: f32, p1: f32, p2: f32) -> f32 {
-    let inverse = 1.0 - t;
-
-    3.0 * inverse * inverse * t * p1 + 3.0 * inverse * t * t * p2 + t * t * t
-}
-
-fn lerp_color_scheme(from: ColorScheme, to: ColorScheme, amount: f32) -> ColorScheme {
-    ColorScheme {
-        primary: lerp_color_quartet(from.primary, to.primary, amount),
-        secondary: lerp_color_quartet(from.secondary, to.secondary, amount),
-        tertiary: lerp_color_quartet(from.tertiary, to.tertiary, amount),
-        error: lerp_color_quartet(from.error, to.error, amount),
-        surface: lerp_surface(from.surface, to.surface, amount),
-        inverse: lerp_inverse(from.inverse, to.inverse, amount),
-        outline: lerp_outline(from.outline, to.outline, amount),
-        shadow: lerp_color(from.shadow, to.shadow, amount),
-        scrim: lerp_color(from.scrim, to.scrim, amount),
-    }
-}
-
-fn lerp_color_quartet(from: ColorQuartet, to: ColorQuartet, amount: f32) -> ColorQuartet {
-    ColorQuartet {
-        color: lerp_color(from.color, to.color, amount),
-        text: lerp_color(from.text, to.text, amount),
-        container: lerp_color(from.container, to.container, amount),
-        container_text: lerp_color(from.container_text, to.container_text, amount),
-    }
-}
-
-fn lerp_surface(from: Surface, to: Surface, amount: f32) -> Surface {
-    Surface {
-        color: lerp_color(from.color, to.color, amount),
-        text: lerp_color(from.text, to.text, amount),
-        text_variant: lerp_color(from.text_variant, to.text_variant, amount),
-        container: lerp_surface_container(from.container, to.container, amount),
-    }
-}
-
-fn lerp_surface_container(
-    from: SurfaceContainer,
-    to: SurfaceContainer,
-    amount: f32,
-) -> SurfaceContainer {
-    SurfaceContainer {
-        lowest: lerp_color(from.lowest, to.lowest, amount),
-        low: lerp_color(from.low, to.low, amount),
-        base: lerp_color(from.base, to.base, amount),
-        high: lerp_color(from.high, to.high, amount),
-        highest: lerp_color(from.highest, to.highest, amount),
-    }
-}
-
-fn lerp_inverse(from: Inverse, to: Inverse, amount: f32) -> Inverse {
-    Inverse {
-        inverse_surface: lerp_color(from.inverse_surface, to.inverse_surface, amount),
-        inverse_surface_text: lerp_color(
-            from.inverse_surface_text,
-            to.inverse_surface_text,
-            amount,
-        ),
-        inverse_primary: lerp_color(from.inverse_primary, to.inverse_primary, amount),
-    }
-}
-
-fn lerp_outline(from: Outline, to: Outline, amount: f32) -> Outline {
-    Outline {
-        color: lerp_color(from.color, to.color, amount),
-        variant: lerp_color(from.variant, to.variant, amount),
-    }
-}
-
-fn lerp_color(from: Color, to: Color, amount: f32) -> Color {
-    let amount = amount.clamp(0.0, 1.0);
-
-    Color {
-        r: lerp_component(from.r, to.r, amount),
-        g: lerp_component(from.g, to.g, amount),
-        b: lerp_component(from.b, to.b, amount),
-        a: lerp_component(from.a, to.a, amount),
-    }
-}
-
-fn lerp_component(from: f32, to: f32, amount: f32) -> f32 {
-    from + (to - from) * amount
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn emphasized_decelerate_has_expected_endpoints() {
-        assert_eq!(emphasized_decelerate(0.0), 0.0);
-        assert!((emphasized_decelerate(1.0) - 1.0).abs() < f32::EPSILON);
-    }
-
-    #[test]
-    fn theme_lerp_reaches_target_color_scheme() {
-        let target = Theme::Light.colors();
-
-        assert_eq!(
-            lerp_color_scheme(Theme::Dark.colors(), target, 1.0)
-                .surface
-                .color,
-            target.surface.color
-        );
-    }
 
     #[test]
     fn combo_input_preserves_typed_query_and_clears_stale_selection() {
@@ -950,7 +789,7 @@ mod tests {
 
         update(
             &mut demo,
-            Message::Frame(Instant::now() + Duration::from_millis(500)),
+            Message::Frame(Instant::now() + iced::time::Duration::from_millis(500)),
         );
 
         assert!(demo.rail_expansion.is_visible());

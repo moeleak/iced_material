@@ -21,6 +21,38 @@ pub mod motion {
         pub const fn new(x1: f32, y1: f32, x2: f32, y2: f32) -> Self {
             Self { x1, y1, x2, y2 }
         }
+
+        pub fn transform(self, progress: f32) -> f32 {
+            if progress <= 0.0 {
+                return 0.0;
+            }
+
+            if progress >= 1.0 {
+                return 1.0;
+            }
+
+            let target_x = progress.clamp(0.0, 1.0);
+            let mut start = 0.0;
+            let mut end = 1.0;
+
+            for _ in 0..20 {
+                let midpoint = (start + end) / 2.0;
+
+                if bezier_axis(midpoint, self.x1, self.x2) < target_x {
+                    start = midpoint;
+                } else {
+                    end = midpoint;
+                }
+            }
+
+            bezier_axis((start + end) / 2.0, self.y1, self.y2).clamp(0.0, 1.0)
+        }
+    }
+
+    fn bezier_axis(t: f32, p1: f32, p2: f32) -> f32 {
+        let inverse = 1.0 - t;
+
+        3.0 * inverse * inverse * t * p1 + 3.0 * inverse * t * t * p2 + t * t * t
     }
 
     pub const DURATION_SHORT1_MS: u16 = 50;
@@ -712,6 +744,18 @@ mod tests {
         assert_eq!(
             motion::EASING_EMPHASIZED_DECELERATE,
             motion::CubicBezier::new(0.05, 0.7, 0.1, 1.0)
+        );
+    }
+
+    #[test]
+    fn cubic_bezier_transform_clamps_and_reaches_endpoints() {
+        assert_eq!(motion::EASING_EMPHASIZED_DECELERATE.transform(-1.0), 0.0);
+        assert_eq!(motion::EASING_EMPHASIZED_DECELERATE.transform(0.0), 0.0);
+        assert_eq!(motion::EASING_EMPHASIZED_DECELERATE.transform(1.0), 1.0);
+        assert_eq!(motion::EASING_EMPHASIZED_DECELERATE.transform(2.0), 1.0);
+        assert!(
+            motion::EASING_EMPHASIZED_DECELERATE.transform(0.5)
+                > motion::EASING_LINEAR.transform(0.5)
         );
     }
 
