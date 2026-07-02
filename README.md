@@ -3,7 +3,8 @@
 Material 3 inspired widgets and theme defaults for
 [`iced`](https://iced.rs) 0.14.
 
-![iced_material dark example](assets/screenshots/example-dark.png)
+![iced_material light showcase](assets/screenshots/light.png)
+![iced_material dark showcase](assets/screenshots/dark.png)
 
 ## Quick Start
 
