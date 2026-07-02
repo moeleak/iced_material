@@ -387,17 +387,6 @@ mod tests {
     }
 
     #[test]
-    fn chinese_sample_selects_noto_sans_cjk_family() {
-        assert_eq!(
-            material::fonts::font_for_content_type_scale(
-                "中文字体 Noto Sans CJK",
-                material::tokens::typography::BODY_LARGE,
-            ),
-            material::fonts::NOTO_SANS_CJK_SC
-        );
-    }
-
-    #[test]
     fn resize_updates_adaptive_layout_inputs() {
         let mut showcase = Showcase::default();
 

@@ -24,14 +24,7 @@ pub(super) fn view(state: &Showcase) -> material::Element<'_, Message> {
 }
 
 fn header(page: ShowcasePage) -> material::Element<'static, Message> {
-    let body_large = material::tokens::typography::BODY_LARGE;
-    let chinese_sample = "中文字体 Noto Sans CJK";
-
-    material::widget::page::header("iced_material 0.2.0", page_label(page))
-        .push(material::text::body_large(chinese_sample).font(
-            material::fonts::font_for_content_type_scale(chinese_sample, body_large),
-        ))
-        .into()
+    material::widget::page::header("iced_material 0.2.0", page_label(page)).into()
 }
 
 fn page_label(page: ShowcasePage) -> &'static str {
