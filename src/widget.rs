@@ -682,30 +682,69 @@ pub mod tooltip {
         Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
     {
         let type_scale = tokens::component::tooltip::PLAIN_SUPPORTING_TEXT;
-        let inner_horizontal_padding = (tokens::component::tooltip::PLAIN_HORIZONTAL_SPACE
-            - tokens::component::tooltip::PLAIN_VERTICAL_SPACE)
-            .max(0.0);
 
-        let tooltip = Container::new(
-            text_with_metrics(supporting_text, type_scale.size, type_scale.line_height)
-                .width(Length::Fill)
-                .wrapping(text::Wrapping::Word),
-        )
+        let tooltip = Container::new(plain_supporting_text::<Renderer>(
+            supporting_text,
+            type_scale,
+        ))
         .padding(Padding {
             top: 0.0,
-            right: inner_horizontal_padding,
+            right: plain_tooltip_inner_horizontal_padding(),
             bottom: 0.0,
-            left: inner_horizontal_padding,
+            left: plain_tooltip_inner_horizontal_padding(),
         })
-        .max_width(
-            tokens::component::tooltip::PLAIN_MAX_WIDTH
-                - tokens::component::tooltip::PLAIN_VERTICAL_SPACE * 2.0,
-        );
+        .max_width(plain_tooltip_inner_max_width());
 
         Tooltip::new(content, tooltip, position)
             .gap(tokens::component::tooltip::SPACING_BETWEEN_TOOLTIP_AND_ANCHOR)
             .padding(tokens::component::tooltip::PLAIN_VERTICAL_SPACE)
             .style(tooltip_style::plain)
+    }
+
+    fn plain_supporting_text<'a, Renderer>(
+        supporting_text: impl text::IntoFragment<'a>,
+        type_scale: tokens::typography::TypeScale,
+    ) -> Text<'a, Theme, Renderer>
+    where
+        Renderer: core_text::Renderer,
+    {
+        text_with_metrics(supporting_text, type_scale.size, type_scale.line_height)
+            .wrapping(text::Wrapping::Word)
+    }
+
+    fn plain_tooltip_inner_horizontal_padding() -> f32 {
+        (tokens::component::tooltip::PLAIN_HORIZONTAL_SPACE
+            - tokens::component::tooltip::PLAIN_VERTICAL_SPACE)
+            .max(0.0)
+    }
+
+    fn plain_tooltip_inner_max_width() -> f32 {
+        tokens::component::tooltip::PLAIN_MAX_WIDTH
+            - tokens::component::tooltip::PLAIN_VERTICAL_SPACE * 2.0
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn plain_tooltip_text_shrinks_under_material_max_width() {
+            let type_scale = tokens::component::tooltip::PLAIN_SUPPORTING_TEXT;
+            let text: Text<'_, Theme, iced_widget::Renderer> =
+                plain_supporting_text("Material 3 plain tooltip", type_scale);
+
+            assert_eq!(
+                Widget::<(), Theme, iced_widget::Renderer>::size(&text).width,
+                Length::Shrink
+            );
+            assert_eq!(plain_tooltip_inner_horizontal_padding(), 4.0);
+            assert_eq!(plain_tooltip_inner_max_width(), 192.0);
+            assert_eq!(
+                plain_tooltip_inner_max_width()
+                    + tokens::component::tooltip::PLAIN_VERTICAL_SPACE * 2.0,
+                tokens::component::tooltip::PLAIN_MAX_WIDTH
+            );
+        }
     }
 }
 
