@@ -187,6 +187,7 @@ pub struct NavigationState<Id> {
     size_progress: AnimatedScalar,
     alpha_progress: AnimatedScalar,
     activation_progress: AnimatedScalar,
+    activation_pending_frame: bool,
 }
 
 impl<Id: Copy + Eq> NavigationState<Id> {
@@ -201,6 +202,7 @@ impl<Id: Copy + Eq> NavigationState<Id> {
             size_progress: AnimatedScalar::new(1.0),
             alpha_progress: AnimatedScalar::new(1.0),
             activation_progress: AnimatedScalar::new(0.0),
+            activation_pending_frame: false,
         }
     }
 
@@ -263,13 +265,20 @@ impl<Id: Copy + Eq> NavigationState<Id> {
 
     pub fn is_animating(&self) -> bool {
         self.previous.is_some()
+            || self.activation_pending_frame
             || (self.activation_progress.value - self.activation_progress.to).abs() > 0.001
     }
 
     pub fn advance(&mut self, now: Instant) -> bool {
-        let animating = self.size_progress.advance(now)
-            | self.alpha_progress.advance(now)
-            | self.activation_progress.advance(now);
+        let selection_animating =
+            self.size_progress.advance(now) | self.alpha_progress.advance(now);
+        let activation_animating = if self.activation_pending_frame {
+            self.activation_pending_frame = false;
+            true
+        } else {
+            self.activation_progress.advance(now)
+        };
+        let animating = selection_animating | activation_animating;
 
         if !animating {
             self.size_progress.value = 1.0;
@@ -293,6 +302,7 @@ impl<Id: Copy + Eq> NavigationState<Id> {
             duration_ms(tokens::motion::DURATION_SHORT4_MS),
             tokens::motion::EASING_STANDARD,
         );
+        self.activation_pending_frame = true;
     }
 }
 
@@ -1973,6 +1983,11 @@ mod tests {
         assert!(still_animating);
         assert!(state.selection().progress(Page::Two) > 0.0);
         assert!(state.selection().progress(Page::One) < 1.0);
+        assert_eq!(state.selection().activation_progress(Page::Two), 1.0);
+
+        let still_animating = state.advance(start + Duration::from_millis(100));
+
+        assert!(still_animating);
         assert!(state.selection().activation_progress(Page::Two) < 1.0);
         assert_ne!(
             state.selection().size_progress(Page::Two),
@@ -2022,6 +2037,11 @@ mod tests {
         assert_eq!(state.selection().activation_progress(Page::One), 1.0);
 
         let still_animating = state.advance(start + Duration::from_millis(50));
+
+        assert!(still_animating);
+        assert_eq!(state.selection().activation_progress(Page::One), 1.0);
+
+        let still_animating = state.advance(start + Duration::from_millis(100));
 
         assert!(still_animating);
         assert!(state.selection().activation_progress(Page::One) < 1.0);
