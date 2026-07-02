@@ -28,7 +28,7 @@ use iced_widget::{
 };
 
 use crate::utils::mix;
-use crate::{Theme, tokens};
+use crate::{Theme, tokens, web_input};
 use crate::{
     button as button_style, checkbox as checkbox_style, container as container_style,
     menu as menu_style, pick_list as pick_list_style, rule as rule_style, slider as slider_style,
@@ -2532,6 +2532,7 @@ pub mod text_input {
             let state = tree
                 .state
                 .downcast_mut::<TextFieldState<Renderer::Paragraph>>();
+            let was_focused = state.is_focused;
 
             match event {
                 Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
@@ -2573,6 +2574,14 @@ pub mod text_input {
                     }
                 }
                 _ => {}
+            }
+
+            if was_focused != state.is_focused {
+                if state.is_focused {
+                    web_input::show_mobile_keyboard();
+                } else {
+                    web_input::hide_mobile_keyboard();
+                }
             }
 
             let target = if self.label_mode == LabelMode::Floating {

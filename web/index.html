@@ -23,6 +23,239 @@
         display: block;
       }
     </style>
+    <script>
+      (() => {
+        const SENTINEL = "\u200b";
+        let input = null;
+        let active = false;
+        let composing = false;
+        let pendingDelete = null;
+        let pendingDeleteHandle = 0;
+
+        const touchKeyboard = () =>
+          navigator.maxTouchPoints > 0 ||
+          window.matchMedia("(pointer: coarse)").matches;
+
+        const canvas = () => document.querySelector("canvas");
+
+        const codeFor = (key) => {
+          if (key.length === 1) {
+            const upper = key.toUpperCase();
+
+            if (/^[A-Z]$/.test(upper)) {
+              return `Key${upper}`;
+            }
+
+            if (/^[0-9]$/.test(key)) {
+              return `Digit${key}`;
+            }
+          }
+
+          return {
+            " ": "Space",
+            ArrowDown: "ArrowDown",
+            ArrowLeft: "ArrowLeft",
+            ArrowRight: "ArrowRight",
+            ArrowUp: "ArrowUp",
+            Backspace: "Backspace",
+            Delete: "Delete",
+            End: "End",
+            Enter: "Enter",
+            Escape: "Escape",
+            Home: "Home",
+            Tab: "Tab",
+          }[key] || "";
+        };
+
+        const sendKey = (key) => {
+          const target = canvas();
+
+          if (!target) {
+            return;
+          }
+
+          target.dispatchEvent(
+            new KeyboardEvent("keydown", {
+              key,
+              code: codeFor(key),
+              bubbles: true,
+              cancelable: true,
+              composed: true,
+            }),
+          );
+        };
+
+        const clearPendingDelete = () => {
+          if (pendingDeleteHandle) {
+            window.clearTimeout(pendingDeleteHandle);
+            pendingDeleteHandle = 0;
+          }
+
+          pendingDelete = null;
+        };
+
+        const resetInput = () => {
+          if (!input) {
+            return;
+          }
+
+          input.value = SENTINEL;
+
+          try {
+            input.setSelectionRange(SENTINEL.length, SENTINEL.length);
+          } catch (_) {}
+        };
+
+        const sendText = (text) => {
+          for (const char of text) {
+            sendKey(char);
+          }
+        };
+
+        const handleInput = () => {
+          if (!input || composing) {
+            return;
+          }
+
+          const value = input.value;
+
+          if (value === SENTINEL) {
+            return;
+          }
+
+          if (value === "") {
+            sendKey(pendingDelete || "Backspace");
+            clearPendingDelete();
+            resetInput();
+            return;
+          }
+
+          const text = value.startsWith(SENTINEL)
+            ? value.slice(SENTINEL.length)
+            : value;
+
+          clearPendingDelete();
+
+          if (text) {
+            sendText(text);
+          }
+
+          resetInput();
+        };
+
+        const ensureInput = () => {
+          if (input) {
+            return input;
+          }
+
+          input = document.createElement("input");
+          input.autocapitalize = "off";
+          input.autocomplete = "off";
+          input.autocorrect = "off";
+          input.inputMode = "text";
+          input.spellcheck = false;
+          input.enterKeyHint = "done";
+          input.setAttribute("aria-hidden", "true");
+          input.style.cssText = [
+            "position:fixed",
+            "left:0",
+            "top:0",
+            "width:1px",
+            "height:1px",
+            "font-size:16px",
+            "opacity:0",
+            "color:transparent",
+            "background:transparent",
+            "border:0",
+            "outline:0",
+            "padding:0",
+            "margin:0",
+            "caret-color:transparent",
+            "pointer-events:none",
+          ].join(";");
+
+          input.addEventListener("keydown", (event) => {
+            if (!active) {
+              return;
+            }
+
+            if (event.key === "Backspace" || event.key === "Delete") {
+              pendingDelete = event.key;
+
+              if (pendingDeleteHandle) {
+                window.clearTimeout(pendingDeleteHandle);
+              }
+
+              pendingDeleteHandle = window.setTimeout(() => {
+                if (pendingDelete === event.key) {
+                  sendKey(event.key);
+                  clearPendingDelete();
+                  resetInput();
+                }
+              }, 0);
+
+              return;
+            }
+
+            if (
+              event.key === "Enter" ||
+              event.key === "Escape" ||
+              event.key === "Tab" ||
+              event.key === "ArrowLeft" ||
+              event.key === "ArrowRight" ||
+              event.key === "ArrowUp" ||
+              event.key === "ArrowDown" ||
+              event.key === "Home" ||
+              event.key === "End"
+            ) {
+              sendKey(event.key);
+              event.preventDefault();
+            }
+          });
+
+          input.addEventListener("input", handleInput);
+          input.addEventListener("compositionstart", () => {
+            composing = true;
+          });
+          input.addEventListener("compositionend", () => {
+            composing = false;
+            window.setTimeout(handleInput, 0);
+          });
+          input.addEventListener("blur", () => {
+            active = false;
+            clearPendingDelete();
+            resetInput();
+          });
+
+          document.body.appendChild(input);
+          resetInput();
+
+          return input;
+        };
+
+        window.__icedMaterialShowMobileKeyboard = () => {
+          if (!touchKeyboard()) {
+            return;
+          }
+
+          const target = ensureInput();
+          active = true;
+          resetInput();
+          target.focus({ preventScroll: true });
+        };
+
+        window.__icedMaterialHideMobileKeyboard = () => {
+          if (!input) {
+            return;
+          }
+
+          active = false;
+          clearPendingDelete();
+          input.blur();
+          resetInput();
+        };
+      })();
+    </script>
     <link
       data-trunk
       rel="rust"

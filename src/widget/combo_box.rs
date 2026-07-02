@@ -17,7 +17,7 @@ use iced_widget::text_input::{self, Icon, TextInput};
 
 use super::menu_overlay;
 use super::{absolute_line_height, select};
-use crate::{Theme, menu as menu_style, text_input as text_input_style, tokens};
+use crate::{Theme, menu as menu_style, text_input as text_input_style, tokens, web_input};
 
 #[derive(Clone)]
 enum DisplayValue<T> {
@@ -860,10 +860,14 @@ where
             shell.invalidate_widgets();
 
             if is_focused {
+                web_input::show_mobile_keyboard();
+
                 self.state.with_inner(|state| {
                     menu.menu
                         .start_open(state.filtered_options.options.len(), Instant::now());
                 });
+            } else {
+                web_input::hide_mobile_keyboard();
             }
 
             if !published_message_to_shell {

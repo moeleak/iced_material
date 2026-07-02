@@ -41,6 +41,7 @@ pub mod toggler;
 pub mod tokens;
 pub mod tooltip;
 pub mod utils;
+mod web_input;
 pub mod widget;
 
 pub use application::{

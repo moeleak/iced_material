@@ -111,7 +111,11 @@ impl SegmentPosition {
     }
 }
 
-/// Creates a row that holds segmented buttons with no gap between segments.
+fn segment_overlap_spacing() -> f32 {
+    -tokens::component::segmented_button::OUTLINE_WIDTH
+}
+
+/// Creates a row that holds segmented buttons with overlapping outlines.
 pub fn group<'a, Message, Renderer>(
     segments: impl IntoIterator<Item = Element<'a, Message, Theme, Renderer>>,
 ) -> Row<'a, Message, Theme, Renderer>
@@ -120,7 +124,7 @@ where
     Renderer: iced_widget::core::Renderer + 'a,
 {
     Row::with_children(segments.into_iter())
-        .spacing(0)
+        .spacing(segment_overlap_spacing())
         .align_y(alignment::Vertical::Center)
 }
 
@@ -393,6 +397,14 @@ mod tests {
         assert_eq!(SegmentPosition::Middle.radius(), Radius::default());
         assert_eq!(SegmentPosition::Last.radius().top_right, full);
         assert_eq!(SegmentPosition::Last.radius().bottom_left, 0.0);
+    }
+
+    #[test]
+    fn group_overlaps_adjacent_outlines_by_border_width() {
+        assert_eq!(
+            segment_overlap_spacing(),
+            -tokens::component::segmented_button::OUTLINE_WIDTH
+        );
     }
 
     #[test]

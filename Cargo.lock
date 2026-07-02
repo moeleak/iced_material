@@ -1373,7 +1373,9 @@ dependencies = [
  "iced_selection",
  "iced_widget",
  "iced_winit",
+ "js-sys",
  "serde",
+ "wasm-bindgen",
 ]
 
 [[package]]
