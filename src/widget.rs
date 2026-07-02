@@ -3140,6 +3140,15 @@ mod tests {
                 Message::Pressed
             })
             .into();
+        let content = Text::new("Navigation suite content");
+        let _: TestElement<'_> = navigation::navigation_suite(
+            1080.0,
+            980.0,
+            &destinations,
+            selection,
+            |_| Message::Pressed,
+            content,
+        );
     }
 
     #[test]

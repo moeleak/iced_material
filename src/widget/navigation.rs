@@ -2,7 +2,7 @@
 
 use iced_widget::button;
 use iced_widget::core::text as core_text;
-use iced_widget::core::{Background, Color, Length, Padding, alignment, border};
+use iced_widget::core::{Background, Color, Element, Length, Padding, alignment, border};
 use iced_widget::text::{self, LineHeight};
 use iced_widget::{Button, Column, Container, Row, Text};
 
@@ -14,6 +14,19 @@ use crate::{Theme, tokens};
 pub enum AdaptiveLayout {
     NavigationBar,
     NavigationRail,
+}
+
+impl AdaptiveLayout {
+    pub fn from_size(width: f32, height: f32) -> Self {
+        adaptive_layout(width, height)
+    }
+
+    pub fn item_animation_duration_ms(self) -> u16 {
+        match self {
+            Self::NavigationBar => tokens::component::navigation_bar::ITEM_ANIMATION_DURATION_MS,
+            Self::NavigationRail => tokens::component::navigation_rail::ITEM_ANIMATION_DURATION_MS,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -41,6 +54,16 @@ impl WindowSizeClass {
         Self {
             width: width_class(width),
             height: height_class(height),
+        }
+    }
+
+    pub fn adaptive_navigation_layout(self) -> AdaptiveLayout {
+        if matches!(self.width, WindowWidthClass::Compact)
+            || matches!(self.height, WindowHeightClass::Compact)
+        {
+            AdaptiveLayout::NavigationBar
+        } else {
+            AdaptiveLayout::NavigationRail
         }
     }
 }
@@ -118,14 +141,64 @@ pub fn height_class(height: f32) -> WindowHeightClass {
 }
 
 pub fn adaptive_layout(width: f32, height: f32) -> AdaptiveLayout {
-    let size_class = WindowSizeClass::from_size(width, height);
+    WindowSizeClass::from_size(width, height).adaptive_navigation_layout()
+}
 
-    if matches!(size_class.width, WindowWidthClass::Compact)
-        || matches!(size_class.height, WindowHeightClass::Compact)
-    {
-        AdaptiveLayout::NavigationBar
-    } else {
-        AdaptiveLayout::NavigationRail
+pub fn item_animation_duration_ms(layout: AdaptiveLayout) -> u16 {
+    layout.item_animation_duration_ms()
+}
+
+pub fn navigation_suite<'a, Id, Message, Renderer, F>(
+    width: f32,
+    height: f32,
+    destinations: &'a [Destination<Id>],
+    selection: Selection<Id>,
+    on_select: F,
+    content: impl Into<Element<'a, Message, Theme, Renderer>>,
+) -> Element<'a, Message, Theme, Renderer>
+where
+    Id: Copy + Eq + 'a,
+    Message: Clone + 'a,
+    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    F: Fn(Id) -> Message + Clone + 'a,
+{
+    navigation_suite_for_layout(
+        adaptive_layout(width, height),
+        destinations,
+        selection,
+        on_select,
+        content,
+    )
+}
+
+pub fn navigation_suite_for_layout<'a, Id, Message, Renderer, F>(
+    layout: AdaptiveLayout,
+    destinations: &'a [Destination<Id>],
+    selection: Selection<Id>,
+    on_select: F,
+    content: impl Into<Element<'a, Message, Theme, Renderer>>,
+) -> Element<'a, Message, Theme, Renderer>
+where
+    Id: Copy + Eq + 'a,
+    Message: Clone + 'a,
+    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    F: Fn(Id) -> Message + Clone + 'a,
+{
+    let content = content.into();
+
+    match layout {
+        AdaptiveLayout::NavigationBar => Column::new()
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .push(content)
+            .push(navigation_bar(destinations, selection, on_select))
+            .into(),
+        AdaptiveLayout::NavigationRail => Row::new()
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .push(navigation_rail(destinations, selection, on_select))
+            .push(content)
+            .into(),
     }
 }
 
@@ -616,6 +689,22 @@ mod tests {
         assert_eq!(
             adaptive_layout(1080.0, 980.0),
             AdaptiveLayout::NavigationRail
+        );
+        assert_eq!(
+            AdaptiveLayout::from_size(1080.0, 980.0),
+            AdaptiveLayout::NavigationRail
+        );
+        assert_eq!(
+            WindowSizeClass::from_size(420.0, 900.0).adaptive_navigation_layout(),
+            AdaptiveLayout::NavigationBar
+        );
+        assert_eq!(
+            item_animation_duration_ms(AdaptiveLayout::NavigationBar),
+            tokens::component::navigation_bar::ITEM_ANIMATION_DURATION_MS
+        );
+        assert_eq!(
+            item_animation_duration_ms(AdaptiveLayout::NavigationRail),
+            tokens::component::navigation_rail::ITEM_ANIMATION_DURATION_MS
         );
     }
 

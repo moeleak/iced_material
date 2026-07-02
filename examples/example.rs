@@ -284,31 +284,14 @@ fn subscription(state: &Demo) -> Subscription<Message> {
 }
 
 fn view(state: &Demo) -> Element<'_, Message, Theme> {
-    let selection = state.navigation_selection();
-    let content = page_content(state);
-
-    match state.adaptive_navigation_layout() {
-        material::widget::navigation::AdaptiveLayout::NavigationBar => column![
-            content,
-            material::widget::navigation::navigation_bar(
-                &NAV_DESTINATIONS,
-                selection,
-                Message::Navigate,
-            )
-        ]
-        .height(Length::Fill)
-        .into(),
-        material::widget::navigation::AdaptiveLayout::NavigationRail => row![
-            material::widget::navigation::navigation_rail(
-                &NAV_DESTINATIONS,
-                selection,
-                Message::Navigate,
-            ),
-            content,
-        ]
-        .height(Length::Fill)
-        .into(),
-    }
+    material::widget::navigation::navigation_suite(
+        state.window_size.width,
+        state.window_size.height,
+        &NAV_DESTINATIONS,
+        state.navigation_selection(),
+        Message::Navigate,
+        page_content(state),
+    )
 }
 
 fn page_content(state: &Demo) -> Element<'_, Message, Theme> {
@@ -736,14 +719,9 @@ fn page_label(page: DemoPage) -> &'static str {
 }
 
 fn navigation_animation_duration(layout: material::widget::navigation::AdaptiveLayout) -> Duration {
-    match layout {
-        material::widget::navigation::AdaptiveLayout::NavigationBar => Duration::from_millis(
-            u64::from(material::tokens::component::navigation_bar::ITEM_ANIMATION_DURATION_MS),
-        ),
-        material::widget::navigation::AdaptiveLayout::NavigationRail => Duration::from_millis(
-            u64::from(material::tokens::component::navigation_rail::ITEM_ANIMATION_DURATION_MS),
-        ),
-    }
+    Duration::from_millis(u64::from(
+        material::widget::navigation::item_animation_duration_ms(layout),
+    ))
 }
 
 fn emphasized_decelerate(progress: f32) -> f32 {
