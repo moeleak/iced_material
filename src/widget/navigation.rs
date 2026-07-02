@@ -8,7 +8,7 @@ use iced_widget::text::{self, LineHeight};
 use iced_widget::{Button, Column, Container, Row, Space, Stack, Text};
 
 use super::badge as badge_widget;
-use super::support::{AnimatedScalar, duration_ms, lerp};
+use super::support::{AnimatedScalar, alpha_color, duration_ms, lerp};
 use crate::button as button_style;
 use crate::utils::{
     HOVERED_LAYER_OPACITY, PRESSED_LAYER_OPACITY, mix, shadow_from_level, state_layer,
@@ -622,12 +622,18 @@ where
 {
     let width = navigation_rail_expanded_container_width(width);
     let indicator_width = navigation_rail_expanded_indicator_width(width);
+    let expansion_progress = navigation_rail_expanded_progress_for_width(width);
+    let label_alpha = navigation_rail_expanded_label_alpha_for_width(width);
     let mut items = Column::new()
         .width(Length::Fixed(width))
         .height(Length::Fill)
         .spacing(tokens::component::navigation_rail::VERTICAL_PADDING)
         .align_x(alignment::Horizontal::Center)
-        .push(navigation_rail_expanded_header(headline, on_menu));
+        .push(navigation_rail_expanded_header(
+            headline,
+            on_menu,
+            label_alpha,
+        ));
 
     for destination in destinations {
         items = items.push(navigation_rail_expanded_item(
@@ -635,6 +641,8 @@ where
             selection,
             on_select.clone(),
             indicator_width,
+            expansion_progress,
+            label_alpha,
         ));
     }
 
@@ -1054,6 +1062,7 @@ where
 fn navigation_rail_expanded_header<'a, Message, Renderer>(
     headline: &'static str,
     on_menu: Message,
+    label_alpha: f32,
 ) -> Container<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
@@ -1061,6 +1070,12 @@ where
     Font: Into<Renderer::Font>,
 {
     let headline_scale = tokens::component::navigation_drawer::HEADLINE_TEXT;
+    let headline = type_text(headline, headline_scale).style(move |theme| text::Style {
+        color: Some(alpha_color(
+            theme.colors().surface.text_variant,
+            label_alpha,
+        )),
+    });
     let content = Row::new()
         .height(Length::Fixed(
             tokens::component::icon_button::CONTAINER_HEIGHT,
@@ -1068,7 +1083,7 @@ where
         .spacing(navigation_rail_expanded_header_title_spacing())
         .align_y(alignment::Vertical::Center)
         .push(navigation_menu_button(on_menu))
-        .push(type_text(headline, headline_scale).style(headline_text_style));
+        .push(headline);
 
     Container::new(content)
         .height(Length::Fixed(navigation_rail_header_slot_height()))
@@ -1087,6 +1102,8 @@ fn navigation_rail_expanded_item<'a, Id, Message, Renderer, F>(
     selection: Selection<Id>,
     on_select: F,
     indicator_width: f32,
+    expansion_progress: f32,
+    label_alpha: f32,
 ) -> Button<'a, Message, Theme, Renderer>
 where
     Id: Copy + Eq + 'a,
@@ -1098,25 +1115,24 @@ where
     let size_progress = selection.size_progress(destination.id);
     let alpha_progress = selection.alpha_progress(destination.id);
     let activation_progress = selection.activation_progress(destination.id);
+    let indicator_height =
+        navigation_rail_expanded_indicator_height_for_progress(expansion_progress);
+    let vertical_inset =
+        navigation_rail_expanded_item_vertical_inset_for_progress(expansion_progress);
     let scale = tokens::component::navigation_drawer::LABEL_TEXT;
     let message = on_select(destination.id);
-    let icon = destination_icon::<Renderer>(
-        destination.icon,
-        tokens::component::navigation_rail::ICON_SIZE,
-        alpha_progress,
-        true,
-    );
+    let icon =
+        navigation_rail_expanded_icon_layer(destination.icon, alpha_progress, indicator_height);
     let label = type_text(destination.label, scale).style(move |theme| text::Style {
-        color: Some(drawer_content_color(theme, alpha_progress)),
+        color: Some(alpha_color(
+            drawer_content_color(theme, alpha_progress),
+            label_alpha,
+        )),
     });
     let content = Row::new()
         .width(Length::Fill)
-        .height(Length::Fixed(
-            tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_HEIGHT,
-        ))
-        .spacing(tokens::component::navigation_rail::ICON_LABEL_HORIZONTAL_SPACE)
+        .height(Length::Fixed(indicator_height))
         .align_y(alignment::Vertical::Center)
-        .push(icon)
         .push(Container::new(label).width(Length::Fill));
     let content = if let Some(badge) = destination.badge {
         content
@@ -1127,49 +1143,50 @@ where
     };
     let content = Container::new(content)
         .width(Length::Fixed(indicator_width))
-        .height(Length::Fixed(
-            tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_HEIGHT,
-        ))
+        .height(Length::Fixed(indicator_height))
         .padding(Padding {
             top: 0.0,
             right: tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_PADDING_END,
             bottom: 0.0,
-            left: tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_PADDING_START,
+            left: navigation_rail_expanded_label_leading_padding(),
         })
         .align_y(alignment::Vertical::Center);
     let indicator = Stack::new()
         .width(Length::Fixed(indicator_width))
-        .height(Length::Fixed(
-            tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_HEIGHT,
-        ))
+        .height(Length::Fixed(indicator_height))
         .push(
             Space::new()
                 .width(Length::Fixed(indicator_width))
-                .height(Length::Fixed(
-                    tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_HEIGHT,
-                )),
+                .height(Length::Fixed(indicator_height)),
         )
         .push(indicator_layer(
             indicator_width,
-            tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_HEIGHT,
+            indicator_height,
             size_progress,
             alpha_progress,
         ))
         .push(indicator_state_layer(
             indicator_width,
-            tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_HEIGHT,
+            indicator_height,
             NavigationStateLayer::Drawer {
                 progress: alpha_progress,
             },
             activation_progress,
             message.clone(),
         ))
-        .push(content);
+        .push(content)
+        .push(icon);
 
     Button::new(
         Container::new(indicator)
             .width(Length::Fixed(indicator_width))
             .height(Length::Fixed(navigation_rail_item_slot_height()))
+            .padding(Padding {
+                top: vertical_inset,
+                right: 0.0,
+                bottom: vertical_inset,
+                left: 0.0,
+            })
             .align_y(alignment::Vertical::Top),
     )
     .width(Length::Fixed(indicator_width))
@@ -1469,6 +1486,63 @@ fn navigation_rail_item_slot_height() -> f32 {
     tokens::component::navigation_rail::ITEM_HEIGHT
 }
 
+fn navigation_rail_expanded_item_vertical_inset() -> f32 {
+    ((tokens::component::navigation_rail::ITEM_HEIGHT
+        - tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_HEIGHT)
+        / 2.0)
+        .max(0.0)
+}
+
+fn navigation_rail_expanded_indicator_height_for_progress(progress: f32) -> f32 {
+    lerp(
+        tokens::component::navigation_rail::ACTIVE_INDICATOR_HEIGHT,
+        tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_HEIGHT,
+        progress.clamp(0.0, 1.0),
+    )
+}
+
+fn navigation_rail_expanded_item_vertical_inset_for_progress(progress: f32) -> f32 {
+    lerp(
+        navigation_rail_item_content_top_padding(),
+        navigation_rail_expanded_item_vertical_inset(),
+        progress.clamp(0.0, 1.0),
+    )
+}
+
+fn navigation_rail_expanded_icon_anchor_width() -> f32 {
+    tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_PADDING_START
+        + tokens::component::navigation_rail::ICON_SIZE
+}
+
+fn navigation_rail_expanded_label_leading_padding() -> f32 {
+    navigation_rail_expanded_icon_anchor_width()
+        + tokens::component::navigation_rail::ICON_LABEL_HORIZONTAL_SPACE
+}
+
+#[cfg(test)]
+fn navigation_rail_collapsed_icon_center_x() -> f32 {
+    tokens::component::navigation_rail::CONTAINER_WIDTH / 2.0
+}
+
+#[cfg(test)]
+fn navigation_rail_expanded_icon_center_x() -> f32 {
+    tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_MARGIN_HORIZONTAL
+        + tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_PADDING_START
+        + tokens::component::navigation_rail::ICON_SIZE / 2.0
+}
+
+#[cfg(test)]
+fn navigation_rail_collapsed_icon_center_y() -> f32 {
+    navigation_rail_item_content_top_padding()
+        + tokens::component::navigation_rail::ACTIVE_INDICATOR_HEIGHT / 2.0
+}
+
+#[cfg(test)]
+fn navigation_rail_expanded_icon_center_y_for_progress(progress: f32) -> f32 {
+    navigation_rail_expanded_item_vertical_inset_for_progress(progress)
+        + navigation_rail_expanded_indicator_height_for_progress(progress) / 2.0
+}
+
 #[cfg(test)]
 fn navigation_rail_first_item_y_after_header() -> f32 {
     tokens::component::navigation_rail::CONTENT_TOP_MARGIN
@@ -1495,6 +1569,24 @@ pub fn navigation_rail_expanded_width_for_progress(progress: f32) -> f32 {
         tokens::component::navigation_rail::EXPANDED_CONTAINER_WIDTH,
         progress.clamp(0.0, 1.0),
     )
+}
+
+fn navigation_rail_expanded_progress_for_width(width: f32) -> f32 {
+    let range = tokens::component::navigation_rail::EXPANDED_CONTAINER_WIDTH
+        - tokens::component::navigation_rail::CONTAINER_WIDTH;
+
+    if range <= f32::EPSILON {
+        1.0
+    } else {
+        ((navigation_rail_expanded_container_width(width)
+            - tokens::component::navigation_rail::CONTAINER_WIDTH)
+            / range)
+            .clamp(0.0, 1.0)
+    }
+}
+
+fn navigation_rail_expanded_label_alpha_for_width(width: f32) -> f32 {
+    navigation_rail_expanded_progress_for_width(width)
 }
 
 fn navigation_rail_expanded_header_leading_space() -> f32 {
@@ -1551,6 +1643,33 @@ fn navigation_drawer_menu_header_title_spacing() -> f32 {
 
 fn navigation_drawer_badge_space() -> f32 {
     tokens::component::navigation_drawer::LABEL_BADGE_SPACE
+}
+
+fn navigation_rail_expanded_icon_layer<'a, Message, Renderer>(
+    icon: &'static str,
+    progress: f32,
+    height: f32,
+) -> Container<'a, Message, Theme, Renderer>
+where
+    Message: 'a,
+    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    Font: Into<Renderer::Font>,
+{
+    let icon = destination_icon_anchor::<Message, Renderer>(
+        icon,
+        tokens::component::navigation_rail::ICON_SIZE,
+        progress,
+        None,
+        true,
+    )
+    .width(Length::Fixed(tokens::component::navigation_rail::ICON_SIZE))
+    .height(Length::Fixed(height));
+
+    Container::new(icon)
+        .width(Length::Fixed(navigation_rail_expanded_icon_anchor_width()))
+        .height(Length::Fixed(height))
+        .align_x(alignment::Horizontal::Right)
+        .align_y(alignment::Vertical::Center)
 }
 
 fn destination_icon_anchor<'a, Message, Renderer>(
@@ -1996,6 +2115,51 @@ mod tests {
             navigation_rail_expanded_width_for_progress(1.0),
             tokens::component::navigation_rail::EXPANDED_CONTAINER_WIDTH
         );
+        assert_eq!(
+            navigation_rail_expanded_progress_for_width(
+                tokens::component::navigation_rail::CONTAINER_WIDTH
+            ),
+            0.0
+        );
+        assert_eq!(
+            navigation_rail_expanded_progress_for_width(
+                tokens::component::navigation_rail::EXPANDED_CONTAINER_WIDTH
+            ),
+            1.0
+        );
+        assert_eq!(
+            navigation_rail_expanded_progress_for_width(
+                navigation_rail_expanded_width_for_progress(0.5)
+            ),
+            0.5
+        );
+        assert_eq!(
+            navigation_rail_expanded_label_alpha_for_width(
+                tokens::component::navigation_rail::CONTAINER_WIDTH
+            ),
+            0.0
+        );
+        assert_eq!(
+            navigation_rail_expanded_label_alpha_for_width(
+                tokens::component::navigation_rail::EXPANDED_CONTAINER_WIDTH
+            ),
+            1.0
+        );
+        assert_eq!(
+            navigation_rail_expanded_indicator_height_for_progress(0.0),
+            tokens::component::navigation_rail::ACTIVE_INDICATOR_HEIGHT
+        );
+        assert_eq!(
+            navigation_rail_expanded_indicator_height_for_progress(1.0),
+            tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_HEIGHT
+        );
+        assert_eq!(navigation_rail_expanded_icon_anchor_width(), 40.0);
+        assert_eq!(navigation_rail_expanded_label_leading_padding(), 48.0);
+        assert_eq!(
+            navigation_rail_expanded_icon_center_x(),
+            navigation_rail_collapsed_icon_center_x()
+        );
+        assert_eq!(navigation_rail_expanded_icon_center_x(), 48.0);
     }
 
     #[test]
@@ -2012,6 +2176,20 @@ mod tests {
                 + tokens::component::navigation_rail::VERTICAL_PADDING
         );
         assert_eq!(navigation_rail_first_item_y_after_header(), 128.0);
+        assert_eq!(navigation_rail_expanded_item_vertical_inset(), 4.0);
+        assert_eq!(
+            navigation_rail_expanded_item_vertical_inset_for_progress(0.0),
+            navigation_rail_item_content_top_padding()
+        );
+        assert_eq!(
+            navigation_rail_expanded_item_vertical_inset_for_progress(1.0),
+            navigation_rail_expanded_item_vertical_inset()
+        );
+        assert_eq!(
+            navigation_rail_expanded_icon_center_y_for_progress(0.0),
+            navigation_rail_collapsed_icon_center_y()
+        );
+        assert_eq!(navigation_rail_collapsed_icon_center_y(), 22.0);
     }
 
     #[test]
