@@ -126,7 +126,6 @@ struct Demo {
     radio_choice: Option<RadioChoice>,
     visible_scheme: ColorScheme,
     animation: Option<ThemeAnimation>,
-    animation_clock: Instant,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -139,7 +138,6 @@ struct ThemeAnimation {
 impl Default for Demo {
     fn default() -> Self {
         let initial_theme = Theme::Dark;
-        let now = Instant::now();
 
         Self {
             navigation: material::widget::navigation::NavigationState::new(DemoPage::Inputs),
@@ -163,7 +161,6 @@ impl Default for Demo {
             radio_choice: Some(RadioChoice::Standard),
             visible_scheme: initial_theme.colors(),
             animation: None,
-            animation_clock: now,
         }
     }
 }
@@ -188,10 +185,9 @@ impl Demo {
 fn update(state: &mut Demo, message: Message) {
     match message {
         Message::Navigate(page) => {
-            let now = state.animation_clock;
             state
                 .navigation
-                .select(page, now, state.adaptive_navigation_layout());
+                .select(page, Instant::now(), state.adaptive_navigation_layout());
         }
         Message::Increment => state.count += 1,
         Message::Decrement => state.count -= 1,
@@ -211,7 +207,7 @@ fn update(state: &mut Demo, message: Message) {
         Message::SliderChanged(progress) => state.progress = progress,
         Message::EnabledChanged(enabled) => state.enabled = enabled,
         Message::ChoiceSelected(choice) => state.radio_choice = Some(choice),
-        Message::ToggleDrawer => state.rail_expansion.toggle(state.animation_clock),
+        Message::ToggleDrawer => state.rail_expansion.toggle(Instant::now()),
         Message::WindowResized(size) => state.window_size = size,
         Message::DarkModeChanged(dark_mode) => {
             state.dark_mode = dark_mode;
@@ -225,12 +221,10 @@ fn update(state: &mut Demo, message: Message) {
             state.animation = Some(ThemeAnimation {
                 from: state.visible_scheme,
                 to: target,
-                started_at: state.animation_clock,
+                started_at: Instant::now(),
             });
         }
         Message::Frame(now) => {
-            state.animation_clock = now;
-
             if let Some(animation) = state.animation {
                 let duration =
                     Duration::from_millis(u64::from(material::tokens::motion::DURATION_MEDIUM4_MS));
@@ -261,11 +255,16 @@ fn theme(state: &Demo) -> Theme {
     state.theme()
 }
 
-fn subscription(_state: &Demo) -> Subscription<Message> {
+fn subscription(state: &Demo) -> Subscription<Message> {
     let mut subscriptions =
         vec![iced::window::resize_events().map(|(_id, size)| Message::WindowResized(size))];
 
-    subscriptions.push(iced::window::frames().map(Message::Frame));
+    if state.animation.is_some()
+        || state.navigation.is_animating()
+        || state.rail_expansion.is_animating()
+    {
+        subscriptions.push(iced::window::frames().map(Message::Frame));
+    }
 
     Subscription::batch(subscriptions)
 }
@@ -932,24 +931,6 @@ mod tests {
             0.0
         );
         assert_eq!(demo.navigation.selection().progress(DemoPage::Inputs), 1.0);
-    }
-
-    #[test]
-    fn navigation_first_click_uses_frame_clock() {
-        let mut demo = Demo::default();
-        let start = Instant::now() + Duration::from_secs(5);
-
-        update(&mut demo, Message::Frame(start));
-        update(&mut demo, Message::Navigate(DemoPage::Controls));
-        update(&mut demo, Message::Frame(start + Duration::from_millis(16)));
-
-        let controls_progress = demo.navigation.selection().progress(DemoPage::Controls);
-        let inputs_progress = demo.navigation.selection().progress(DemoPage::Inputs);
-
-        assert!(controls_progress > 0.0);
-        assert!(controls_progress < 1.0);
-        assert!(inputs_progress > 0.0);
-        assert!(inputs_progress < 1.0);
     }
 
     #[test]

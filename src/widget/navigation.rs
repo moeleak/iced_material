@@ -1,9 +1,18 @@
 //! Material 3 navigation bar, rail, drawer, and adaptive layout helpers.
 
-use iced_widget::button;
+use iced_widget::core::layout;
+use iced_widget::core::mouse;
+use iced_widget::core::overlay;
+use iced_widget::core::renderer;
 use iced_widget::core::text as core_text;
 use iced_widget::core::time::Instant;
-use iced_widget::core::{alignment, border, Background, Color, Element, Font, Length, Padding};
+use iced_widget::core::touch;
+use iced_widget::core::widget::tree::{self, Tree};
+use iced_widget::core::widget::Operation;
+use iced_widget::core::{
+    alignment, border, Background, Clipboard, Color, Element, Event, Font, Layout, Length, Padding,
+    Rectangle, Shell, Size, Vector, Widget,
+};
 use iced_widget::text::{self, LineHeight};
 use iced_widget::{Button, Column, Container, Row, Space, Stack, Text};
 
@@ -510,8 +519,12 @@ where
 
     for destination in destinations {
         items = items.push(
-            navigation_bar_item(*destination, selection, on_select.clone())
-                .width(Length::FillPortion(1)),
+            Container::new(navigation_bar_item(
+                *destination,
+                selection,
+                on_select.clone(),
+            ))
+            .width(Length::FillPortion(1)),
         );
     }
 
@@ -882,7 +895,7 @@ fn navigation_bar_item<'a, Id, Message, Renderer, F>(
     destination: Destination<Id>,
     selection: Selection<Id>,
     on_select: F,
-) -> Button<'a, Message, Theme, Renderer>
+) -> Element<'a, Message, Theme, Renderer>
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
@@ -902,10 +915,8 @@ where
         tokens::component::navigation_bar::ACTIVE_INDICATOR_HEIGHT,
         size_progress,
         alpha_progress,
-        activation_progress,
         destination.badge,
         false,
-        message.clone(),
     );
     let label = type_text(destination.label, scale).style(move |theme| text::Style {
         color: Some(bar_or_rail_label_color(theme, alpha_progress)),
@@ -917,7 +928,7 @@ where
         .push(indicator)
         .push(label);
 
-    Button::new(
+    navigation_press_surface(
         Container::new(content)
             .width(Length::Fill)
             .height(Length::Fixed(
@@ -930,20 +941,23 @@ where
                 left: 0.0,
             })
             .align_y(alignment::Vertical::Center),
+        message,
+        NavigationStateLayer::BarOrRail,
+        NavigationIndicatorPlacement::TopCenter {
+            top: tokens::component::navigation_bar::INDICATOR_VERTICAL_OFFSET,
+            width: tokens::component::navigation_bar::ACTIVE_INDICATOR_WIDTH,
+            height: tokens::component::navigation_bar::ACTIVE_INDICATOR_HEIGHT,
+        },
+        activation_progress,
     )
-    .height(Length::Fixed(
-        tokens::component::navigation_bar::CONTAINER_HEIGHT,
-    ))
-    .padding(Padding::ZERO)
-    .style(navigation_button)
-    .on_press(message)
+    .into()
 }
 
 fn navigation_rail_item<'a, Id, Message, Renderer, F>(
     destination: Destination<Id>,
     selection: Selection<Id>,
     on_select: F,
-) -> Button<'a, Message, Theme, Renderer>
+) -> Element<'a, Message, Theme, Renderer>
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
@@ -963,10 +977,8 @@ where
         tokens::component::navigation_rail::ACTIVE_INDICATOR_HEIGHT,
         size_progress,
         alpha_progress,
-        activation_progress,
         destination.badge,
         false,
-        message.clone(),
     );
     let label = type_text(destination.label, scale).style(move |theme| text::Style {
         color: Some(bar_or_rail_label_color(theme, alpha_progress)),
@@ -980,7 +992,7 @@ where
         .push(indicator)
         .push(label);
 
-    Button::new(
+    navigation_press_surface(
         Container::new(content)
             .width(Length::Fixed(
                 tokens::component::navigation_rail::ITEM_WIDTH,
@@ -994,16 +1006,16 @@ where
                 bottom: 0.0,
                 left: 0.0,
             }),
+        message,
+        NavigationStateLayer::BarOrRail,
+        NavigationIndicatorPlacement::TopCenter {
+            top: navigation_rail_item_content_top_padding(),
+            width: tokens::component::navigation_rail::ACTIVE_INDICATOR_WIDTH,
+            height: tokens::component::navigation_rail::ACTIVE_INDICATOR_HEIGHT,
+        },
+        activation_progress,
     )
-    .width(Length::Fixed(
-        tokens::component::navigation_rail::ITEM_WIDTH,
-    ))
-    .height(Length::Fixed(
-        tokens::component::navigation_rail::ITEM_HEIGHT,
-    ))
-    .padding(Padding::ZERO)
-    .style(navigation_button)
-    .on_press(message)
+    .into()
 }
 
 fn navigation_rail_header<'a, Message, Renderer>(
@@ -1104,7 +1116,7 @@ fn navigation_rail_expanded_item<'a, Id, Message, Renderer, F>(
     indicator_width: f32,
     expansion_progress: f32,
     label_alpha: f32,
-) -> Button<'a, Message, Theme, Renderer>
+) -> Element<'a, Message, Theme, Renderer>
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
@@ -1165,26 +1177,10 @@ where
             size_progress,
             alpha_progress,
         ))
-        .push(indicator_activation_layer(
-            indicator_width,
-            indicator_height,
-            NavigationStateLayer::Drawer {
-                progress: alpha_progress,
-            },
-            activation_progress,
-        ))
-        .push(indicator_state_layer(
-            indicator_width,
-            indicator_height,
-            NavigationStateLayer::Drawer {
-                progress: alpha_progress,
-            },
-            message.clone(),
-        ))
         .push(content)
         .push(icon);
 
-    Button::new(
+    navigation_press_surface(
         Container::new(indicator)
             .width(Length::Fixed(indicator_width))
             .height(Length::Fixed(navigation_rail_item_slot_height()))
@@ -1195,12 +1191,19 @@ where
                 left: 0.0,
             })
             .align_y(alignment::Vertical::Top),
+        message,
+        NavigationStateLayer::Drawer {
+            progress: alpha_progress,
+        },
+        NavigationIndicatorPlacement::Inset {
+            x: 0.0,
+            y: vertical_inset,
+            width: indicator_width,
+            height: indicator_height,
+        },
+        activation_progress,
     )
-    .width(Length::Fixed(indicator_width))
-    .height(Length::Fixed(navigation_rail_item_slot_height()))
-    .padding(Padding::ZERO)
-    .style(navigation_button)
-    .on_press(message)
+    .into()
 }
 
 fn navigation_drawer_menu_header<'a, Message, Renderer>(
@@ -1241,7 +1244,7 @@ fn navigation_drawer_item<'a, Id, Message, Renderer, F>(
     selection: Selection<Id>,
     on_select: F,
     indicator_width: f32,
-) -> Button<'a, Message, Theme, Renderer>
+) -> Element<'a, Message, Theme, Renderer>
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
@@ -1309,32 +1312,18 @@ where
             size_progress,
             alpha_progress,
         ))
-        .push(indicator_activation_layer(
-            indicator_width,
-            tokens::component::navigation_drawer::ACTIVE_INDICATOR_HEIGHT,
-            NavigationStateLayer::Drawer {
-                progress: alpha_progress,
-            },
-            activation_progress,
-        ))
-        .push(indicator_state_layer(
-            indicator_width,
-            tokens::component::navigation_drawer::ACTIVE_INDICATOR_HEIGHT,
-            NavigationStateLayer::Drawer {
-                progress: alpha_progress,
-            },
-            message.clone(),
-        ))
         .push(content);
 
-    Button::new(indicator)
-        .width(Length::Fixed(indicator_width))
-        .height(Length::Fixed(
-            tokens::component::navigation_drawer::ACTIVE_INDICATOR_HEIGHT,
-        ))
-        .padding(Padding::ZERO)
-        .style(navigation_button)
-        .on_press(message)
+    navigation_press_surface(
+        indicator,
+        message,
+        NavigationStateLayer::Drawer {
+            progress: alpha_progress,
+        },
+        NavigationIndicatorPlacement::Full,
+        activation_progress,
+    )
+    .into()
 }
 
 fn indicator_icon_stack<'a, Message, Renderer>(
@@ -1344,10 +1333,8 @@ fn indicator_icon_stack<'a, Message, Renderer>(
     indicator_height: f32,
     size_progress: f32,
     alpha_progress: f32,
-    activation_progress: f32,
     badge: Option<Badge>,
     drawer: bool,
-    on_press: Message,
 ) -> Stack<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
@@ -1368,18 +1355,6 @@ where
             size_progress,
             alpha_progress,
         ))
-        .push(indicator_activation_layer(
-            indicator_width,
-            indicator_height,
-            NavigationStateLayer::BarOrRail,
-            activation_progress,
-        ))
-        .push(indicator_state_layer(
-            indicator_width,
-            indicator_height,
-            NavigationStateLayer::BarOrRail,
-            on_press,
-        ))
         .push(
             destination_icon_anchor::<Message, Renderer>(
                 icon,
@@ -1393,46 +1368,314 @@ where
         )
 }
 
-fn indicator_state_layer<'a, Message, Renderer>(
-    target_width: f32,
-    height: f32,
-    layer: NavigationStateLayer,
+fn navigation_press_surface<'a, Message, Renderer>(
+    content: impl Into<Element<'a, Message, Theme, Renderer>>,
     on_press: Message,
-) -> Button<'a, Message, Theme, Renderer>
+    layer: NavigationStateLayer,
+    indicator: NavigationIndicatorPlacement,
+    activation_progress: f32,
+) -> NavigationPressSurface<'a, Message, Renderer>
 where
     Message: Clone + 'a,
     Renderer: iced_widget::core::Renderer + 'a,
 {
-    Button::new(
-        Space::new()
-            .width(Length::Fixed(target_width))
-            .height(Length::Fixed(height)),
-    )
-    .width(Length::Fixed(target_width))
-    .height(Length::Fixed(height))
-    .padding(Padding::ZERO)
-    .style(move |theme, status| indicator_state_layer_style(theme, status, layer))
-    .on_press(on_press)
+    NavigationPressSurface {
+        content: content.into(),
+        on_press,
+        layer,
+        indicator,
+        activation_progress,
+    }
 }
 
-fn indicator_activation_layer<'a, Message, Renderer>(
-    target_width: f32,
-    height: f32,
-    layer: NavigationStateLayer,
-    activation_progress: f32,
-) -> Container<'a, Message, Theme, Renderer>
+struct NavigationPressSurface<'a, Message, Renderer>
 where
-    Message: 'a,
+    Renderer: iced_widget::core::Renderer,
+{
+    content: Element<'a, Message, Theme, Renderer>,
+    on_press: Message,
+    layer: NavigationStateLayer,
+    indicator: NavigationIndicatorPlacement,
+    activation_progress: f32,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum NavigationIndicatorPlacement {
+    Full,
+    TopCenter {
+        top: f32,
+        width: f32,
+        height: f32,
+    },
+    Inset {
+        x: f32,
+        y: f32,
+        width: f32,
+        height: f32,
+    },
+}
+
+impl NavigationIndicatorPlacement {
+    fn bounds(self, bounds: Rectangle) -> Rectangle {
+        match self {
+            Self::Full => bounds,
+            Self::TopCenter { top, width, height } => Rectangle {
+                x: bounds.x + (bounds.width - width) / 2.0,
+                y: bounds.y + top,
+                width,
+                height,
+            },
+            Self::Inset {
+                x,
+                y,
+                width,
+                height,
+            } => Rectangle {
+                x: bounds.x + x,
+                y: bounds.y + y,
+                width,
+                height,
+            },
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+struct NavigationPressSurfaceState {
+    is_hovered: bool,
+    is_pressed: bool,
+}
+
+impl<Message, Renderer> Widget<Message, Theme, Renderer>
+    for NavigationPressSurface<'_, Message, Renderer>
+where
+    Message: Clone,
+    Renderer: iced_widget::core::Renderer,
+{
+    fn tag(&self) -> tree::Tag {
+        tree::Tag::of::<NavigationPressSurfaceState>()
+    }
+
+    fn state(&self) -> tree::State {
+        tree::State::new(NavigationPressSurfaceState::default())
+    }
+
+    fn children(&self) -> Vec<Tree> {
+        vec![Tree::new(&self.content)]
+    }
+
+    fn diff(&self, tree: &mut Tree) {
+        tree.diff_children(std::slice::from_ref(&self.content));
+    }
+
+    fn size(&self) -> Size<Length> {
+        self.content.as_widget().size()
+    }
+
+    fn size_hint(&self) -> Size<Length> {
+        self.content.as_widget().size_hint()
+    }
+
+    fn layout(
+        &mut self,
+        tree: &mut Tree,
+        renderer: &Renderer,
+        limits: &layout::Limits,
+    ) -> layout::Node {
+        self.content
+            .as_widget_mut()
+            .layout(&mut tree.children[0], renderer, limits)
+    }
+
+    fn operate(
+        &mut self,
+        tree: &mut Tree,
+        layout: Layout<'_>,
+        renderer: &Renderer,
+        operation: &mut dyn Operation,
+    ) {
+        self.content
+            .as_widget_mut()
+            .operate(&mut tree.children[0], layout, renderer, operation);
+    }
+
+    fn update(
+        &mut self,
+        tree: &mut Tree,
+        event: &Event,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        renderer: &Renderer,
+        clipboard: &mut dyn Clipboard,
+        shell: &mut Shell<'_, Message>,
+        viewport: &Rectangle,
+    ) {
+        self.content.as_widget_mut().update(
+            &mut tree.children[0],
+            event,
+            layout,
+            cursor,
+            renderer,
+            clipboard,
+            shell,
+            viewport,
+        );
+
+        if shell.is_event_captured() {
+            return;
+        }
+
+        let state = tree.state.downcast_mut::<NavigationPressSurfaceState>();
+        let is_hovered = cursor.is_over(layout.bounds());
+
+        if state.is_hovered != is_hovered {
+            state.is_hovered = is_hovered;
+            shell.request_redraw();
+        }
+
+        match event {
+            Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
+            | Event::Touch(touch::Event::FingerPressed { .. }) => {
+                if is_hovered {
+                    state.is_pressed = true;
+                    shell.request_redraw();
+                    shell.capture_event();
+                }
+            }
+            Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left))
+            | Event::Touch(touch::Event::FingerLifted { .. }) => {
+                if state.is_pressed {
+                    state.is_pressed = false;
+                    shell.request_redraw();
+
+                    if is_hovered {
+                        shell.publish(self.on_press.clone());
+                    }
+
+                    shell.capture_event();
+                }
+            }
+            Event::Touch(touch::Event::FingerLost { .. }) => {
+                if state.is_pressed {
+                    state.is_pressed = false;
+                    shell.request_redraw();
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn mouse_interaction(
+        &self,
+        tree: &Tree,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        viewport: &Rectangle,
+        renderer: &Renderer,
+    ) -> mouse::Interaction {
+        let content_interaction = self.content.as_widget().mouse_interaction(
+            &tree.children[0],
+            layout,
+            cursor,
+            viewport,
+            renderer,
+        );
+
+        if matches!(content_interaction, mouse::Interaction::None)
+            && cursor.is_over(layout.bounds())
+        {
+            mouse::Interaction::Pointer
+        } else {
+            content_interaction
+        }
+    }
+
+    fn draw(
+        &self,
+        tree: &Tree,
+        renderer: &mut Renderer,
+        theme: &Theme,
+        renderer_style: &renderer::Style,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        viewport: &Rectangle,
+    ) {
+        self.content.as_widget().draw(
+            &tree.children[0],
+            renderer,
+            theme,
+            renderer_style,
+            layout,
+            cursor,
+            viewport,
+        );
+
+        let state = tree.state.downcast_ref::<NavigationPressSurfaceState>();
+        let opacity = navigation_surface_state_layer_opacity(
+            state.is_hovered,
+            state.is_pressed,
+            self.activation_progress,
+        );
+
+        if opacity <= 0.0 {
+            return;
+        }
+
+        let layer_color = navigation_state_layer_color(theme, self.layer);
+        renderer.fill_quad(
+            renderer::Quad {
+                bounds: self.indicator.bounds(layout.bounds()),
+                border: border::rounded(tokens::shape::CORNER_FULL),
+                snap: cfg!(feature = "crisp"),
+                ..renderer::Quad::default()
+            },
+            state_layer(layer_color, opacity),
+        );
+    }
+
+    fn overlay<'b>(
+        &'b mut self,
+        tree: &'b mut Tree,
+        layout: Layout<'b>,
+        renderer: &Renderer,
+        viewport: &Rectangle,
+        translation: Vector,
+    ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
+        self.content.as_widget_mut().overlay(
+            &mut tree.children[0],
+            layout,
+            renderer,
+            viewport,
+            translation,
+        )
+    }
+}
+
+impl<'a, Message, Renderer> From<NavigationPressSurface<'a, Message, Renderer>>
+    for Element<'a, Message, Theme, Renderer>
+where
+    Message: Clone + 'a,
     Renderer: iced_widget::core::Renderer + 'a,
 {
-    Container::new(
-        Space::new()
-            .width(Length::Fixed(target_width))
-            .height(Length::Fixed(height)),
-    )
-    .width(Length::Fixed(target_width))
-    .height(Length::Fixed(height))
-    .style(move |theme| indicator_activation_layer_style(theme, layer, activation_progress))
+    fn from(surface: NavigationPressSurface<'a, Message, Renderer>) -> Self {
+        Element::new(surface)
+    }
+}
+
+fn navigation_surface_state_layer_opacity(
+    is_hovered: bool,
+    is_pressed: bool,
+    activation_progress: f32,
+) -> f32 {
+    let interaction = if is_pressed {
+        PRESSED_LAYER_OPACITY
+    } else if is_hovered {
+        HOVERED_LAYER_OPACITY
+    } else {
+        0.0
+    };
+
+    interaction.max(activation_progress.clamp(0.0, 1.0) * PRESSED_LAYER_OPACITY)
 }
 
 fn indicator_layer<'a, Message, Renderer>(
@@ -1458,44 +1701,6 @@ where
         .height(Length::Fixed(height))
         .align_x(alignment::Horizontal::Center)
         .align_y(alignment::Vertical::Center)
-}
-
-fn indicator_state_layer_style(
-    theme: &Theme,
-    status: button::Status,
-    layer: NavigationStateLayer,
-) -> button::Style {
-    let layer_color = navigation_state_layer_color(theme, layer);
-    let opacity = match status {
-        button::Status::Hovered => HOVERED_LAYER_OPACITY,
-        button::Status::Pressed => PRESSED_LAYER_OPACITY,
-        button::Status::Active | button::Status::Disabled => 0.0,
-    };
-
-    button::Style {
-        background: (opacity > 0.0).then_some(Background::Color(state_layer(layer_color, opacity))),
-        text_color: layer_color,
-        border: border::rounded(tokens::shape::CORNER_FULL),
-        snap: cfg!(feature = "crisp"),
-        ..button::Style::default()
-    }
-}
-
-fn indicator_activation_layer_style(
-    theme: &Theme,
-    layer: NavigationStateLayer,
-    activation_progress: f32,
-) -> iced_widget::container::Style {
-    let layer_color = navigation_state_layer_color(theme, layer);
-    let opacity = activation_progress.clamp(0.0, 1.0) * PRESSED_LAYER_OPACITY;
-
-    iced_widget::container::Style {
-        background: (opacity > 0.0).then_some(Background::Color(state_layer(layer_color, opacity))),
-        text_color: Some(layer_color),
-        border: border::rounded(tokens::shape::CORNER_FULL),
-        snap: cfg!(feature = "crisp"),
-        ..iced_widget::container::Style::default()
-    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1808,24 +2013,6 @@ where
         .font(fonts::roboto_for_type_scale(scale))
         .size(scale.size)
         .line_height(LineHeight::Absolute(scale.line_height.into()))
-}
-
-fn navigation_button(theme: &Theme, status: button::Status) -> button::Style {
-    let colors = theme.colors();
-    let text_color = match status {
-        button::Status::Disabled => colors.surface.text_variant,
-        button::Status::Active | button::Status::Hovered | button::Status::Pressed => {
-            colors.surface.text
-        }
-    };
-
-    button::Style {
-        background: None,
-        text_color,
-        border: border::rounded(tokens::shape::CORNER_NONE),
-        shadow: shadow_from_level(0, Color::TRANSPARENT),
-        snap: cfg!(feature = "crisp"),
-    }
 }
 
 fn navigation_bar_container(theme: &Theme) -> iced_widget::container::Style {
@@ -2323,80 +2510,90 @@ mod tests {
     }
 
     #[test]
-    fn indicator_state_layer_uses_material_state_opacity_on_pill_only() {
+    fn navigation_press_surface_uses_material_state_opacity_on_pill_only() {
         let theme = Theme::Light;
 
-        let active = indicator_state_layer_style(
-            &theme,
-            button::Status::Active,
-            NavigationStateLayer::BarOrRail,
-        );
-        assert_eq!(active.background, None);
-
-        let active_activation =
-            indicator_activation_layer_style(&theme, NavigationStateLayer::BarOrRail, 1.0);
         assert_eq!(
-            active_activation.background,
-            Some(Background::Color(state_layer(
-                theme.colors().surface.text,
-                PRESSED_LAYER_OPACITY
-            )))
-        );
-
-        let inactive_hover = indicator_state_layer_style(
-            &theme,
-            button::Status::Hovered,
-            NavigationStateLayer::BarOrRail,
+            navigation_surface_state_layer_opacity(false, false, 0.0),
+            0.0
         );
         assert_eq!(
-            inactive_hover.background,
-            Some(Background::Color(state_layer(
-                theme.colors().surface.text,
-                HOVERED_LAYER_OPACITY
-            )))
-        );
-
-        let selected_pressed = indicator_state_layer_style(
-            &theme,
-            button::Status::Pressed,
-            NavigationStateLayer::BarOrRail,
+            navigation_surface_state_layer_opacity(true, false, 0.0),
+            HOVERED_LAYER_OPACITY
         );
         assert_eq!(
-            selected_pressed.background,
-            Some(Background::Color(state_layer(
-                theme.colors().surface.text,
-                PRESSED_LAYER_OPACITY
-            )))
-        );
-
-        let drawer_selected_pressed = indicator_state_layer_style(
-            &theme,
-            button::Status::Pressed,
-            NavigationStateLayer::Drawer { progress: 1.0 },
+            navigation_surface_state_layer_opacity(false, true, 0.0),
+            PRESSED_LAYER_OPACITY
         );
         assert_eq!(
-            drawer_selected_pressed.background,
-            Some(Background::Color(state_layer(
-                theme.colors().secondary.container_text,
-                PRESSED_LAYER_OPACITY
-            )))
+            navigation_surface_state_layer_opacity(false, false, 1.0),
+            PRESSED_LAYER_OPACITY
         );
         assert_eq!(
-            selected_pressed.border.radius.top_left,
-            tokens::shape::CORNER_FULL
+            navigation_surface_state_layer_opacity(true, false, 1.0),
+            PRESSED_LAYER_OPACITY
+        );
+        assert_eq!(
+            navigation_state_layer_color(&theme, NavigationStateLayer::BarOrRail),
+            theme.colors().surface.text
+        );
+        assert_eq!(
+            navigation_state_layer_color(&theme, NavigationStateLayer::Drawer { progress: 1.0 }),
+            theme.colors().secondary.container_text
+        );
+        assert_eq!(
+            state_layer(
+                navigation_state_layer_color(&theme, NavigationStateLayer::BarOrRail),
+                navigation_surface_state_layer_opacity(false, true, 0.0)
+            ),
+            state_layer(theme.colors().surface.text, PRESSED_LAYER_OPACITY)
         );
     }
 
     #[test]
-    fn navigation_item_button_leaves_feedback_to_indicator() {
-        let theme = Theme::Light;
+    fn navigation_press_surface_indicator_bounds_follow_material_geometry() {
+        let bounds = Rectangle {
+            x: 10.0,
+            y: 20.0,
+            width: 100.0,
+            height: 80.0,
+        };
 
-        let hovered = navigation_button(&theme, button::Status::Hovered);
-        let pressed = navigation_button(&theme, button::Status::Pressed);
+        let top_center = NavigationIndicatorPlacement::TopCenter {
+            top: 12.0,
+            width: 64.0,
+            height: 32.0,
+        }
+        .bounds(bounds);
 
-        assert_eq!(hovered.background, None);
-        assert_eq!(pressed.background, None);
-        assert_eq!(hovered.shadow, shadow_from_level(0, Color::TRANSPARENT));
-        assert_eq!(pressed.shadow, shadow_from_level(0, Color::TRANSPARENT));
+        assert_eq!(
+            top_center,
+            Rectangle {
+                x: 28.0,
+                y: 32.0,
+                width: 64.0,
+                height: 32.0
+            }
+        );
+
+        let inset = NavigationIndicatorPlacement::Inset {
+            x: 2.0,
+            y: 4.0,
+            width: 56.0,
+            height: 32.0,
+        }
+        .bounds(bounds);
+
+        assert_eq!(
+            inset,
+            Rectangle {
+                x: 12.0,
+                y: 24.0,
+                width: 56.0,
+                height: 32.0
+            }
+        );
+
+        assert_eq!(NavigationIndicatorPlacement::Full.bounds(bounds), bounds);
     }
 }
