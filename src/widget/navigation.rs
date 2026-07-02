@@ -1063,7 +1063,7 @@ where
     let headline_scale = tokens::component::navigation_drawer::HEADLINE_TEXT;
     let content = Row::new()
         .height(Length::Fixed(
-            tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_HEIGHT,
+            tokens::component::icon_button::CONTAINER_HEIGHT,
         ))
         .spacing(navigation_rail_expanded_header_title_spacing())
         .align_y(alignment::Vertical::Center)
@@ -1071,9 +1071,7 @@ where
         .push(type_text(headline, headline_scale).style(headline_text_style));
 
     Container::new(content)
-        .height(Length::Fixed(
-            tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_HEIGHT,
-        ))
+        .height(Length::Fixed(navigation_rail_header_slot_height()))
         .width(Length::Fill)
         .padding(Padding {
             top: 0.0,
@@ -1168,14 +1166,17 @@ where
         ))
         .push(content);
 
-    Button::new(indicator)
-        .width(Length::Fixed(indicator_width))
-        .height(Length::Fixed(
-            tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_HEIGHT,
-        ))
-        .padding(Padding::ZERO)
-        .style(navigation_button)
-        .on_press(message)
+    Button::new(
+        Container::new(indicator)
+            .width(Length::Fixed(indicator_width))
+            .height(Length::Fixed(navigation_rail_item_slot_height()))
+            .align_y(alignment::Vertical::Top),
+    )
+    .width(Length::Fixed(indicator_width))
+    .height(Length::Fixed(navigation_rail_item_slot_height()))
+    .padding(Padding::ZERO)
+    .style(navigation_button)
+    .on_press(message)
 }
 
 fn navigation_drawer_menu_header<'a, Message, Renderer>(
@@ -1458,6 +1459,21 @@ fn navigation_rail_item_content_top_padding() -> f32 {
 
 fn navigation_rail_header_bottom_padding() -> f32 {
     tokens::component::navigation_rail::HEADER_PADDING
+}
+
+fn navigation_rail_header_slot_height() -> f32 {
+    tokens::component::icon_button::CONTAINER_HEIGHT + navigation_rail_header_bottom_padding()
+}
+
+fn navigation_rail_item_slot_height() -> f32 {
+    tokens::component::navigation_rail::ITEM_HEIGHT
+}
+
+#[cfg(test)]
+fn navigation_rail_first_item_y_after_header() -> f32 {
+    tokens::component::navigation_rail::CONTENT_TOP_MARGIN
+        + navigation_rail_header_slot_height()
+        + tokens::component::navigation_rail::VERTICAL_PADDING
 }
 
 fn navigation_rail_expanded_container_width(width: f32) -> f32 {
@@ -1955,6 +1971,7 @@ mod tests {
     #[test]
     fn navigation_rail_header_geometry_matches_material_header_padding() {
         assert_eq!(navigation_rail_header_bottom_padding(), 40.0);
+        assert_eq!(navigation_rail_header_slot_height(), 80.0);
     }
 
     #[test]
@@ -1979,6 +1996,22 @@ mod tests {
             navigation_rail_expanded_width_for_progress(1.0),
             tokens::component::navigation_rail::EXPANDED_CONTAINER_WIDTH
         );
+    }
+
+    #[test]
+    fn navigation_rail_expanded_keeps_collapsed_vertical_slots() {
+        assert_eq!(
+            navigation_rail_item_slot_height(),
+            tokens::component::navigation_rail::ITEM_HEIGHT
+        );
+        assert_eq!(
+            navigation_rail_first_item_y_after_header(),
+            tokens::component::navigation_rail::CONTENT_TOP_MARGIN
+                + tokens::component::icon_button::CONTAINER_HEIGHT
+                + tokens::component::navigation_rail::HEADER_PADDING
+                + tokens::component::navigation_rail::VERTICAL_PADDING
+        );
+        assert_eq!(navigation_rail_first_item_y_after_header(), 128.0);
     }
 
     #[test]
