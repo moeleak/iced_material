@@ -1,3 +1,5 @@
+#![cfg_attr(windows, windows_subsystem = "windows")]
+
 #[path = "pages/mod.rs"]
 mod pages;
 
