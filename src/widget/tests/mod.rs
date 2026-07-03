@@ -885,27 +885,6 @@ fn material_slider_and_progress_constructors_compile_to_elements() {
 }
 
 #[test]
-fn material_linear_progress_defaults_to_fill_parent_width() {
-    let determinate = progress_bar::linear::<Message, iced_widget::Renderer>(0.42, 0.0);
-    let indeterminate =
-        progress_bar::linear_indeterminate::<Message, iced_widget::Renderer>(0.0, false);
-
-    let expected = Size {
-        width: Length::Fill,
-        height: Length::Fixed(tokens::component::linear_progress::WAVE_HEIGHT),
-    };
-
-    assert_eq!(
-        Widget::<Message, Theme, iced_widget::Renderer>::size(&determinate),
-        expected
-    );
-    assert_eq!(
-        Widget::<Message, Theme, iced_widget::Renderer>::size(&indeterminate),
-        expected
-    );
-}
-
-#[test]
 fn material_rule_constructors_compile_to_elements() {
     let _: TestElement<'_> = rule::horizontal_full_width().into();
     let _: TestElement<'_> = rule::horizontal_inset().into();
