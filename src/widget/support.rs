@@ -546,6 +546,7 @@ impl<Paragraph: core_text::Paragraph, Status> SelectionState<Paragraph, Status> 
 
 pub(super) struct TextFieldState<Paragraph: core_text::Paragraph> {
     pub(super) label: core_widget::text::State<Paragraph>,
+    pub(super) floating_label: core_widget::text::State<Paragraph>,
     pub(super) label_float: AnimatedScalar,
     pub(super) is_focused: bool,
     pub(super) ime_preedit_active: bool,
@@ -555,6 +556,7 @@ impl<Paragraph: core_text::Paragraph> TextFieldState<Paragraph> {
     pub(super) fn new(is_populated: bool) -> Self {
         Self {
             label: core_widget::text::State::<Paragraph>::default(),
+            floating_label: core_widget::text::State::<Paragraph>::default(),
             label_float: AnimatedScalar::new(bool_value(is_populated)),
             is_focused: false,
             ime_preedit_active: false,

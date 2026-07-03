@@ -1420,6 +1420,9 @@ pub mod text_input {
 
             let label_size = tokens::component::text_field::LABEL_TEXT_SIZE;
             let label_line_height = tokens::component::text_field::LABEL_TEXT_LINE_HEIGHT;
+            let floating_label_size = tokens::component::text_field::LABEL_TEXT_POPULATED_SIZE;
+            let floating_label_line_height =
+                tokens::component::text_field::LABEL_TEXT_POPULATED_LINE_HEIGHT;
 
             let label_node = core_widget::text::layout(
                 &mut state.label,
@@ -1439,8 +1442,29 @@ pub mod text_input {
                 },
             );
 
+            let floating_label_node = core_widget::text::layout(
+                &mut state.floating_label,
+                renderer,
+                &layout::Limits::NONE,
+                self.label.as_ref(),
+                core_widget::text::Format {
+                    width: Length::Shrink,
+                    height: Length::Shrink,
+                    line_height: absolute_line_height(floating_label_line_height),
+                    size: Some(Pixels(floating_label_size)),
+                    font: self.font,
+                    align_x: text::Alignment::Default,
+                    align_y: alignment::Vertical::Top,
+                    shaping: text::Shaping::Advanced,
+                    wrapping: text::Wrapping::None,
+                },
+            );
+
             let intrinsic = Size::new(
-                label_node.size().width
+                label_node
+                    .size()
+                    .width
+                    .max(floating_label_node.size().width)
                     + tokens::component::text_field::LEADING_SPACE
                     + tokens::component::text_field::TRAILING_SPACE,
                 tokens::component::text_field::CONTAINER_HEIGHT,
@@ -1623,14 +1647,17 @@ pub mod text_input {
             let (outline_color, outline_width, label_color) =
                 status_style(theme, self.is_enabled, state.is_focused, is_hovered);
             let label_width = state.label.raw().min_bounds().width;
+            let floating_label_width = state.floating_label.raw().min_bounds().width;
             let label_line_height = tokens::component::text_field::LABEL_TEXT_LINE_HEIGHT;
+            let floating_label_line_height =
+                tokens::component::text_field::LABEL_TEXT_POPULATED_LINE_HEIGHT;
 
             draw_outline(
                 renderer,
                 bounds,
                 outline_color,
                 outline_width,
-                label_width,
+                floating_label_width,
                 progress,
                 theme.colors().surface.container.high,
             );
@@ -1684,7 +1711,7 @@ pub mod text_input {
                 return;
             }
 
-            let floating_label_y = -label_line_height / 2.0;
+            let floating_label_y = -floating_label_line_height / 2.0;
             let label_y = bounds.y
                 + lerp(
                     tokens::component::text_field::TOP_SPACE,
@@ -1693,21 +1720,41 @@ pub mod text_input {
                 );
             let label_x = bounds.x + tokens::component::text_field::LEADING_SPACE;
 
-            core_widget::text::draw(
-                renderer,
-                defaults,
-                Rectangle {
-                    x: label_x,
-                    y: label_y,
-                    width: label_width,
-                    height: label_line_height,
-                },
-                state.label.raw(),
-                core_widget::text::Style {
-                    color: Some(label_color),
-                },
-                viewport,
-            );
+            if progress < 0.99 {
+                core_widget::text::draw(
+                    renderer,
+                    defaults,
+                    Rectangle {
+                        x: label_x,
+                        y: label_y,
+                        width: label_width,
+                        height: label_line_height,
+                    },
+                    state.label.raw(),
+                    core_widget::text::Style {
+                        color: Some(alpha_color(label_color, 1.0 - progress)),
+                    },
+                    viewport,
+                );
+            }
+
+            if progress > 0.01 {
+                core_widget::text::draw(
+                    renderer,
+                    defaults,
+                    Rectangle {
+                        x: label_x,
+                        y: label_y,
+                        width: floating_label_width,
+                        height: floating_label_line_height,
+                    },
+                    state.floating_label.raw(),
+                    core_widget::text::Style {
+                        color: Some(alpha_color(label_color, progress)),
+                    },
+                    viewport,
+                );
+            }
         }
     }
 
