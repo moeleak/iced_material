@@ -494,7 +494,8 @@ struct RichTooltipState {
     phase: TooltipPhase,
     cursor_position: Point,
     started_at: Option<Instant>,
-    reveal_from: f32,
+    scale_from: f32,
+    alpha_from: f32,
 }
 
 impl Default for RichTooltipState {
@@ -503,9 +504,16 @@ impl Default for RichTooltipState {
             phase: TooltipPhase::Hidden,
             cursor_position: Point::ORIGIN,
             started_at: None,
-            reveal_from: 0.0,
+            scale_from: tokens::component::tooltip::SCALE_START,
+            alpha_from: 0.0,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct TooltipAnimationFrame {
+    scale: f32,
+    alpha: f32,
 }
 
 impl RichTooltipState {
@@ -515,7 +523,10 @@ impl RichTooltipState {
         match self.phase {
             TooltipPhase::Showing | TooltipPhase::Shown => {}
             TooltipPhase::Hidden | TooltipPhase::Dismissing => {
-                self.reveal_from = self.reveal(now);
+                let frame = self.animation_frame(now);
+
+                self.scale_from = frame.scale;
+                self.alpha_from = frame.alpha;
                 self.phase = TooltipPhase::Showing;
                 self.started_at = Some(now);
             }
@@ -526,7 +537,10 @@ impl RichTooltipState {
         match self.phase {
             TooltipPhase::Hidden | TooltipPhase::Dismissing => {}
             TooltipPhase::Showing | TooltipPhase::Shown => {
-                self.reveal_from = self.reveal(now);
+                let frame = self.animation_frame(now);
+
+                self.scale_from = frame.scale;
+                self.alpha_from = frame.alpha;
                 self.phase = TooltipPhase::Dismissing;
                 self.started_at = Some(now);
             }
@@ -539,7 +553,8 @@ impl RichTooltipState {
             TooltipPhase::Showing if self.progress(now) >= 1.0 => {
                 self.phase = TooltipPhase::Shown;
                 self.started_at = None;
-                self.reveal_from = 1.0;
+                self.scale_from = 1.0;
+                self.alpha_from = 1.0;
             }
             TooltipPhase::Showing => {}
             TooltipPhase::Dismissing if self.progress(now) >= 1.0 => {
@@ -557,17 +572,37 @@ impl RichTooltipState {
         matches!(self.phase, TooltipPhase::Showing | TooltipPhase::Dismissing)
     }
 
-    fn reveal(&self, now: Instant) -> f32 {
+    fn animation_frame(&self, now: Instant) -> TooltipAnimationFrame {
         match self.phase {
-            TooltipPhase::Hidden => 0.0,
-            TooltipPhase::Shown => 1.0,
+            TooltipPhase::Hidden => TooltipAnimationFrame {
+                scale: tokens::component::tooltip::SCALE_START,
+                alpha: 0.0,
+            },
+            TooltipPhase::Shown => TooltipAnimationFrame {
+                scale: 1.0,
+                alpha: 1.0,
+            },
             TooltipPhase::Showing => {
-                let eased = decelerate_quad(self.progress(now));
-                lerp(self.reveal_from, 1.0, eased)
+                let progress = self.progress(now);
+                let scale_progress = tooltip_scale_easing(progress);
+
+                TooltipAnimationFrame {
+                    scale: lerp(self.scale_from, 1.0, scale_progress),
+                    alpha: lerp(self.alpha_from, 1.0, progress),
+                }
             }
             TooltipPhase::Dismissing => {
-                let eased = accelerate_quad(self.progress(now));
-                lerp(self.reveal_from, 0.0, eased)
+                let progress = self.progress(now);
+                let scale_progress = tooltip_scale_easing(progress);
+
+                TooltipAnimationFrame {
+                    scale: lerp(
+                        self.scale_from,
+                        tokens::component::tooltip::SCALE_START,
+                        scale_progress,
+                    ),
+                    alpha: lerp(self.alpha_from, 0.0, progress),
+                }
             }
         }
     }
@@ -580,7 +615,11 @@ impl RichTooltipState {
             };
         };
 
-        let duration = duration_ms(tokens::component::tooltip::ANIMATION_DURATION_MS);
+        let duration = duration_ms(match self.phase {
+            TooltipPhase::Showing => tokens::component::tooltip::FADE_IN_DURATION_MS,
+            TooltipPhase::Dismissing => tokens::component::tooltip::FADE_OUT_DURATION_MS,
+            TooltipPhase::Hidden | TooltipPhase::Shown => 0,
+        });
 
         if duration.is_zero() {
             return 1.0;
@@ -745,13 +784,13 @@ where
         layout: Layout<'_>,
         cursor: mouse::Cursor,
     ) {
-        let reveal = self.state.reveal(Instant::now());
+        let frame = self.state.animation_frame(Instant::now());
         let style = tooltip_container_style_alpha(
             iced_container::Catalog::style(theme, self.class),
-            reveal,
+            frame.alpha,
         );
         let surface_bounds = rich_tooltip_visual_bounds(layout.bounds(), self.clip_padding);
-        let transformation = tooltip_reveal_transformation(surface_bounds, reveal);
+        let transformation = tooltip_scale_transformation(surface_bounds, frame.scale);
 
         renderer.with_layer(layout.bounds(), |renderer| {
             renderer.with_transformation(transformation, |renderer| {
@@ -941,9 +980,9 @@ fn tooltip_container_style_alpha(
     style
 }
 
-fn tooltip_reveal_transformation(bounds: Rectangle, reveal: f32) -> Transformation {
+fn tooltip_scale_transformation(bounds: Rectangle, scale: f32) -> Transformation {
     Transformation::translate(bounds.center_x(), bounds.center_y())
-        * Transformation::scale(reveal)
+        * Transformation::scale(scale)
         * Transformation::translate(-bounds.center_x(), -bounds.center_y())
 }
 
@@ -960,16 +999,8 @@ fn request_tooltip_redraw<Message>(state: &RichTooltipState, shell: &mut Shell<'
     }
 }
 
-fn decelerate_quad(progress: f32) -> f32 {
-    let progress = progress.clamp(0.0, 1.0);
-
-    1.0 - (1.0 - progress) * (1.0 - progress)
-}
-
-fn accelerate_quad(progress: f32) -> f32 {
-    let progress = progress.clamp(0.0, 1.0);
-
-    progress * progress
+fn tooltip_scale_easing(progress: f32) -> f32 {
+    tokens::motion::EASING_LEGACY_DECELERATE.transform(progress)
 }
 
 fn rich_title_text<'a, Renderer>(title: impl text::IntoFragment<'a>) -> Text<'a, Theme, Renderer>
@@ -1185,37 +1216,80 @@ mod tests {
     }
 
     #[test]
-    fn rich_tooltip_transition_uses_android_tooltip_easing() {
+    fn rich_tooltip_transition_matches_androidx_compose_motion() {
         let start = Instant::now();
         let mut state = RichTooltipState::default();
 
         state.show(start, Point::new(10.0, 20.0));
         assert_eq!(state.phase, TooltipPhase::Showing);
-        assert_eq!(state.reveal(start), 0.0);
+        assert_eq!(
+            state.animation_frame(start),
+            TooltipAnimationFrame {
+                scale: tokens::component::tooltip::SCALE_START,
+                alpha: 0.0,
+            }
+        );
 
-        let halfway = start + duration_ms(tokens::component::tooltip::ANIMATION_DURATION_MS / 2);
-        assert!((state.reveal(halfway) - 0.75).abs() < 0.001);
-
-        let shown = start + duration_ms(tokens::component::tooltip::ANIMATION_DURATION_MS);
-        state.advance(shown);
-        assert_eq!(state.phase, TooltipPhase::Shown);
-        assert_eq!(state.reveal(shown), 1.0);
-
-        state.dismiss(shown);
-        assert_eq!(state.phase, TooltipPhase::Dismissing);
-        assert_eq!(state.reveal(shown), 1.0);
+        let halfway = start + duration_ms(tokens::component::tooltip::FADE_IN_DURATION_MS / 2);
+        let half_frame = state.animation_frame(halfway);
+        assert!((half_frame.alpha - 0.5).abs() < 0.001);
         assert!(
-            (state
-                .reveal(halfway + duration_ms(tokens::component::tooltip::ANIMATION_DURATION_MS))
-                - 0.75)
-                .abs()
+            (half_frame.scale
+                - lerp(
+                    tokens::component::tooltip::SCALE_START,
+                    1.0,
+                    tooltip_scale_easing(0.5)
+                ))
+            .abs()
                 < 0.001
         );
 
-        let hidden = shown + duration_ms(tokens::component::tooltip::ANIMATION_DURATION_MS);
+        let shown = start + duration_ms(tokens::component::tooltip::FADE_IN_DURATION_MS);
+        state.advance(shown);
+        assert_eq!(state.phase, TooltipPhase::Shown);
+        assert_eq!(
+            state.animation_frame(shown),
+            TooltipAnimationFrame {
+                scale: 1.0,
+                alpha: 1.0,
+            }
+        );
+
+        state.dismiss(shown);
+        assert_eq!(state.phase, TooltipPhase::Dismissing);
+        assert_eq!(
+            state.animation_frame(shown),
+            TooltipAnimationFrame {
+                scale: 1.0,
+                alpha: 1.0,
+            }
+        );
+
+        let exit_half = shown + duration_ms(tokens::component::tooltip::FADE_OUT_DURATION_MS / 2);
+        let exit_progress = state.progress(exit_half);
+        let exit_half_frame = state.animation_frame(exit_half);
+        assert!((exit_half_frame.alpha - (1.0 - exit_progress)).abs() < 0.001);
+        assert!(
+            (exit_half_frame.scale
+                - lerp(
+                    1.0,
+                    tokens::component::tooltip::SCALE_START,
+                    tooltip_scale_easing(exit_progress)
+                ))
+            .abs()
+                < 0.001
+        );
+
+        let hidden = shown + duration_ms(tokens::component::tooltip::FADE_OUT_DURATION_MS);
         state.advance(hidden);
         assert_eq!(state.phase, TooltipPhase::Hidden);
-        assert_eq!(state.reveal(hidden), 0.0);
+        assert_eq!(
+            state.animation_frame(hidden),
+            TooltipAnimationFrame {
+                scale: tokens::component::tooltip::SCALE_START,
+                alpha: 0.0,
+            }
+        );
     }
 
     #[test]

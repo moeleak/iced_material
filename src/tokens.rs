@@ -1033,8 +1033,11 @@ pub mod component {
         pub const PLAIN_SUPPORTING_TEXT: super::super::typography::TypeScale =
             super::super::typography::BODY_SMALL;
 
-        // Android framework @style/Animation.Tooltip uses tooltip_enter/tooltip_exit.
-        pub const ANIMATION_DURATION_MS: u16 = 150;
+        // AndroidX Compose Material3 Tooltip.kt animateTooltip.
+        pub const FADE_IN_DURATION_MS: u16 = 150;
+        pub const FADE_OUT_DURATION_MS: u16 = 75;
+        pub const SCALE_START: f32 = 0.8;
+        pub const ANIMATION_DURATION_MS: u16 = FADE_IN_DURATION_MS;
 
         pub const RICH_MAX_WIDTH: f32 = 320.0;
         pub const RICH_MIN_HEIGHT: f32 = 24.0;
@@ -1707,6 +1710,9 @@ mod tests {
         assert_eq!(component::tooltip::PLAIN_VERTICAL_SPACE, 4.0);
         assert_eq!(component::tooltip::PLAIN_CONTAINER_SHAPE, 4.0);
         assert_eq!(component::tooltip::PLAIN_SUPPORTING_TEXT.size, 12.0);
+        assert_eq!(component::tooltip::FADE_IN_DURATION_MS, 150);
+        assert_eq!(component::tooltip::FADE_OUT_DURATION_MS, 75);
+        assert_eq!(component::tooltip::SCALE_START, 0.8);
         assert_eq!(component::tooltip::ANIMATION_DURATION_MS, 150);
         assert_eq!(component::tooltip::RICH_MAX_WIDTH, 320.0);
         assert_eq!(component::tooltip::RICH_MIN_HEIGHT, 24.0);
