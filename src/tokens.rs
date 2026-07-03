@@ -620,7 +620,21 @@ pub mod component {
     pub mod dialog {
         pub const CONTAINER_SHAPE: f32 = super::super::shape::CORNER_EXTRA_LARGE;
         pub const CONTAINER_ELEVATION_LEVEL: u8 = 3;
+        pub const CONTAINER_MIN_WIDTH: f32 = 280.0;
+        pub const CONTAINER_MAX_WIDTH: f32 = 560.0;
+        pub const CONTAINER_PADDING: f32 = 24.0;
         pub const ICON_SIZE: f32 = 24.0;
+        pub const ICON_BOTTOM_PADDING: f32 = 16.0;
+        pub const TITLE_BOTTOM_PADDING: f32 = 16.0;
+        pub const SUPPORTING_TEXT_BOTTOM_PADDING: f32 = 24.0;
+        pub const ACTIONS_HORIZONTAL_SPACING: f32 = 8.0;
+        pub const ACTIONS_VERTICAL_SPACING: f32 = 8.0;
+        pub const ACTION_LABEL_TEXT: super::super::typography::TypeScale =
+            super::super::typography::LABEL_LARGE;
+        pub const HEADLINE_TEXT: super::super::typography::TypeScale =
+            super::super::typography::HEADLINE_SMALL;
+        pub const SUPPORTING_TEXT: super::super::typography::TypeScale =
+            super::super::typography::BODY_MEDIUM;
     }
 
     pub mod data_table {
@@ -1308,6 +1322,20 @@ mod tests {
         assert_eq!(component::adaptive_navigation::HEIGHT_COMPACT_MAX, 480.0);
         assert_eq!(component::adaptive_navigation::HEIGHT_MEDIUM_MAX, 900.0);
         assert_eq!(component::dialog::CONTAINER_ELEVATION_LEVEL, 3);
+        assert_eq!(component::dialog::CONTAINER_MIN_WIDTH, 280.0);
+        assert_eq!(component::dialog::CONTAINER_MAX_WIDTH, 560.0);
+        assert_eq!(component::dialog::CONTAINER_PADDING, 24.0);
+        assert_eq!(component::dialog::ICON_BOTTOM_PADDING, 16.0);
+        assert_eq!(component::dialog::TITLE_BOTTOM_PADDING, 16.0);
+        assert_eq!(component::dialog::SUPPORTING_TEXT_BOTTOM_PADDING, 24.0);
+        assert_eq!(component::dialog::ACTIONS_HORIZONTAL_SPACING, 8.0);
+        assert_eq!(component::dialog::ACTIONS_VERTICAL_SPACING, 8.0);
+        assert_eq!(
+            component::dialog::ACTION_LABEL_TEXT,
+            typography::LABEL_LARGE
+        );
+        assert_eq!(component::dialog::HEADLINE_TEXT, typography::HEADLINE_SMALL);
+        assert_eq!(component::dialog::SUPPORTING_TEXT, typography::BODY_MEDIUM);
         assert_eq!(component::data_table::CONTAINER_SHAPE, 4.0);
         assert_eq!(component::data_table::OUTLINE_WIDTH, 1.0);
         assert_eq!(component::data_table::HEADER_CONTAINER_HEIGHT, 56.0);

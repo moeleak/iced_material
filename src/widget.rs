@@ -40,6 +40,7 @@ pub mod badge;
 pub mod card;
 pub mod combo_box;
 pub mod data_table;
+pub mod dialog;
 pub mod list;
 mod menu_overlay;
 pub mod navigation;
