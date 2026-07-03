@@ -532,6 +532,16 @@ fn material_snackbar_constructors_compile_to_elements() {
         snackbar::icon_action_button("close", Message::Pressed),
     )
     .into();
+
+    let content: TestElement<'_> = Text::new("Content").into();
+    let _: TestElement<'_> = snackbar::host_single_line_with_action(
+        content,
+        &snackbar::Transition::default(),
+        iced_widget::core::time::Instant::now(),
+        "Archived",
+        "Undo",
+        Message::Pressed,
+    );
 }
 
 #[test]

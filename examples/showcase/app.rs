@@ -43,6 +43,8 @@ enum Message {
     DialogOpened,
     DialogDismissed,
     DialogConfirmed,
+    ShowSnackbar,
+    SnackbarUndo,
     WindowResized(Size),
     Frame(Instant),
 }
@@ -156,6 +158,7 @@ struct Showcase {
     secondary_tab_state: material::widget::tabs::State,
     progress_animation: material::widget::progress_bar::IndeterminateState,
     alert_dialog_open: bool,
+    snackbar: material::widget::snackbar::Transition,
     visible_scheme: ColorScheme,
     animation: Option<ColorSchemeTransition>,
 }
@@ -196,6 +199,7 @@ impl Default for Showcase {
                 Instant::now(),
             ),
             alert_dialog_open: false,
+            snackbar: material::widget::snackbar::Transition::default(),
             visible_scheme: initial_theme.colors(),
             animation: None,
         }
@@ -269,6 +273,11 @@ fn update(state: &mut Showcase, message: Message) {
             state.alert_dialog_open = false;
             state.count += 1;
         }
+        Message::ShowSnackbar => state.snackbar.show(Instant::now()),
+        Message::SnackbarUndo => {
+            state.count -= 1;
+            state.snackbar.dismiss(Instant::now());
+        }
         Message::WindowResized(size) => state.window_size = size,
         Message::DarkModeChanged(dark_mode) => {
             state.dark_mode = dark_mode;
@@ -299,6 +308,7 @@ fn update(state: &mut Showcase, message: Message) {
             let _ = state.primary_tab_state.advance(now);
             let _ = state.secondary_tab_state.advance(now);
             state.progress_animation.advance(now);
+            let _ = state.snackbar.advance(now);
         }
     }
 }
@@ -316,6 +326,7 @@ fn subscription(state: &Showcase) -> Subscription<Message> {
         || state.segment_state.is_animating()
         || state.primary_tab_state.is_animating()
         || state.secondary_tab_state.is_animating()
+        || state.snackbar.is_active()
         || (state.navigation.selected() == ShowcasePage::Feedback
             && state.progress_animation.is_animating())
     {
@@ -326,10 +337,19 @@ fn subscription(state: &Showcase) -> Subscription<Message> {
 }
 
 fn view(state: &Showcase) -> material::Element<'_, Message> {
+    let page_content = material::widget::snackbar::host_single_line_with_action(
+        pages::view(state),
+        &state.snackbar,
+        Instant::now(),
+        "Photo archived",
+        "Undo",
+        Message::SnackbarUndo,
+    );
+
     let content = navigation::suite(&NAV_DESTINATIONS, &state.navigation)
         .layout(state.adaptive_navigation_layout())
         .with_menu("Showcase", Message::MenuPressed)
-        .view(Message::Navigate, pages::view(state));
+        .view(Message::Navigate, page_content);
 
     if state.alert_dialog_open {
         material::widget::dialog::modal(content, alert_dialog())
@@ -408,6 +428,33 @@ mod tests {
         update(&mut showcase, Message::DialogConfirmed);
         assert!(!showcase.alert_dialog_open);
         assert_eq!(showcase.count, 1);
+    }
+
+    #[test]
+    fn snackbar_button_starts_android_transition() {
+        let mut showcase = Showcase::default();
+
+        update(&mut showcase, Message::ShowSnackbar);
+
+        assert_eq!(
+            showcase.snackbar.phase(),
+            material::widget::snackbar::TransitionPhase::Showing
+        );
+        assert!(showcase.snackbar.is_active());
+    }
+
+    #[test]
+    fn snackbar_action_dismisses_with_exit_transition() {
+        let mut showcase = Showcase::default();
+
+        update(&mut showcase, Message::ShowSnackbar);
+        update(&mut showcase, Message::SnackbarUndo);
+
+        assert_eq!(showcase.count, -1);
+        assert_eq!(
+            showcase.snackbar.phase(),
+            material::widget::snackbar::TransitionPhase::Dismissing
+        );
     }
 
     #[test]

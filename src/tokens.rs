@@ -819,12 +819,22 @@ pub mod component {
         pub const ICON_SIZE: f32 = 24.0;
         pub const WITH_SINGLE_LINE_CONTAINER_HEIGHT: f32 = 48.0;
         pub const WITH_TWO_LINES_CONTAINER_HEIGHT: f32 = 68.0;
+        pub const MAX_WIDTH: f32 = 568.0;
+        pub const HORIZONTAL_MARGIN: f32 = 16.0;
+        pub const BOTTOM_MARGIN: f32 = 16.0;
         pub const CONTAINER_ELEVATION_LEVEL: u8 = 3;
         pub const CONTAINER_SHAPE: f32 = super::super::shape::CORNER_EXTRA_SMALL;
         pub const SUPPORTING_TEXT: super::super::typography::TypeScale =
             super::super::typography::BODY_MEDIUM;
         pub const ACTION_LABEL_TEXT: super::super::typography::TypeScale =
             super::super::typography::LABEL_LARGE;
+        pub const SLIDE_ANIMATION_DURATION_MS: u16 = 250;
+        pub const CONTENT_FADE_ANIMATION_DURATION_MS: u16 = 180;
+        pub const LONG_DURATION_MS: u16 = 2750;
+        pub const SLIDE_ANIMATION_EASING: super::super::motion::CubicBezier =
+            super::super::motion::EASING_LEGACY;
+        pub const CONTENT_FADE_ANIMATION_EASING: super::super::motion::CubicBezier =
+            super::super::motion::EASING_LEGACY;
     }
 
     pub mod search_bar {
@@ -1454,6 +1464,9 @@ mod tests {
         assert_eq!(component::snackbar::ICON_SIZE, 24.0);
         assert_eq!(component::snackbar::WITH_SINGLE_LINE_CONTAINER_HEIGHT, 48.0);
         assert_eq!(component::snackbar::WITH_TWO_LINES_CONTAINER_HEIGHT, 68.0);
+        assert_eq!(component::snackbar::MAX_WIDTH, 568.0);
+        assert_eq!(component::snackbar::HORIZONTAL_MARGIN, 16.0);
+        assert_eq!(component::snackbar::BOTTOM_MARGIN, 16.0);
         assert_eq!(component::snackbar::CONTAINER_ELEVATION_LEVEL, 3);
         assert_eq!(
             component::snackbar::CONTAINER_SHAPE,
@@ -1466,6 +1479,17 @@ mod tests {
         assert_eq!(
             component::snackbar::ACTION_LABEL_TEXT,
             typography::LABEL_LARGE
+        );
+        assert_eq!(component::snackbar::SLIDE_ANIMATION_DURATION_MS, 250);
+        assert_eq!(component::snackbar::CONTENT_FADE_ANIMATION_DURATION_MS, 180);
+        assert_eq!(component::snackbar::LONG_DURATION_MS, 2750);
+        assert_eq!(
+            component::snackbar::SLIDE_ANIMATION_EASING,
+            motion::EASING_LEGACY
+        );
+        assert_eq!(
+            component::snackbar::CONTENT_FADE_ANIMATION_EASING,
+            motion::EASING_LEGACY
         );
         assert_eq!(component::search_bar::AVATAR_SIZE, 30.0);
         assert_eq!(component::search_bar::CONTAINER_HEIGHT, 56.0);

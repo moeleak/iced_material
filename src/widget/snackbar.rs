@@ -2,14 +2,200 @@
 
 use iced_widget::button::{Status, Style};
 use iced_widget::core::text as core_text;
-use iced_widget::core::{Background, Border, Color, Element, Length, Padding, alignment, border};
+use iced_widget::core::time::{Duration, Instant};
+use iced_widget::core::widget::{self, Tree, tree};
+use iced_widget::core::{
+    Background, Border, Clipboard, Color, Element, Event, Layout, Length, Padding, Rectangle,
+    Shell, Size, Vector, Widget, alignment, border, layout, mouse, overlay, renderer,
+};
 use iced_widget::graphics::geometry;
 use iced_widget::text;
-use iced_widget::{Container, Row, Text};
+use iced_widget::{Container, Row, Stack, Text};
 
+use super::support::{alpha_color, duration_ms, lerp};
 use super::{absolute_line_height, button::Button};
 use crate::utils::{shadow_from_level, state_layer};
 use crate::{Theme, fonts, tokens};
+
+/// Android snackbar visibility animation state.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Transition {
+    phase: TransitionPhase,
+    started_at: Option<Instant>,
+    shown_at: Option<Instant>,
+    duration: Duration,
+}
+
+/// Android snackbar transition phase.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TransitionPhase {
+    Hidden,
+    Showing,
+    Shown,
+    Dismissing,
+}
+
+impl Default for Transition {
+    fn default() -> Self {
+        Self {
+            phase: TransitionPhase::Hidden,
+            started_at: None,
+            shown_at: None,
+            duration: duration_ms(tokens::component::snackbar::LONG_DURATION_MS),
+        }
+    }
+}
+
+impl Transition {
+    /// Starts showing the snackbar using Android's default long snackbar duration.
+    pub fn show(&mut self, now: Instant) {
+        self.show_for(
+            now,
+            duration_ms(tokens::component::snackbar::LONG_DURATION_MS),
+        );
+    }
+
+    /// Starts showing the snackbar using a custom visible duration.
+    pub fn show_for(&mut self, now: Instant, duration: Duration) {
+        match self.phase {
+            TransitionPhase::Showing | TransitionPhase::Shown => {
+                self.duration = duration;
+                self.shown_at = Some(now);
+            }
+            TransitionPhase::Hidden | TransitionPhase::Dismissing => {
+                self.phase = TransitionPhase::Showing;
+                self.started_at = Some(now);
+                self.shown_at = None;
+                self.duration = duration;
+            }
+        }
+    }
+
+    /// Starts dismissing the snackbar.
+    pub fn dismiss(&mut self, now: Instant) {
+        if self.is_active() && self.phase != TransitionPhase::Dismissing {
+            self.phase = TransitionPhase::Dismissing;
+            self.started_at = Some(now);
+            self.shown_at = None;
+        }
+    }
+
+    /// Advances timers and hides the snackbar after its Android timeout.
+    pub fn advance(&mut self, now: Instant) -> bool {
+        match self.phase {
+            TransitionPhase::Hidden => {}
+            TransitionPhase::Showing => {
+                if self.slide_progress(now) >= 1.0 {
+                    self.phase = TransitionPhase::Shown;
+                    self.started_at = None;
+                    self.shown_at = Some(now);
+                }
+            }
+            TransitionPhase::Shown => {
+                if self.shown_at.is_some_and(|shown_at| {
+                    now.saturating_duration_since(shown_at) >= self.duration
+                }) {
+                    self.dismiss(now);
+                }
+            }
+            TransitionPhase::Dismissing => {
+                if self.slide_progress(now) >= 1.0 {
+                    *self = Self::default();
+                }
+            }
+        }
+
+        self.is_active()
+    }
+
+    /// Returns whether the snackbar should remain in the view tree.
+    pub fn is_active(&self) -> bool {
+        self.phase != TransitionPhase::Hidden
+    }
+
+    /// Returns whether the snackbar is currently running an enter or exit animation.
+    pub fn is_animating(&self) -> bool {
+        matches!(
+            self.phase,
+            TransitionPhase::Showing | TransitionPhase::Dismissing
+        )
+    }
+
+    /// Returns the current transition phase.
+    pub fn phase(&self) -> TransitionPhase {
+        self.phase
+    }
+
+    /// Computes the Android slide translation for the provided hidden distance.
+    pub fn translation_y(&self, now: Instant, hidden_distance: f32) -> f32 {
+        let eased =
+            tokens::component::snackbar::SLIDE_ANIMATION_EASING.transform(self.slide_progress(now));
+
+        match self.phase {
+            TransitionPhase::Hidden => hidden_distance,
+            TransitionPhase::Showing => lerp(hidden_distance, 0.0, eased),
+            TransitionPhase::Shown => 0.0,
+            TransitionPhase::Dismissing => lerp(0.0, hidden_distance, eased),
+        }
+    }
+
+    /// Computes the Android content fade alpha.
+    pub fn content_alpha(&self, now: Instant) -> f32 {
+        match self.phase {
+            TransitionPhase::Hidden => 0.0,
+            TransitionPhase::Showing => {
+                let Some(started_at) = self.started_at else {
+                    return 1.0;
+                };
+
+                let elapsed = now.saturating_duration_since(started_at);
+                let delay = duration_ms(
+                    tokens::component::snackbar::SLIDE_ANIMATION_DURATION_MS
+                        - tokens::component::snackbar::CONTENT_FADE_ANIMATION_DURATION_MS,
+                );
+
+                if elapsed <= delay {
+                    return 0.0;
+                }
+
+                let fade_duration =
+                    duration_ms(tokens::component::snackbar::CONTENT_FADE_ANIMATION_DURATION_MS);
+                let progress =
+                    ((elapsed - delay).as_secs_f32() / fade_duration.as_secs_f32()).clamp(0.0, 1.0);
+
+                tokens::component::snackbar::CONTENT_FADE_ANIMATION_EASING.transform(progress)
+            }
+            TransitionPhase::Shown => 1.0,
+            TransitionPhase::Dismissing => {
+                let Some(started_at) = self.started_at else {
+                    return 0.0;
+                };
+
+                let fade_duration =
+                    duration_ms(tokens::component::snackbar::CONTENT_FADE_ANIMATION_DURATION_MS);
+                let progress = (now.saturating_duration_since(started_at).as_secs_f32()
+                    / fade_duration.as_secs_f32())
+                .clamp(0.0, 1.0);
+
+                1.0 - tokens::component::snackbar::CONTENT_FADE_ANIMATION_EASING.transform(progress)
+            }
+        }
+    }
+
+    fn slide_progress(&self, now: Instant) -> f32 {
+        let Some(started_at) = self.started_at else {
+            return match self.phase {
+                TransitionPhase::Showing | TransitionPhase::Dismissing => 1.0,
+                TransitionPhase::Hidden | TransitionPhase::Shown => 0.0,
+            };
+        };
+
+        let duration = duration_ms(tokens::component::snackbar::SLIDE_ANIMATION_DURATION_MS);
+
+        (now.saturating_duration_since(started_at).as_secs_f32() / duration.as_secs_f32())
+            .clamp(0.0, 1.0)
+    }
+}
 
 /// Creates a single-line snackbar.
 pub fn single_line<'a, Message, Renderer>(
@@ -23,6 +209,7 @@ where
         message,
         None,
         tokens::component::snackbar::WITH_SINGLE_LINE_CONTAINER_HEIGHT,
+        1.0,
     )
 }
 
@@ -39,6 +226,25 @@ where
         message,
         Some(action.into()),
         tokens::component::snackbar::WITH_SINGLE_LINE_CONTAINER_HEIGHT,
+        1.0,
+    )
+}
+
+/// Creates a single-line snackbar with one action and Android content fade alpha.
+pub fn single_line_with_action_alpha<'a, Message, Renderer>(
+    message: impl text::IntoFragment<'a>,
+    action: impl Into<Element<'a, Message, Theme, Renderer>>,
+    content_alpha: f32,
+) -> Container<'a, Message, Theme, Renderer>
+where
+    Message: 'a,
+    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+{
+    surface(
+        message,
+        Some(action.into()),
+        tokens::component::snackbar::WITH_SINGLE_LINE_CONTAINER_HEIGHT,
+        content_alpha,
     )
 }
 
@@ -54,6 +260,7 @@ where
         message,
         None,
         tokens::component::snackbar::WITH_TWO_LINES_CONTAINER_HEIGHT,
+        1.0,
     )
 }
 
@@ -70,6 +277,7 @@ where
         message,
         Some(action.into()),
         tokens::component::snackbar::WITH_TWO_LINES_CONTAINER_HEIGHT,
+        1.0,
     )
 }
 
@@ -113,6 +321,31 @@ where
     Renderer: geometry::Renderer + core_text::Renderer + 'a,
 {
     action(label).on_press(on_press).into()
+}
+
+/// Creates a snackbar text action with Android content fade alpha.
+pub fn action_alpha<'a, Message, Renderer>(
+    label: impl text::IntoFragment<'a>,
+    content_alpha: f32,
+) -> Button<'a, Message, Renderer>
+where
+    Message: Clone + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+{
+    action(label).style(move |theme, status| action_style_alpha(theme, status, content_alpha))
+}
+
+/// Creates a snackbar text action button with Android content fade alpha.
+pub fn action_button_alpha<'a, Message, Renderer>(
+    label: impl text::IntoFragment<'a>,
+    on_press: Message,
+    content_alpha: f32,
+) -> Element<'a, Message, Theme, Renderer>
+where
+    Message: Clone + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+{
+    action_alpha(label, content_alpha).on_press(on_press).into()
 }
 
 /// Creates a snackbar icon action, typically used for dismiss.
@@ -159,10 +392,60 @@ where
     icon_action(icon_name).on_press(on_press).into()
 }
 
+/// Places snackbar content above the app content and translates it from the bottom edge.
+pub fn overlay<'a, Message, Renderer>(
+    content: impl Into<Element<'a, Message, Theme, Renderer>>,
+    snackbar: impl Into<Element<'a, Message, Theme, Renderer>>,
+    translation_y: f32,
+) -> Element<'a, Message, Theme, Renderer>
+where
+    Message: 'a,
+    Renderer: iced_widget::core::Renderer + 'a,
+{
+    Stack::with_children([
+        content.into(),
+        floating_layer(snackbar, translation_y).into(),
+    ])
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .into()
+}
+
+/// Places an Android-animated single-line snackbar with one action over content.
+pub fn host_single_line_with_action<'a, Message, Renderer>(
+    content: impl Into<Element<'a, Message, Theme, Renderer>>,
+    transition: &Transition,
+    now: Instant,
+    message: impl text::IntoFragment<'a>,
+    action_label: impl text::IntoFragment<'a>,
+    on_action: Message,
+) -> Element<'a, Message, Theme, Renderer>
+where
+    Message: Clone + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+{
+    if !transition.is_active() {
+        return content.into();
+    }
+
+    let alpha = transition.content_alpha(now);
+    let hidden_distance = tokens::component::snackbar::WITH_SINGLE_LINE_CONTAINER_HEIGHT
+        + tokens::component::snackbar::BOTTOM_MARGIN;
+    let translation_y = transition.translation_y(now, hidden_distance);
+    let snackbar = single_line_with_action_alpha(
+        message,
+        action_button_alpha(action_label, on_action, alpha),
+        alpha,
+    );
+
+    overlay(content, snackbar, translation_y)
+}
+
 fn surface<'a, Message, Renderer>(
     message: impl text::IntoFragment<'a>,
     action: Option<Element<'a, Message, Theme, Renderer>>,
     height: f32,
+    content_alpha: f32,
 ) -> Container<'a, Message, Theme, Renderer>
 where
     Message: 'a,
@@ -175,6 +458,12 @@ where
                 .size(supporting_text.size)
                 .line_height(absolute_line_height(supporting_text.line_height))
                 .wrapping(text::Wrapping::Word)
+                .style(move |theme: &Theme| text::Style {
+                    color: Some(alpha_color(
+                        theme.colors().inverse.inverse_surface_text,
+                        content_alpha,
+                    )),
+                })
                 .width(Length::Fill),
         )
         .spacing(8)
@@ -197,6 +486,199 @@ where
         .style(container_style)
 }
 
+fn floating_layer<'a, Message, Renderer>(
+    snackbar: impl Into<Element<'a, Message, Theme, Renderer>>,
+    translation_y: f32,
+) -> Container<'a, Message, Theme, Renderer>
+where
+    Message: 'a,
+    Renderer: iced_widget::core::Renderer + 'a,
+{
+    let snackbar = Container::new(snackbar)
+        .width(Length::Fill)
+        .max_width(tokens::component::snackbar::MAX_WIDTH);
+
+    Container::new(translated(snackbar, Vector::new(0.0, translation_y)))
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .padding(Padding {
+            top: 0.0,
+            right: tokens::component::snackbar::HORIZONTAL_MARGIN,
+            bottom: tokens::component::snackbar::BOTTOM_MARGIN,
+            left: tokens::component::snackbar::HORIZONTAL_MARGIN,
+        })
+        .align_x(alignment::Horizontal::Center)
+        .align_y(alignment::Vertical::Bottom)
+}
+
+fn translated<'a, Message, Renderer>(
+    content: impl Into<Element<'a, Message, Theme, Renderer>>,
+    translation: Vector,
+) -> Element<'a, Message, Theme, Renderer>
+where
+    Message: 'a,
+    Renderer: iced_widget::core::Renderer + 'a,
+{
+    Element::new(Translated {
+        content: content.into(),
+        translation,
+    })
+}
+
+struct Translated<'a, Message, Renderer> {
+    content: Element<'a, Message, Theme, Renderer>,
+    translation: Vector,
+}
+
+impl<Message, Renderer> std::fmt::Debug for Translated<'_, Message, Renderer> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Translated")
+            .field("translation", &self.translation)
+            .finish_non_exhaustive()
+    }
+}
+
+impl<Message, Renderer> Widget<Message, Theme, Renderer> for Translated<'_, Message, Renderer>
+where
+    Renderer: iced_widget::core::Renderer,
+{
+    fn tag(&self) -> tree::Tag {
+        self.content.as_widget().tag()
+    }
+
+    fn state(&self) -> tree::State {
+        self.content.as_widget().state()
+    }
+
+    fn children(&self) -> Vec<Tree> {
+        self.content.as_widget().children()
+    }
+
+    fn diff(&self, tree: &mut Tree) {
+        self.content.as_widget().diff(tree);
+    }
+
+    fn size(&self) -> Size<Length> {
+        self.content.as_widget().size()
+    }
+
+    fn size_hint(&self) -> Size<Length> {
+        self.content.as_widget().size_hint()
+    }
+
+    fn layout(
+        &mut self,
+        tree: &mut Tree,
+        renderer: &Renderer,
+        limits: &layout::Limits,
+    ) -> layout::Node {
+        self.content.as_widget_mut().layout(tree, renderer, limits)
+    }
+
+    fn operate(
+        &mut self,
+        tree: &mut Tree,
+        layout: Layout<'_>,
+        renderer: &Renderer,
+        operation: &mut dyn widget::Operation,
+    ) {
+        self.content
+            .as_widget_mut()
+            .operate(tree, layout, renderer, operation);
+    }
+
+    fn update(
+        &mut self,
+        tree: &mut Tree,
+        event: &Event,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        renderer: &Renderer,
+        clipboard: &mut dyn Clipboard,
+        shell: &mut Shell<'_, Message>,
+        viewport: &Rectangle,
+    ) {
+        let translation = self.translation;
+
+        self.content.as_widget_mut().update(
+            tree,
+            event,
+            layout,
+            cursor - translation,
+            renderer,
+            clipboard,
+            shell,
+            &(*viewport - translation),
+        );
+    }
+
+    fn mouse_interaction(
+        &self,
+        tree: &Tree,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        viewport: &Rectangle,
+        renderer: &Renderer,
+    ) -> mouse::Interaction {
+        let translation = self.translation;
+
+        self.content.as_widget().mouse_interaction(
+            tree,
+            layout,
+            cursor - translation,
+            &(*viewport - translation),
+            renderer,
+        )
+    }
+
+    fn draw(
+        &self,
+        tree: &Tree,
+        renderer: &mut Renderer,
+        theme: &Theme,
+        style: &renderer::Style,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        viewport: &Rectangle,
+    ) {
+        let Some(viewport) = layout.bounds().intersection(viewport) else {
+            return;
+        };
+        let translation = self.translation;
+
+        renderer.with_layer(viewport, |renderer| {
+            renderer.with_translation(translation, |renderer| {
+                self.content.as_widget().draw(
+                    tree,
+                    renderer,
+                    theme,
+                    style,
+                    layout,
+                    cursor - translation,
+                    &(viewport - translation),
+                );
+            });
+        });
+    }
+
+    fn overlay<'b>(
+        &'b mut self,
+        tree: &'b mut Tree,
+        layout: Layout<'b>,
+        renderer: &Renderer,
+        viewport: &Rectangle,
+        translation: Vector,
+    ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
+        self.content.as_widget_mut().overlay(
+            tree,
+            layout,
+            renderer,
+            viewport,
+            translation + self.translation,
+        )
+    }
+}
+
 fn container_style(theme: &Theme) -> iced_widget::container::Style {
     let colors = theme.colors();
 
@@ -215,8 +697,12 @@ fn container_style(theme: &Theme) -> iced_widget::container::Style {
 }
 
 fn action_style(theme: &Theme, status: Status) -> Style {
+    action_style_alpha(theme, status, 1.0)
+}
+
+fn action_style_alpha(theme: &Theme, status: Status, content_alpha: f32) -> Style {
     let colors = theme.colors();
-    let foreground = colors.inverse.inverse_primary;
+    let foreground = alpha_color(colors.inverse.inverse_primary, content_alpha);
     let active = Style {
         background: None,
         text_color: foreground,
@@ -295,6 +781,81 @@ fn icon_action_style(theme: &Theme, status: Status) -> Style {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn snackbar_transition_matches_android_slide_and_content_fade_timing() {
+        let start = Instant::now();
+        let mut transition = Transition::default();
+        let hidden_distance = tokens::component::snackbar::WITH_SINGLE_LINE_CONTAINER_HEIGHT
+            + tokens::component::snackbar::BOTTOM_MARGIN;
+
+        transition.show(start);
+
+        assert_eq!(transition.phase(), TransitionPhase::Showing);
+        assert_eq!(
+            transition.translation_y(start, hidden_distance),
+            hidden_distance
+        );
+        assert_eq!(transition.content_alpha(start), 0.0);
+        assert_eq!(
+            transition.content_alpha(start + Duration::from_millis(70)),
+            0.0
+        );
+
+        let halfway = start + Duration::from_millis(125);
+        assert!(transition.translation_y(halfway, hidden_distance) < hidden_distance);
+        assert!(transition.translation_y(halfway, hidden_distance) > 0.0);
+        assert!(transition.content_alpha(halfway) > 0.0);
+        assert!(transition.content_alpha(halfway) < 1.0);
+
+        let shown = start
+            + Duration::from_millis(u64::from(
+                tokens::component::snackbar::SLIDE_ANIMATION_DURATION_MS,
+            ));
+        assert_eq!(transition.translation_y(shown, hidden_distance), 0.0);
+        assert_eq!(transition.content_alpha(shown), 1.0);
+
+        assert!(transition.advance(shown));
+        assert_eq!(transition.phase(), TransitionPhase::Shown);
+    }
+
+    #[test]
+    fn snackbar_transition_auto_dismisses_after_android_long_duration() {
+        let start = Instant::now();
+        let mut transition = Transition::default();
+
+        transition.show(start);
+        let shown = start
+            + Duration::from_millis(u64::from(
+                tokens::component::snackbar::SLIDE_ANIMATION_DURATION_MS,
+            ));
+        let _ = transition.advance(shown);
+        let _ = transition.advance(
+            shown + Duration::from_millis(u64::from(tokens::component::snackbar::LONG_DURATION_MS)),
+        );
+
+        assert_eq!(transition.phase(), TransitionPhase::Dismissing);
+        assert_eq!(
+            transition.content_alpha(
+                shown
+                    + Duration::from_millis(u64::from(
+                        tokens::component::snackbar::LONG_DURATION_MS,
+                    ))
+                    + Duration::from_millis(u64::from(
+                        tokens::component::snackbar::CONTENT_FADE_ANIMATION_DURATION_MS,
+                    )),
+            ),
+            0.0
+        );
+
+        let hidden = shown
+            + Duration::from_millis(u64::from(tokens::component::snackbar::LONG_DURATION_MS))
+            + Duration::from_millis(u64::from(
+                tokens::component::snackbar::SLIDE_ANIMATION_DURATION_MS,
+            ));
+        assert!(!transition.advance(hidden));
+        assert_eq!(transition.phase(), TransitionPhase::Hidden);
+    }
 
     #[test]
     fn snackbar_container_uses_inverse_surface_tokens_in_light_and_dark() {

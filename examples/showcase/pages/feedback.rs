@@ -46,18 +46,10 @@ fn badges() -> material::Element<'static, Message> {
 }
 
 fn snackbars() -> material::Element<'static, Message> {
-    page::compact_stack([
-        material::widget::snackbar::single_line_with_action(
-            "Photo archived",
-            material::widget::snackbar::action_button("Undo", Message::Decrement),
-        )
-        .into(),
-        material::widget::snackbar::two_line_with_action(
-            "Offline changes will sync when the device reconnects.",
-            material::widget::snackbar::icon_action_button("close", Message::Increment),
-        )
-        .into(),
-    ])
+    page::row([material::widget::button::filled_action(
+        "Show snackbar",
+        Message::ShowSnackbar,
+    )])
     .into()
 }
 
