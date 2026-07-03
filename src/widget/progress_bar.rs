@@ -13,6 +13,10 @@ enum LinearMode {
     Indeterminate,
 }
 
+// Compose's default linear wavy container is 240dp. Keep indeterminate
+// chunks near that visual length when callers stretch the track wider.
+const MAX_INDETERMINATE_ACTIVE_SEGMENT_WIDTH: f32 = 240.0;
+
 /// A clock-backed state for indeterminate canvas indicators.
 #[derive(Debug, Clone)]
 pub struct IndeterminateState {
@@ -407,8 +411,8 @@ fn draw_linear_indeterminate_track<Renderer>(
     let mut cursor = left;
 
     let mut ranges = [
-        linear_bar_range(bars[0], left, right),
-        linear_bar_range(bars[1], left, right),
+        indeterminate_bar_visual_range(bars[0], left, right),
+        indeterminate_bar_visual_range(bars[1], left, right),
     ];
     ranges.sort_by(|a, b| a.0.total_cmp(&b.0));
 
@@ -493,7 +497,7 @@ fn draw_indeterminate_bar<Renderer>(
     let stroke_width = tokens::component::linear_progress::ACTIVE_INDICATOR_HEIGHT;
     let left = stroke_width / 2.0;
     let right = frame.width() - stroke_width / 2.0;
-    let (start, end) = linear_bar_range(bar, left, right);
+    let (start, end) = indeterminate_bar_visual_range(bar, left, right);
 
     if end <= start {
         return;
@@ -530,6 +534,17 @@ fn linear_bar_range(bar: IndeterminateBar, left: f32, right: f32) -> (f32, f32) 
         (start, end)
     } else {
         (end, start)
+    }
+}
+
+fn indeterminate_bar_visual_range(bar: IndeterminateBar, left: f32, right: f32) -> (f32, f32) {
+    let (start, end) = linear_bar_range(bar, left, right);
+    let max_width = MAX_INDETERMINATE_ACTIVE_SEGMENT_WIDTH.min((right - left).max(0.0));
+
+    if end - start <= max_width {
+        (start, end)
+    } else {
+        ((end - max_width).max(left), end)
     }
 }
 
@@ -2555,6 +2570,34 @@ mod tests {
         let second_head_started = indeterminate_bars(700.0 / 1750.0);
         assert!(second_head_started[1].head > 0.0);
         assert_close(second_head_started[1].tail, 0.0);
+    }
+
+    #[test]
+    fn indeterminate_visual_bar_range_caps_long_wave_chunks() {
+        let left = 2.0;
+        let right = 1002.0;
+        let bar = IndeterminateBar {
+            tail: 0.1,
+            head: 0.9,
+        };
+        let (start, end) = indeterminate_bar_visual_range(bar, left, right);
+
+        assert_close(end, 902.0);
+        assert_close(end - start, MAX_INDETERMINATE_ACTIVE_SEGMENT_WIDTH);
+    }
+
+    #[test]
+    fn indeterminate_visual_bar_range_keeps_short_wave_chunks() {
+        let left = 2.0;
+        let right = 1002.0;
+        let bar = IndeterminateBar {
+            tail: 0.1,
+            head: 0.2,
+        };
+        let (start, end) = indeterminate_bar_visual_range(bar, left, right);
+
+        assert_close(start, 102.0);
+        assert_close(end, 202.0);
     }
 
     #[test]
