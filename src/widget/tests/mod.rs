@@ -114,6 +114,36 @@ fn press_is_over_accepts_touch_positions_without_cursor() {
 }
 
 #[test]
+fn press_is_over_prefers_translated_cursor_for_touch() {
+    let bounds = Rectangle::new(Point::new(10.0, 120.0), Size::new(100.0, 48.0));
+
+    assert!(press_is_over(
+        &Event::Touch(touch::Event::FingerPressed {
+            id: touch::Finger(1),
+            position: Point::new(20.0, 30.0),
+        }),
+        bounds,
+        mouse::Cursor::Available(Point::new(20.0, 130.0))
+    ));
+    assert!(!press_is_over(
+        &Event::Touch(touch::Event::FingerPressed {
+            id: touch::Finger(1),
+            position: Point::new(20.0, 130.0),
+        }),
+        bounds,
+        mouse::Cursor::Available(Point::new(20.0, 30.0))
+    ));
+    assert!(!press_is_over(
+        &Event::Touch(touch::Event::FingerPressed {
+            id: touch::Finger(1),
+            position: Point::new(20.0, 130.0),
+        }),
+        bounds,
+        mouse::Cursor::Levitating(Point::new(20.0, 30.0))
+    ));
+}
+
+#[test]
 fn release_is_over_accepts_touch_lift_positions_without_cursor() {
     let bounds = Rectangle::new(Point::new(10.0, 20.0), Size::new(100.0, 48.0));
 
@@ -140,6 +170,36 @@ fn release_is_over_accepts_touch_lift_positions_without_cursor() {
         }),
         bounds,
         mouse::Cursor::Unavailable
+    ));
+}
+
+#[test]
+fn release_is_over_prefers_translated_cursor_for_touch() {
+    let bounds = Rectangle::new(Point::new(10.0, 120.0), Size::new(100.0, 48.0));
+
+    assert!(release_is_over(
+        &Event::Touch(touch::Event::FingerLifted {
+            id: touch::Finger(1),
+            position: Point::new(20.0, 30.0),
+        }),
+        bounds,
+        mouse::Cursor::Available(Point::new(20.0, 130.0))
+    ));
+    assert!(!release_is_over(
+        &Event::Touch(touch::Event::FingerLifted {
+            id: touch::Finger(1),
+            position: Point::new(20.0, 130.0),
+        }),
+        bounds,
+        mouse::Cursor::Available(Point::new(20.0, 30.0))
+    ));
+    assert!(!release_is_over(
+        &Event::Touch(touch::Event::FingerLifted {
+            id: touch::Finger(1),
+            position: Point::new(20.0, 130.0),
+        }),
+        bounds,
+        mouse::Cursor::Levitating(Point::new(20.0, 30.0))
     ));
 }
 

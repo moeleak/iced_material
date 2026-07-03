@@ -185,7 +185,9 @@ fn touch_as_mouse_event(event: &Event) -> Option<Event> {
 fn press_is_over(event: &Event, bounds: Rectangle, cursor: mouse::Cursor) -> bool {
     match event {
         Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => cursor.is_over(bounds),
-        Event::Touch(touch::Event::FingerPressed { position, .. }) => bounds.contains(*position),
+        Event::Touch(touch::Event::FingerPressed { position, .. }) => {
+            touch_event_is_over(*position, bounds, cursor)
+        }
         _ => false,
     }
 }
@@ -193,9 +195,23 @@ fn press_is_over(event: &Event, bounds: Rectangle, cursor: mouse::Cursor) -> boo
 fn release_is_over(event: &Event, bounds: Rectangle, cursor: mouse::Cursor) -> bool {
     match event {
         Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => cursor.is_over(bounds),
-        Event::Touch(touch::Event::FingerLifted { position, .. }) => bounds.contains(*position),
+        Event::Touch(touch::Event::FingerLifted { position, .. }) => {
+            touch_event_is_over(*position, bounds, cursor)
+        }
         _ => false,
     }
+}
+
+fn touch_event_is_over(position: Point, bounds: Rectangle, cursor: mouse::Cursor) -> bool {
+    if cursor.position().is_some() {
+        return cursor.is_over(bounds);
+    }
+
+    if cursor.is_levitating() {
+        return false;
+    }
+
+    bounds.contains(position)
 }
 
 fn should_suppress_ime_caret() -> bool {
