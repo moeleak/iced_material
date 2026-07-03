@@ -14,6 +14,10 @@ fn toggled(_: bool) -> Message {
     Message::Toggled
 }
 
+fn toggled_at(_: bool, _: Point) -> Message {
+    Message::Toggled
+}
+
 #[test]
 fn centered_icon_text_uses_square_icon_bounds() {
     let icon: Text<'_, Theme, iced_widget::Renderer> =
@@ -720,6 +724,7 @@ fn material_tooltip_constructor_compiles_to_element() {
 fn material_selection_constructors_compile_to_elements() {
     let _: TestElement<'_> = checkbox::standard(true, "Enable actions", toggled);
     let _: TestElement<'_> = toggler::standard(true, "Dark theme", toggled);
+    let _: TestElement<'_> = toggler::standard_with_origin(true, "Dark theme", toggled_at);
 }
 
 #[test]

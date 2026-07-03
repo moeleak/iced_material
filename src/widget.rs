@@ -2991,6 +2991,7 @@ pub mod toggler {
     {
         is_toggled: bool,
         on_toggle: Option<Box<dyn Fn(bool) -> Message + 'a>>,
+        on_toggle_with_origin: Option<Box<dyn Fn(bool, Point) -> Message + 'a>>,
         label: Option<text::Fragment<'a>>,
         width: Length,
         track_height: f32,
@@ -3014,6 +3015,10 @@ pub mod toggler {
             f.debug_struct("Toggler")
                 .field("is_toggled", &self.is_toggled)
                 .field("has_on_toggle", &self.on_toggle.is_some())
+                .field(
+                    "has_on_toggle_with_origin",
+                    &self.on_toggle_with_origin.is_some(),
+                )
                 .field("has_label", &self.label.is_some())
                 .field("width", &self.width)
                 .field("track_height", &self.track_height)
@@ -3035,6 +3040,7 @@ pub mod toggler {
             Self {
                 is_toggled,
                 on_toggle: None,
+                on_toggle_with_origin: None,
                 label: None,
                 width: Length::Shrink,
                 track_height: tokens::component::switch::TRACK_HEIGHT,
@@ -3060,11 +3066,22 @@ pub mod toggler {
 
         pub fn on_toggle(mut self, on_toggle: impl Fn(bool) -> Message + 'a) -> Self {
             self.on_toggle = Some(Box::new(on_toggle));
+            self.on_toggle_with_origin = None;
+            self
+        }
+
+        pub fn on_toggle_with_origin(
+            mut self,
+            on_toggle: impl Fn(bool, Point) -> Message + 'a,
+        ) -> Self {
+            self.on_toggle = None;
+            self.on_toggle_with_origin = Some(Box::new(on_toggle));
             self
         }
 
         pub fn on_toggle_maybe(mut self, on_toggle: Option<impl Fn(bool) -> Message + 'a>) -> Self {
             self.on_toggle = on_toggle.map(|on_toggle| Box::new(on_toggle) as _);
+            self.on_toggle_with_origin = None;
             self
         }
 
@@ -3166,7 +3183,7 @@ pub mod toggler {
         }
 
         fn current_status(&self, bounds: Rectangle, cursor: mouse::Cursor) -> iced_toggler::Status {
-            if self.on_toggle.is_none() {
+            if !self.has_on_toggle() {
                 iced_toggler::Status::Disabled {
                     is_toggled: self.is_toggled,
                 }
@@ -3180,6 +3197,30 @@ pub mod toggler {
                 }
             }
         }
+
+        fn has_on_toggle(&self) -> bool {
+            self.on_toggle.is_some() || self.on_toggle_with_origin.is_some()
+        }
+
+        fn toggle_message(&self, is_toggled: bool, origin: Point) -> Option<Message> {
+            if let Some(on_toggle) = &self.on_toggle_with_origin {
+                Some((on_toggle)(is_toggled, origin))
+            } else {
+                self.on_toggle
+                    .as_ref()
+                    .map(|on_toggle| (on_toggle)(is_toggled))
+            }
+        }
+    }
+
+    fn toggler_press_origin(event: &Event, bounds: Rectangle, cursor: mouse::Cursor) -> Point {
+        cursor
+            .position()
+            .or_else(|| match event {
+                Event::Touch(touch::Event::FingerPressed { position, .. }) => Some(*position),
+                _ => None,
+            })
+            .unwrap_or_else(|| bounds.center())
     }
 
     impl<Message, Renderer> Widget<Message, Theme, Renderer> for Toggler<'_, Message, Renderer>
@@ -3274,9 +3315,12 @@ pub mod toggler {
                 Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
                 | Event::Touch(touch::Event::FingerPressed { .. }) => {
                     if cursor.is_over(layout.bounds()) {
-                        if let Some(on_toggle) = &self.on_toggle {
+                        if let Some(message) = self.toggle_message(
+                            !self.is_toggled,
+                            toggler_press_origin(event, layout.bounds(), cursor),
+                        ) {
                             state.is_pressed = true;
-                            shell.publish((on_toggle)(!self.is_toggled));
+                            shell.publish(message);
                             shell.capture_event();
                             shell.request_redraw();
                         }
@@ -3395,7 +3439,7 @@ pub mod toggler {
             _renderer: &Renderer,
         ) -> mouse::Interaction {
             if cursor.is_over(layout.bounds()) {
-                if self.on_toggle.is_some() {
+                if self.has_on_toggle() {
                     mouse::Interaction::Pointer
                 } else {
                     mouse::Interaction::NotAllowed
@@ -3691,6 +3735,24 @@ pub mod toggler {
         Container::new(control(is_toggled).label(label).on_toggle(on_toggle))
             .center_y(Length::Fixed(tokens::component::switch::STATE_LAYER_SIZE))
             .into()
+    }
+
+    pub fn standard_with_origin<'a, Message, Renderer>(
+        is_toggled: bool,
+        label: impl text::IntoFragment<'a>,
+        on_toggle: impl Fn(bool, Point) -> Message + 'a,
+    ) -> Element<'a, Message, Theme, Renderer>
+    where
+        Message: 'a,
+        Renderer: iced_widget::core::Renderer + core_text::Renderer + core_svg::Renderer + 'a,
+    {
+        Container::new(
+            control(is_toggled)
+                .label(label)
+                .on_toggle_with_origin(on_toggle),
+        )
+        .center_y(Length::Fixed(tokens::component::switch::STATE_LAYER_SIZE))
+        .into()
     }
 }
 

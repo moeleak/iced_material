@@ -4,7 +4,7 @@
 mod pages;
 
 use iced::time::Instant;
-use iced::{Size, Subscription};
+use iced::{Point, Size, Subscription};
 use iced_material as material;
 use material::widget::{navigation, theme_picker};
 use material::{ColorScheme, Theme, animation::ThemeRevealTransition};
@@ -36,7 +36,7 @@ enum Message {
     SearchChanged(String),
     SliderChanged(f32),
     EnabledChanged(bool),
-    DarkModeChanged(bool),
+    DarkModeChanged { dark_mode: bool, origin: Point },
     ThemePickerToggled,
     ThemeColorSelected(theme_picker::MaterialColor),
     ChoiceSelected(RadioChoice),
@@ -288,12 +288,8 @@ fn update(state: &mut Showcase, message: Message) {
             state.snackbar.dismiss(Instant::now());
         }
         Message::WindowResized(size) => state.window_size = size,
-        Message::DarkModeChanged(dark_mode) => {
+        Message::DarkModeChanged { dark_mode, origin } => {
             state.dark_mode = dark_mode;
-            let origin = theme_picker::palette_center(
-                state.window_size,
-                theme_picker_bottom_margin(state.adaptive_navigation_layout()),
-            );
 
             animate_to_scheme(state, state.theme_color.color_scheme(dark_mode), origin);
         }
@@ -539,10 +535,35 @@ mod tests {
     fn selecting_current_theme_does_not_start_animation() {
         let mut showcase = Showcase::default();
 
-        update(&mut showcase, Message::DarkModeChanged(true));
+        update(
+            &mut showcase,
+            Message::DarkModeChanged {
+                dark_mode: true,
+                origin: Point::new(120.0, 360.0),
+            },
+        );
 
         assert!(showcase.animation.is_none());
         assert!(showcase.dark_mode);
+    }
+
+    #[test]
+    fn dark_mode_switch_starts_reveal_from_switch_origin() {
+        let mut showcase = Showcase::default();
+        let origin = Point::new(120.0, 640.0);
+
+        update(
+            &mut showcase,
+            Message::DarkModeChanged {
+                dark_mode: false,
+                origin,
+            },
+        );
+
+        let animation = showcase.animation.expect("dark mode should animate");
+
+        assert!(!showcase.dark_mode);
+        assert_eq!(animation.origin(), origin);
     }
 
     #[test]

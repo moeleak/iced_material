@@ -109,10 +109,10 @@ fn selection_controls(state: &Showcase) -> material::Element<'_, Message> {
             Message::EnabledChanged,
         )
         .into(),
-        material::widget::toggler::standard(
+        material::widget::toggler::standard_with_origin(
             state.dark_mode,
             "Dark theme",
-            Message::DarkModeChanged,
+            |dark_mode, origin| Message::DarkModeChanged { dark_mode, origin },
         )
         .into(),
     ]);

@@ -310,15 +310,16 @@ where
     Renderer: iced_widget::core::Renderer + geometry::Renderer + 'a,
 {
     let content = content.into();
-
-    if let Some(transition) = transition {
-        Stack::with_children([content, reveal_overlay(transition, now).into()])
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .into()
+    let overlay = if let Some(transition) = transition {
+        reveal_overlay(transition, now).into()
     } else {
-        content
-    }
+        Space::new().width(Length::Fill).height(Length::Fill).into()
+    };
+
+    Stack::with_children([content, overlay])
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
 }
 
 pub fn reveal_overlay<'a, Message, Renderer>(
