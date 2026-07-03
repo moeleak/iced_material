@@ -105,9 +105,7 @@ where
         color_phase: phase,
         four_color: false,
     })
-    .width(Length::Fixed(
-        tokens::component::linear_progress::CONTAINER_WIDTH,
-    ))
+    .width(Length::Fill)
     .height(Length::Fixed(
         tokens::component::linear_progress::WAVE_HEIGHT,
     ))
@@ -128,9 +126,7 @@ where
         color_phase: phase * 0.5,
         four_color,
     })
-    .width(Length::Fixed(
-        tokens::component::linear_progress::CONTAINER_WIDTH,
-    ))
+    .width(Length::Fill)
     .height(Length::Fixed(
         tokens::component::linear_progress::WAVE_HEIGHT,
     ))
@@ -151,9 +147,7 @@ where
         color_phase,
         four_color: true,
     })
-    .width(Length::Fixed(
-        tokens::component::linear_progress::CONTAINER_WIDTH,
-    ))
+    .width(Length::Fill)
     .height(Length::Fixed(
         tokens::component::linear_progress::WAVE_HEIGHT,
     ))
@@ -549,28 +543,38 @@ fn round_stroke(color: Color, width: f32) -> Stroke<'static> {
 
 fn wave_path(start: f32, end: f32, y: f32, amplitude: f32, wavelength: f32, phase: f32) -> Path {
     let length = (end - start).max(0.0);
-    let step = 3.0_f32.max(wavelength / 12.0);
+
+    if length <= 0.0 || amplitude <= 0.0 || wavelength <= 0.0 {
+        return Path::line(Point::new(start, y), Point::new(end, y));
+    }
+
+    let step = (wavelength / 4.0).max(1.0);
 
     Path::new(|path| {
-        path.move_to(Point::new(
-            start,
-            y + wave_offset(0.0, amplitude, wavelength, phase),
-        ));
+        let mut x0 = start;
+        let mut distance0 = 0.0;
+        let mut y0 = y + wave_offset(distance0, amplitude, wavelength, phase);
 
-        let mut distance = step;
-        while distance < length {
-            let x = start + distance;
-            path.line_to(Point::new(
-                x,
-                y + wave_offset(distance, amplitude, wavelength, phase),
-            ));
-            distance += step;
+        path.move_to(Point::new(x0, y0));
+
+        while x0 < end {
+            let x1 = (x0 + step).min(end);
+            let distance1 = x1 - start;
+            let y1 = y + wave_offset(distance1, amplitude, wavelength, phase);
+            let dx = x1 - x0;
+            let slope0 = wave_slope(distance0, amplitude, wavelength, phase);
+            let slope1 = wave_slope(distance1, amplitude, wavelength, phase);
+
+            path.bezier_curve_to(
+                Point::new(x0 + dx / 3.0, y0 + slope0 * dx / 3.0),
+                Point::new(x1 - dx / 3.0, y1 - slope1 * dx / 3.0),
+                Point::new(x1, y1),
+            );
+
+            x0 = x1;
+            distance0 = distance1;
+            y0 = y1;
         }
-
-        path.line_to(Point::new(
-            end,
-            y + wave_offset(length, amplitude, wavelength, phase),
-        ));
     })
 }
 
@@ -580,6 +584,15 @@ fn wave_offset(distance: f32, amplitude: f32, wavelength: f32, phase: f32) -> f3
     }
 
     ((distance / wavelength) * TAU + phase.rem_euclid(1.0) * TAU).sin() * amplitude
+}
+
+fn wave_slope(distance: f32, amplitude: f32, wavelength: f32, phase: f32) -> f32 {
+    if wavelength <= 0.0 {
+        return 0.0;
+    }
+
+    let radians = (distance / wavelength) * TAU + phase.rem_euclid(1.0) * TAU;
+    radians.cos() * amplitude * TAU / wavelength
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -2550,6 +2563,22 @@ mod tests {
         assert_eq!(determinate_wave_amplitude(0.1), 0.0);
         assert_eq!(determinate_wave_amplitude(0.5), 1.0);
         assert_eq!(determinate_wave_amplitude(0.95), 0.0);
+    }
+
+    #[test]
+    fn wavy_path_uses_fixed_wavelength_slope() {
+        let amplitude = tokens::component::linear_progress::ACTIVE_WAVE_AMPLITUDE;
+        let wavelength = tokens::component::linear_progress::ACTIVE_WAVE_WAVELENGTH;
+
+        assert_close(wave_slope(0.0, amplitude, wavelength, 0.0), 0.471239);
+        assert_close(
+            wave_slope(wavelength / 4.0, amplitude, wavelength, 0.0),
+            0.0,
+        );
+        assert_close(
+            wave_slope(wavelength / 2.0, amplitude, wavelength, 0.0),
+            -0.471239,
+        );
     }
 
     #[test]

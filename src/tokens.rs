@@ -407,7 +407,6 @@ pub mod component {
         pub const ACTIVE_INDICATOR_SHAPE: f32 = super::super::shape::CORNER_NONE;
         pub const ACTIVE_WAVE_AMPLITUDE: f32 = 3.0;
         pub const ACTIVE_WAVE_WAVELENGTH: f32 = 40.0;
-        pub const CONTAINER_WIDTH: f32 = 240.0;
         pub const INDETERMINATE_ACTIVE_WAVE_WAVELENGTH: f32 = 20.0;
         pub const STOP_SIZE: f32 = 4.0;
         pub const STOP_TRAILING_SPACE: f32 = 0.0;
@@ -1207,7 +1206,6 @@ mod tests {
         assert_eq!(component::linear_progress::ACTIVE_INDICATOR_HEIGHT, 4.0);
         assert_eq!(component::linear_progress::ACTIVE_WAVE_AMPLITUDE, 3.0);
         assert_eq!(component::linear_progress::ACTIVE_WAVE_WAVELENGTH, 40.0);
-        assert_eq!(component::linear_progress::CONTAINER_WIDTH, 240.0);
         assert_eq!(
             component::linear_progress::INDETERMINATE_ACTIVE_WAVE_WAVELENGTH,
             20.0

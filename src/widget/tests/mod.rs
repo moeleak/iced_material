@@ -885,13 +885,13 @@ fn material_slider_and_progress_constructors_compile_to_elements() {
 }
 
 #[test]
-fn material_linear_progress_defaults_to_compose_wavy_size() {
+fn material_linear_progress_defaults_to_fill_parent_width() {
     let determinate = progress_bar::linear::<Message, iced_widget::Renderer>(0.42, 0.0);
     let indeterminate =
         progress_bar::linear_indeterminate::<Message, iced_widget::Renderer>(0.0, false);
 
     let expected = Size {
-        width: Length::Fixed(tokens::component::linear_progress::CONTAINER_WIDTH),
+        width: Length::Fill,
         height: Length::Fixed(tokens::component::linear_progress::WAVE_HEIGHT),
     };
 
