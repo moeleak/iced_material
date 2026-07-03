@@ -19,8 +19,7 @@ pub(super) fn view(state: &Showcase) -> material::Element<'_, Message> {
         state.select_choice,
         Message::SelectChanged,
     )
-    .placeholder("Choose a chip")
-    .width(Length::Fill);
+    .placeholder("Choose a chip");
 
     let combo_box = material::widget::combo_box::outlined_with_input(
         &state.combo_options,
@@ -49,11 +48,10 @@ fn search_bar(state: &Showcase) -> material::Element<'_, Message> {
         "Search Material components",
         &state.search_query,
         Message::SearchChanged,
-        Some(
-            material::widget::app_bar::icon_button("tune")
-                .on_press(Message::Increment)
-                .into(),
-        ),
+        Some(material::widget::app_bar::icon_action(
+            "tune",
+            Message::Increment,
+        )),
     )
     .into()
 }

@@ -908,6 +908,7 @@ pub mod component {
         pub const DRAG_HANDLE_WIDTH: f32 = 32.0;
         pub const DRAG_HANDLE_HEIGHT: f32 = 4.0;
         pub const DRAG_HANDLE_VERTICAL_PADDING: f32 = 22.0;
+        pub const CONTENT_PADDING: f32 = 24.0;
         pub const SHEET_PEEK_HEIGHT: f32 = 56.0;
         pub const SHEET_MAX_WIDTH: f32 = 640.0;
         pub const SCRIM_OPACITY: f32 = 0.32;
@@ -921,6 +922,7 @@ pub mod component {
     pub mod side_sheet {
         pub const DOCKED_CONTAINER_WIDTH: f32 = 256.0;
         pub const DETACHED_MARGIN: f32 = 16.0;
+        pub const CONTENT_PADDING: f32 = 24.0;
         pub const DOCKED_STANDARD_CONTAINER_SHAPE: f32 = super::super::shape::CORNER_NONE;
         pub const DOCKED_MODAL_CONTAINER_SHAPE: f32 = super::super::shape::CORNER_LARGE;
         pub const DETACHED_CONTAINER_SHAPE: f32 = super::super::shape::CORNER_LARGE;
@@ -1529,6 +1531,7 @@ mod tests {
         assert_eq!(component::bottom_sheet::DRAG_HANDLE_WIDTH, 32.0);
         assert_eq!(component::bottom_sheet::DRAG_HANDLE_HEIGHT, 4.0);
         assert_eq!(component::bottom_sheet::DRAG_HANDLE_VERTICAL_PADDING, 22.0);
+        assert_eq!(component::bottom_sheet::CONTENT_PADDING, 24.0);
         assert_eq!(component::bottom_sheet::SHEET_PEEK_HEIGHT, 56.0);
         assert_eq!(component::bottom_sheet::SHEET_MAX_WIDTH, 640.0);
         assert_eq!(component::bottom_sheet::SCRIM_OPACITY, 0.32);
@@ -1541,6 +1544,7 @@ mod tests {
         );
         assert_eq!(component::side_sheet::DOCKED_CONTAINER_WIDTH, 256.0);
         assert_eq!(component::side_sheet::DETACHED_MARGIN, 16.0);
+        assert_eq!(component::side_sheet::CONTENT_PADDING, 24.0);
         assert_eq!(
             component::side_sheet::DOCKED_STANDARD_CONTAINER_SHAPE,
             shape::CORNER_NONE

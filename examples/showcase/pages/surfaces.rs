@@ -1,4 +1,3 @@
-use iced::Length;
 use iced_material as material;
 use material::widget::page;
 
@@ -37,16 +36,15 @@ fn lists() -> material::Element<'static, Message> {
 fn data_table() -> material::Element<'static, Message> {
     material::widget::data_table::standard(
         [
-            material::widget::data_table::column("Component", |row: InventoryRow| row.component)
-                .width(Length::FillPortion(2)),
+            material::widget::data_table::weighted_column(2, "Component", |row: InventoryRow| {
+                row.component
+            }),
             material::widget::data_table::column("State", |row: InventoryRow| row.status),
-            material::widget::data_table::numeric_column("Count", |row: InventoryRow| {
+            material::widget::data_table::compact_numeric_column("Count", |row: InventoryRow| {
                 row.count.to_string()
-            })
-            .width(Length::Fixed(88.0)),
+            }),
         ],
         INVENTORY_ROWS,
     )
-    .width(Length::Fill)
     .into()
 }

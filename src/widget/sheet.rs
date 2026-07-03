@@ -262,6 +262,23 @@ where
         .style(move |theme| bottom_sheet_style(theme, kind))
 }
 
+pub fn bottom_content<'a, Message, Renderer>(
+    content: impl Into<Element<'a, Message, Theme, Renderer>>,
+) -> Container<'a, Message, Theme, Renderer>
+where
+    Message: 'a,
+    Renderer: iced_widget::core::Renderer + 'a,
+{
+    Container::new(content)
+        .padding(Padding {
+            top: 0.0,
+            right: tokens::component::bottom_sheet::CONTENT_PADDING,
+            bottom: tokens::component::bottom_sheet::CONTENT_PADDING,
+            left: tokens::component::bottom_sheet::CONTENT_PADDING,
+        })
+        .width(Length::Fill)
+}
+
 pub fn drag_handle<'a, Message, Renderer>() -> Container<'a, Message, Theme, Renderer>
 where
     Message: 'a,
@@ -426,6 +443,19 @@ where
         } else {
             0.0
         })
+}
+
+pub fn side_content<'a, Message, Renderer>(
+    content: impl Into<Element<'a, Message, Theme, Renderer>>,
+) -> Container<'a, Message, Theme, Renderer>
+where
+    Message: 'a,
+    Renderer: iced_widget::core::Renderer + 'a,
+{
+    Container::new(content)
+        .padding(tokens::component::side_sheet::CONTENT_PADDING)
+        .width(Length::Fill)
+        .height(Length::Fill)
 }
 
 pub fn modal_side_overlay<'a, Message, Renderer>(
@@ -711,6 +741,19 @@ mod tests {
             Some(Background::Color(theme.colors().surface.text_variant))
         );
         assert_eq!(style.border.radius.top_left, tokens::shape::CORNER_FULL);
+    }
+
+    #[test]
+    fn sheet_content_wrappers_apply_material_fill_constraints() {
+        let bottom: Container<'_, (), Theme, iced_widget::Renderer> = bottom_content(Space::new());
+        let bottom_size =
+            iced_widget::core::Widget::<(), Theme, iced_widget::Renderer>::size(&bottom);
+        assert_eq!(bottom_size.width, Length::Fill);
+
+        let side: Container<'_, (), Theme, iced_widget::Renderer> = side_content(Space::new());
+        let side_size = iced_widget::core::Widget::<(), Theme, iced_widget::Renderer>::size(&side);
+        assert_eq!(side_size.width, Length::Fill);
+        assert_eq!(side_size.height, Length::Fill);
     }
 
     #[test]

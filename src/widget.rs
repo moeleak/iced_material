@@ -1634,6 +1634,17 @@ pub mod button {
         standard(label, button_style::filled)
     }
 
+    pub fn filled_action<'a, Message, Renderer>(
+        label: impl text::IntoFragment<'a>,
+        on_press: Message,
+    ) -> Element<'a, Message, Theme, Renderer>
+    where
+        Message: Clone + 'a,
+        Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    {
+        filled(label).on_press(on_press).into()
+    }
+
     pub fn filled_tonal<'a, Message, Renderer>(
         label: impl text::IntoFragment<'a>,
     ) -> Button<'a, Message, Renderer>
@@ -1654,6 +1665,17 @@ pub mod button {
         standard(label, button_style::outlined)
     }
 
+    pub fn outlined_action<'a, Message, Renderer>(
+        label: impl text::IntoFragment<'a>,
+        on_press: Message,
+    ) -> Element<'a, Message, Theme, Renderer>
+    where
+        Message: Clone + 'a,
+        Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    {
+        outlined(label).on_press(on_press).into()
+    }
+
     pub fn text<'a, Message, Renderer>(
         label: impl text::IntoFragment<'a>,
     ) -> Button<'a, Message, Renderer>
@@ -1662,6 +1684,17 @@ pub mod button {
         Renderer: geometry::Renderer + core_text::Renderer + 'a,
     {
         standard(label, button_style::text)
+    }
+
+    pub fn text_action<'a, Message, Renderer>(
+        label: impl text::IntoFragment<'a>,
+        on_press: Message,
+    ) -> Element<'a, Message, Theme, Renderer>
+    where
+        Message: Clone + 'a,
+        Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    {
+        text(label).on_press(on_press).into()
     }
 
     pub fn icon_button<'a, Message, Renderer>(
@@ -1712,6 +1745,17 @@ pub mod button {
         Renderer: geometry::Renderer + core_text::Renderer + 'a,
     {
         fab(icon_content, button_style::fab_primary)
+    }
+
+    pub fn primary_fab_action<'a, Message, Renderer>(
+        icon_content: impl text::IntoFragment<'a>,
+        on_press: Message,
+    ) -> Element<'a, Message, Theme, Renderer>
+    where
+        Message: Clone + 'a,
+        Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    {
+        primary_fab(icon_content).on_press(on_press).into()
     }
 
     pub fn primary_small_fab<'a, Message, Renderer>(
@@ -2727,6 +2771,7 @@ pub mod pick_list {
             .text_line_height(absolute_line_height(
                 tokens::component::text_field::INPUT_TEXT_LINE_HEIGHT,
             ))
+            .width(Length::Fill)
             .style(pick_list_style::default)
             .menu_style(menu_style::outlined_select)
     }
@@ -5472,11 +5517,15 @@ mod tests {
     #[test]
     fn material_button_constructors_compile_to_elements() {
         let _: TestElement<'_> = button::filled("Filled").on_press(Message::Pressed).into();
+        let _: TestElement<'_> = button::filled_action("Filled", Message::Pressed);
         let _: TestElement<'_> = button::filled_tonal("Tonal")
             .on_press(Message::Pressed)
             .into();
+        let _: TestElement<'_> = button::outlined_action("Outlined", Message::Pressed);
+        let _: TestElement<'_> = button::text_action("Text", Message::Pressed);
         let _: TestElement<'_> = button::outlined_icon("+").on_press(Message::Pressed).into();
         let _: TestElement<'_> = button::primary_fab("+").on_press(Message::Pressed).into();
+        let _: TestElement<'_> = button::primary_fab_action("+", Message::Pressed);
         let _: TestElement<'_> = button::primary_small_fab("+")
             .on_press(Message::Pressed)
             .into();
@@ -5552,6 +5601,13 @@ mod tests {
         let _: TestElement<'_> =
             dialog::alert("Title", "Supporting text", dialog::actions(actions)).into();
 
+        let actions: [TestElement<'_>; 2] = [
+            dialog::action_button("Cancel", Message::Pressed),
+            dialog::action_button("OK", Message::Pressed),
+        ];
+        let _: TestElement<'_> =
+            dialog::alert("Title", "Supporting text", dialog::actions(actions)).into();
+
         let actions: [TestElement<'_>; 1] =
             [dialog::action("Done").on_press(Message::Pressed).into()];
         let _: TestElement<'_> =
@@ -5563,6 +5619,41 @@ mod tests {
 
         let content: TestElement<'_> = Text::new("Modal dialog").into();
         let _: TestElement<'_> = dialog::modal_overlay(content).into();
+
+        let content: TestElement<'_> = Text::new("Modal layer dialog").into();
+        let _: TestElement<'_> = dialog::modal_layer(content);
+
+        let content: TestElement<'_> = Text::new("Page content").into();
+        let dialog_content: TestElement<'_> = Text::new("Dialog content").into();
+        let _: TestElement<'_> = dialog::modal(content, dialog_content);
+    }
+
+    #[test]
+    fn material_app_bar_constructors_compile_to_elements() {
+        let _: TestElement<'_> = app_bar::icon_action("info", Message::Pressed);
+
+        let leading = app_bar::icon_button("menu")
+            .on_press(Message::Pressed)
+            .into();
+        let actions = [app_bar::icon_button("search")
+            .on_press(Message::Pressed)
+            .into()];
+        let small = app_bar::small("Small", Some(leading), actions);
+        let _: TestElement<'_> = app_bar::with_status_bar(small).into();
+
+        let leading = app_bar::icon_button("menu")
+            .on_press(Message::Pressed)
+            .into();
+        let actions = [app_bar::icon_button("search")
+            .on_press(Message::Pressed)
+            .into()];
+        let _: TestElement<'_> = app_bar::medium("Medium", Some(leading), actions).into();
+
+        let actions = [app_bar::icon_button("info")
+            .on_press(Message::Pressed)
+            .into()];
+        let fab = button::primary_fab("+").on_press(Message::Pressed).into();
+        let _: TestElement<'_> = app_bar::bottom(actions, Some(fab)).into();
     }
 
     #[test]
@@ -5583,7 +5674,19 @@ mod tests {
             navigation::navigation_bar(&destinations, selection, |_| Message::Pressed).into();
         let _: TestElement<'_> =
             navigation::navigation_rail(&destinations, selection, |_| Message::Pressed).into();
+        let _: TestElement<'_> =
+            navigation::navigation_rail_fitting_content(&destinations, selection, |_| {
+                Message::Pressed
+            })
+            .into();
         let _: TestElement<'_> = navigation::navigation_rail_with_header(
+            &destinations,
+            selection,
+            |_| Message::Pressed,
+            Text::new("Header"),
+        )
+        .into();
+        let _: TestElement<'_> = navigation::navigation_rail_with_header_fitting_content(
             &destinations,
             selection,
             |_| Message::Pressed,
@@ -5597,7 +5700,22 @@ mod tests {
             Message::Pressed,
         )
         .into();
+        let _: TestElement<'_> = navigation::navigation_rail_with_menu_fitting_content(
+            &destinations,
+            selection,
+            |_| Message::Pressed,
+            Message::Pressed,
+        )
+        .into();
         let _: TestElement<'_> = navigation::navigation_rail_expanded_with_menu(
+            "Navigation",
+            &destinations,
+            selection,
+            |_| Message::Pressed,
+            Message::Pressed,
+        )
+        .into();
+        let _: TestElement<'_> = navigation::navigation_rail_expanded_with_menu_fitting_content(
             "Navigation",
             &destinations,
             selection,
@@ -5723,6 +5841,18 @@ mod tests {
     }
 
     #[test]
+    fn material_pick_list_defaults_to_fill_width() {
+        let options = ["Assist", "Suggestion", "Filter"];
+        let select: select::Select<'_, _, _, _, Message, iced_widget::Renderer> =
+            pick_list::outlined(options, Some("Assist"), |_| Message::Pressed);
+
+        assert_eq!(
+            Widget::<Message, Theme, iced_widget::Renderer>::size(&select).width,
+            Length::Fill
+        );
+    }
+
+    #[test]
     fn material_combo_box_constructor_compiles_to_element() {
         let selected = "Assist";
         let options = combo_box::State::with_selection(
@@ -5761,6 +5891,9 @@ mod tests {
         let content: TestElement<'_> = Text::new("Sheet content").into();
         let _: TestElement<'_> = sheet::standard_bottom(content).into();
 
+        let content: TestElement<'_> = Text::new("Bottom sheet content").into();
+        let _: TestElement<'_> = sheet::bottom_content(content).into();
+
         let content: TestElement<'_> = Text::new("Scrim content").into();
         let _: TestElement<'_> = sheet::scrim(content).into();
 
@@ -5782,6 +5915,9 @@ mod tests {
         let content: TestElement<'_> = Text::new("Standard side sheet content").into();
         let _: TestElement<'_> = sheet::standard_side(content).into();
 
+        let content: TestElement<'_> = Text::new("Side sheet content").into();
+        let _: TestElement<'_> = sheet::side_content(content).into();
+
         let content: TestElement<'_> = Text::new("Left standard side sheet content").into();
         let _: TestElement<'_> = sheet::standard_side_on(sheet::Side::Left, content).into();
 
@@ -5798,6 +5934,22 @@ mod tests {
 
         let content: TestElement<'_> = Text::new("Side overlay content").into();
         let _: TestElement<'_> = sheet::modal_side_overlay(sheet::Side::Right, content).into();
+    }
+
+    #[test]
+    fn material_snackbar_constructors_compile_to_elements() {
+        let _: TestElement<'_> = snackbar::single_line("Archived").into();
+        let _: TestElement<'_> = snackbar::single_line_with_action(
+            "Archived",
+            snackbar::action_button("Undo", Message::Pressed),
+        )
+        .into();
+        let _: TestElement<'_> = snackbar::two_line("Longer message").into();
+        let _: TestElement<'_> = snackbar::two_line_with_action(
+            "Longer message",
+            snackbar::icon_action_button("close", Message::Pressed),
+        )
+        .into();
     }
 
     #[test]
@@ -5820,11 +5972,12 @@ mod tests {
             Theme,
             iced_widget::Renderer,
         >; 2] = [
-            data_table::column("Name", |row: Row| row.name),
-            data_table::numeric_column("Quantity", |row: Row| row.quantity.to_string()),
+            data_table::weighted_column(2, "Name", |row: Row| row.name),
+            data_table::compact_numeric_column("Quantity", |row: Row| row.quantity.to_string()),
         ];
 
         let _: TestElement<'_> = data_table::standard(columns, rows).into();
+        assert_eq!(data_table::COMPACT_NUMERIC_COLUMN_WIDTH, 88.0);
     }
 
     #[test]

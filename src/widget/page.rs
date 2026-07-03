@@ -34,6 +34,18 @@ pub const CARD_PADDING: f32 = 12.0;
 /// Height used by compact showcase cards.
 pub const CARD_HEIGHT: f32 = 78.0;
 
+/// Maximum width used by component previews.
+pub const PREVIEW_MAX_WIDTH: f32 = tokens::component::bottom_sheet::SHEET_MAX_WIDTH;
+
+/// Horizontal space reserved around component previews before clamping.
+pub const PREVIEW_HORIZONTAL_RESERVE: f32 = 160.0;
+
+/// Minimum width used by component previews.
+pub const PREVIEW_MIN_WIDTH: f32 = 320.0;
+
+/// Height used by fixed component preview panes.
+pub const PREVIEW_HEIGHT: f32 = 260.0;
+
 /// Creates a scrollable Material page surface.
 pub fn surface<'a, Message, Renderer>(
     header: impl Into<Element<'a, Message, Theme, Renderer>>,
@@ -57,6 +69,50 @@ where
             .center_x(Length::Fill),
     )
     .height(Length::Fill)
+}
+
+/// Computes a responsive width for component previews.
+pub fn preview_width(viewport_width: f32) -> f32 {
+    (viewport_width - PREVIEW_HORIZONTAL_RESERVE).clamp(PREVIEW_MIN_WIDTH, PREVIEW_MAX_WIDTH)
+}
+
+/// Centers preview content at a fixed Material preview width.
+pub fn centered_preview<'a, Message, Renderer>(
+    width: f32,
+    content: impl Into<Element<'a, Message, Theme, Renderer>>,
+) -> Container<'a, Message, Theme, Renderer>
+where
+    Message: 'a,
+    Renderer: iced_widget::core::Renderer + 'a,
+{
+    Container::new(Container::new(content).width(Length::Fixed(width)))
+        .width(Length::Fill)
+        .align_x(alignment::Horizontal::Center)
+}
+
+/// Creates a fixed-height component preview pane.
+pub fn preview_pane<'a, Message, Renderer>(
+    content: impl Into<Element<'a, Message, Theme, Renderer>>,
+) -> Container<'a, Message, Theme, Renderer>
+where
+    Message: 'a,
+    Renderer: iced_widget::core::Renderer + 'a,
+{
+    Container::new(content)
+        .width(Length::Fill)
+        .height(Length::Fixed(PREVIEW_HEIGHT))
+}
+
+/// Creates a fixed-height component preview pane with horizontal alignment.
+pub fn aligned_preview_pane<'a, Message, Renderer>(
+    alignment: alignment::Horizontal,
+    content: impl Into<Element<'a, Message, Theme, Renderer>>,
+) -> Container<'a, Message, Theme, Renderer>
+where
+    Message: 'a,
+    Renderer: iced_widget::core::Renderer + 'a,
+{
+    preview_pane(content).align_x(alignment)
 }
 
 /// Creates a simple Material page header.
@@ -213,5 +269,16 @@ mod tests {
         let _: TestElement<'_> =
             compact_row([Text::new("One").into(), Text::new("Two").into()]).into();
         let _: TestElement<'_> = card(super::super::card::elevated, "Card", "Subtitle").into();
+        let _: TestElement<'_> = centered_preview(320.0, Text::new("Preview")).into();
+        let _: TestElement<'_> = preview_pane(Text::new("Preview")).into();
+        let _: TestElement<'_> =
+            aligned_preview_pane(alignment::Horizontal::Right, Text::new("Preview")).into();
+    }
+
+    #[test]
+    fn preview_width_caps_to_material_preview_bounds() {
+        assert_eq!(preview_width(1920.0), PREVIEW_MAX_WIDTH);
+        assert_eq!(preview_width(420.0), PREVIEW_MIN_WIDTH);
+        assert_eq!(PREVIEW_HEIGHT, 260.0);
     }
 }

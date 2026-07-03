@@ -4,7 +4,7 @@ use iced_widget::core::text as core_text;
 use iced_widget::core::{Background, Color, Element, Length, Padding, alignment, border};
 use iced_widget::graphics::geometry;
 use iced_widget::text;
-use iced_widget::{Column, Container, Row, Text};
+use iced_widget::{Column, Container, Row, Space, Stack, Text, opaque};
 
 use super::absolute_line_height;
 use super::support::alpha_color;
@@ -83,6 +83,18 @@ where
     super::button::text(label)
 }
 
+/// Creates a Material 3 dialog text action with an on-press message.
+pub fn action_button<'a, Message, Renderer>(
+    label: impl text::IntoFragment<'a>,
+    on_press: Message,
+) -> Element<'a, Message, Theme, Renderer>
+where
+    Message: Clone + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+{
+    action(label).on_press(on_press).into()
+}
+
 /// Creates a Material 3 modal dialog scrim behind overlay content.
 pub fn scrim<'a, Message, Renderer>(
     content: impl Into<Element<'a, Message, Theme, Renderer>>,
@@ -112,6 +124,42 @@ where
             .align_x(alignment::Horizontal::Center)
             .align_y(alignment::Vertical::Center),
     )
+}
+
+/// Creates an event-blocking Material 3 modal dialog layer.
+///
+/// The scrim and dialog surface both absorb mouse presses, so clicks outside
+/// the dialog do not pass through to content underneath and do not require a
+/// no-op application message.
+pub fn modal_layer<'a, Message, Renderer>(
+    content: impl Into<Element<'a, Message, Theme, Renderer>>,
+) -> Element<'a, Message, Theme, Renderer>
+where
+    Message: 'a,
+    Renderer: iced_widget::core::Renderer + 'a,
+{
+    let scrim = opaque(scrim(Space::new().width(Length::Fill).height(Length::Fill)));
+    let dialog = opaque(Container::new(content).center(Length::Fill));
+
+    Stack::with_children([scrim, dialog])
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
+}
+
+/// Places a Material 3 modal dialog layer over existing content.
+pub fn modal<'a, Message, Renderer>(
+    content: impl Into<Element<'a, Message, Theme, Renderer>>,
+    dialog: impl Into<Element<'a, Message, Theme, Renderer>>,
+) -> Element<'a, Message, Theme, Renderer>
+where
+    Message: 'a,
+    Renderer: iced_widget::core::Renderer + 'a,
+{
+    Stack::with_children([content.into(), modal_layer(dialog)])
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
 }
 
 fn alert_content<'a, Message, Renderer>(

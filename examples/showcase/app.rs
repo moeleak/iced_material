@@ -2,8 +2,7 @@
 mod pages;
 
 use iced::time::Instant;
-use iced::widget::{MouseArea, Space, Stack};
-use iced::{Length, Size, Subscription, mouse};
+use iced::{Size, Subscription};
 use iced_material as material;
 use material::widget::navigation;
 use material::{ColorScheme, Theme, animation::ColorSchemeTransition};
@@ -44,7 +43,6 @@ enum Message {
     DialogOpened,
     DialogDismissed,
     DialogConfirmed,
-    DialogSurfacePressed,
     WindowResized(Size),
     Frame(Instant),
 }
@@ -271,7 +269,6 @@ fn update(state: &mut Showcase, message: Message) {
             state.alert_dialog_open = false;
             state.count += 1;
         }
-        Message::DialogSurfacePressed => {}
         Message::WindowResized(size) => state.window_size = size,
         Message::DarkModeChanged(dark_mode) => {
             state.dark_mode = dark_mode;
@@ -335,42 +332,22 @@ fn view(state: &Showcase) -> material::Element<'_, Message> {
         .view(Message::Navigate, pages::view(state));
 
     if state.alert_dialog_open {
-        Stack::with_children([content, alert_dialog_overlay()])
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .into()
+        material::widget::dialog::modal(content, alert_dialog())
     } else {
         content
     }
 }
 
-fn alert_dialog_overlay() -> material::Element<'static, Message> {
-    let scrim = MouseArea::new(material::widget::dialog::scrim(
-        Space::new().width(Length::Fill).height(Length::Fill),
-    ))
-    .on_press(Message::DialogSurfacePressed)
-    .interaction(mouse::Interaction::Idle);
-
-    let dialog = material::widget::dialog::alert_with_icon(
+fn alert_dialog() -> material::Element<'static, Message> {
+    material::widget::dialog::alert_with_icon(
         "info",
         "Discard draft?",
         "Your current changes will be removed from this device.",
         material::widget::dialog::actions([
-            material::widget::dialog::action("Cancel")
-                .on_press(Message::DialogDismissed)
-                .into(),
-            material::widget::dialog::action("Discard")
-                .on_press(Message::DialogConfirmed)
-                .into(),
+            material::widget::dialog::action_button("Cancel", Message::DialogDismissed),
+            material::widget::dialog::action_button("Discard", Message::DialogConfirmed),
         ]),
-    );
-
-    Stack::with_children([
-        scrim.into(),
-        material::Container::new(dialog).center(Length::Fill).into(),
-    ])
-    .width(Length::Fill)
-    .height(Length::Fill)
+    )
     .into()
 }
 
@@ -424,9 +401,6 @@ mod tests {
         update(&mut showcase, Message::DialogOpened);
         assert!(showcase.alert_dialog_open);
 
-        update(&mut showcase, Message::DialogSurfacePressed);
-        assert!(showcase.alert_dialog_open);
-
         update(&mut showcase, Message::DialogDismissed);
         assert!(!showcase.alert_dialog_open);
 
@@ -447,15 +421,6 @@ mod tests {
         for destination in NAV_DESTINATIONS {
             assert!(material::fonts::material_symbol_codepoint(destination.icon).is_some());
         }
-    }
-
-    #[test]
-    fn navigation_showcase_rail_height_fits_all_destinations() {
-        assert_eq!(pages::navigation_showcase_rail_height(), 536.0);
-        assert!(
-            pages::navigation_showcase_rail_height()
-                > material::widget::navigation::navigation_rail_min_height(4, true)
-        );
     }
 
     #[test]

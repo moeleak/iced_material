@@ -821,6 +821,23 @@ where
     navigation_rail_with_optional_header(destinations, selection, on_select, None)
 }
 
+pub fn navigation_rail_fitting_content<'a, Id, Message, Renderer, F>(
+    destinations: &'a [Destination<Id>],
+    selection: Selection<Id>,
+    on_select: F,
+) -> Container<'a, Message, Theme, Renderer>
+where
+    Id: Copy + Eq + 'a,
+    Message: Clone + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Font: Into<Renderer::Font>,
+    F: Fn(Id) -> Message + Clone + 'a,
+{
+    navigation_rail(destinations, selection, on_select).height(Length::Fixed(
+        navigation_rail_min_height(destinations.len(), false),
+    ))
+}
+
 pub fn navigation_rail_with_header<'a, Id, Message, Renderer, F>(
     destinations: &'a [Destination<Id>],
     selection: Selection<Id>,
@@ -835,6 +852,24 @@ where
     F: Fn(Id) -> Message + Clone + 'a,
 {
     navigation_rail_with_optional_header(destinations, selection, on_select, Some(header.into()))
+}
+
+pub fn navigation_rail_with_header_fitting_content<'a, Id, Message, Renderer, F>(
+    destinations: &'a [Destination<Id>],
+    selection: Selection<Id>,
+    on_select: F,
+    header: impl Into<Element<'a, Message, Theme, Renderer>>,
+) -> Container<'a, Message, Theme, Renderer>
+where
+    Id: Copy + Eq + 'a,
+    Message: Clone + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Font: Into<Renderer::Font>,
+    F: Fn(Id) -> Message + Clone + 'a,
+{
+    navigation_rail_with_header(destinations, selection, on_select, header).height(Length::Fixed(
+        navigation_rail_min_height(destinations.len(), true),
+    ))
 }
 
 pub fn navigation_rail_with_menu<'a, Id, Message, Renderer, F>(
@@ -856,6 +891,24 @@ where
         on_select,
         navigation_menu_button(on_menu),
     )
+}
+
+pub fn navigation_rail_with_menu_fitting_content<'a, Id, Message, Renderer, F>(
+    destinations: &'a [Destination<Id>],
+    selection: Selection<Id>,
+    on_select: F,
+    on_menu: Message,
+) -> Container<'a, Message, Theme, Renderer>
+where
+    Id: Copy + Eq + 'a,
+    Message: Clone + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Font: Into<Renderer::Font>,
+    F: Fn(Id) -> Message + Clone + 'a,
+{
+    navigation_rail_with_menu(destinations, selection, on_select, on_menu).height(Length::Fixed(
+        navigation_rail_min_height(destinations.len(), true),
+    ))
 }
 
 pub fn navigation_rail_expanded_with_menu<'a, Id, Message, Renderer, F>(
@@ -880,6 +933,27 @@ where
         on_menu,
         tokens::component::navigation_rail::EXPANDED_CONTAINER_WIDTH,
     )
+}
+
+pub fn navigation_rail_expanded_with_menu_fitting_content<'a, Id, Message, Renderer, F>(
+    headline: &'static str,
+    destinations: &'a [Destination<Id>],
+    selection: Selection<Id>,
+    on_select: F,
+    on_menu: Message,
+) -> Container<'a, Message, Theme, Renderer>
+where
+    Id: Copy + Eq + 'a,
+    Message: Clone + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Font: Into<Renderer::Font>,
+    F: Fn(Id) -> Message + Clone + 'a,
+{
+    navigation_rail_expanded_with_menu(headline, destinations, selection, on_select, on_menu)
+        .height(Length::Fixed(navigation_rail_min_height(
+            destinations.len(),
+            true,
+        )))
 }
 
 pub fn navigation_rail_expanded_with_menu_at_width<'a, Id, Message, Renderer, F>(
@@ -3392,6 +3466,53 @@ mod tests {
                 + tokens::component::navigation_rail::VERTICAL_PADDING
                 + navigation_rail_item_slot_height()
                 + tokens::component::navigation_rail::VERTICAL_PADDING
+        );
+    }
+
+    #[test]
+    fn navigation_rail_fitting_content_sets_minimum_height() {
+        let destinations = [
+            Destination::new(Page::One, "1", "One"),
+            Destination::new(Page::Two, "2", "Two"),
+        ];
+        let selection = Selection::new(Page::One);
+
+        let rail: Container<'_, Message, Theme, iced_widget::Renderer> =
+            navigation_rail_fitting_content(&destinations, selection, |_| Message::Frame);
+        let rail_size =
+            iced_widget::core::Widget::<Message, Theme, iced_widget::Renderer>::size(&rail);
+        assert_eq!(
+            rail_size.height,
+            Length::Fixed(navigation_rail_min_height(destinations.len(), false))
+        );
+
+        let rail: Container<'_, Message, Theme, iced_widget::Renderer> =
+            navigation_rail_with_menu_fitting_content(
+                &destinations,
+                selection,
+                |_| Message::Frame,
+                Message::Frame,
+            );
+        let rail_size =
+            iced_widget::core::Widget::<Message, Theme, iced_widget::Renderer>::size(&rail);
+        assert_eq!(
+            rail_size.height,
+            Length::Fixed(navigation_rail_min_height(destinations.len(), true))
+        );
+
+        let rail: Container<'_, Message, Theme, iced_widget::Renderer> =
+            navigation_rail_expanded_with_menu_fitting_content(
+                "Navigation",
+                &destinations,
+                selection,
+                |_| Message::Frame,
+                Message::Frame,
+            );
+        let rail_size =
+            iced_widget::core::Widget::<Message, Theme, iced_widget::Renderer>::size(&rail);
+        assert_eq!(
+            rail_size.height,
+            Length::Fixed(navigation_rail_min_height(destinations.len(), true))
         );
     }
 

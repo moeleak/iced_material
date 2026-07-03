@@ -10,6 +10,7 @@ use super::absolute_line_height;
 use crate::{Theme, text as text_style, tokens};
 
 const CELL_HORIZONTAL_PADDING: f32 = 16.0;
+pub const COMPACT_NUMERIC_COLUMN_WIDTH: f32 = 88.0;
 
 pub fn standard<'a, 'b, T, Message, Renderer>(
     columns: impl IntoIterator<Item = Column<'a, 'b, T, Message, Theme, Renderer>>,
@@ -40,6 +41,20 @@ where
         .align_y(alignment::Vertical::Center)
 }
 
+pub fn weighted_column<'a, 'b, T, F, Message, Renderer>(
+    weight: u16,
+    header: impl text::IntoFragment<'a>,
+    view: impl Fn(T) -> F + 'b,
+) -> Column<'a, 'b, T, Message, Theme, Renderer>
+where
+    T: 'a,
+    F: text::IntoFragment<'a> + 'a,
+    Message: 'a,
+    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+{
+    column(header, view).width(Length::FillPortion(weight))
+}
+
 pub fn numeric_column<'a, 'b, T, F, Message, Renderer>(
     header: impl text::IntoFragment<'a>,
     view: impl Fn(T) -> F + 'b,
@@ -56,6 +71,19 @@ where
     .width(Length::Fill)
     .align_x(alignment::Horizontal::Right)
     .align_y(alignment::Vertical::Center)
+}
+
+pub fn compact_numeric_column<'a, 'b, T, F, Message, Renderer>(
+    header: impl text::IntoFragment<'a>,
+    view: impl Fn(T) -> F + 'b,
+) -> Column<'a, 'b, T, Message, Theme, Renderer>
+where
+    T: 'a,
+    F: text::IntoFragment<'a> + 'a,
+    Message: 'a,
+    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+{
+    numeric_column(header, view).width(Length::Fixed(COMPACT_NUMERIC_COLUMN_WIDTH))
 }
 
 pub fn header_cell<'a, Message, Renderer>(

@@ -10,6 +10,9 @@ use super::{absolute_line_height, button::Button};
 use crate::utils::shadow_from_level;
 use crate::{Theme, button as button_style, fonts, tokens};
 
+/// Status bar inset height used when previewing top app bars edge-to-edge.
+pub const STATUS_BAR_HEIGHT: f32 = 24.0;
+
 /// Creates a Material icon button suitable for app bars.
 pub fn icon_button<'a, Message, Renderer>(
     icon_name: impl text::IntoFragment<'a>,
@@ -39,6 +42,19 @@ where
     ))
     .padding(Padding::ZERO)
     .style(button_style::icon)
+}
+
+/// Creates a Material icon action suitable for app bars.
+pub fn icon_action<'a, Message, Renderer>(
+    icon_name: impl text::IntoFragment<'a>,
+    on_press: Message,
+) -> Element<'a, Message, Theme, Renderer>
+where
+    Message: Clone + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    iced_widget::core::Font: Into<Renderer::Font>,
+{
+    icon_button(icon_name).on_press(on_press).into()
 }
 
 /// Creates a small top app bar.
@@ -180,6 +196,33 @@ where
         })
         .align_y(alignment::Vertical::Center)
         .style(bottom_style)
+}
+
+/// Creates a top app bar status inset using the top app bar surface color.
+pub fn status_bar<'a, Message, Renderer>() -> Container<'a, Message, Theme, Renderer>
+where
+    Message: 'a,
+    Renderer: iced_widget::core::Renderer + 'a,
+{
+    Container::new(Space::new())
+        .height(Length::Fixed(STATUS_BAR_HEIGHT))
+        .width(Length::Fill)
+        .style(|theme| top_style(theme, false))
+}
+
+/// Prepends a status inset to a top app bar.
+pub fn with_status_bar<'a, Message, Renderer>(
+    app_bar: impl Into<Element<'a, Message, Theme, Renderer>>,
+) -> Column<'a, Message, Theme, Renderer>
+where
+    Message: 'a,
+    Renderer: iced_widget::core::Renderer + 'a,
+{
+    Column::new()
+        .push(status_bar())
+        .push(app_bar)
+        .spacing(0)
+        .width(Length::Fill)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -366,5 +409,16 @@ mod tests {
         );
         assert_eq!(style.shadow.offset.y, 2.0);
         assert_eq!(style.shadow.blur_radius, 6.0);
+    }
+
+    #[test]
+    fn status_bar_uses_fixed_edge_to_edge_inset() {
+        let status: Container<'_, (), Theme, iced_widget::Renderer> = status_bar();
+
+        assert_eq!(STATUS_BAR_HEIGHT, 24.0);
+        assert_eq!(
+            iced_widget::core::Widget::<(), Theme, iced_widget::Renderer>::size(&status).height,
+            Length::Fixed(STATUS_BAR_HEIGHT)
+        );
     }
 }

@@ -57,12 +57,12 @@ fn snackbars() -> material::Element<'static, Message> {
     page::stack([
         material::widget::snackbar::single_line_with_action(
             "Photo archived",
-            material::widget::snackbar::action("Undo").on_press(Message::Decrement),
+            material::widget::snackbar::action_button("Undo", Message::Decrement),
         )
         .into(),
         material::widget::snackbar::two_line_with_action(
             "Offline changes will sync when the device reconnects.",
-            material::widget::snackbar::icon_action("close").on_press(Message::Increment),
+            material::widget::snackbar::icon_action_button("close", Message::Increment),
         )
         .into(),
     ])
@@ -71,9 +71,10 @@ fn snackbars() -> material::Element<'static, Message> {
 }
 
 fn dialogs() -> material::Element<'static, Message> {
-    page::row([material::widget::button::filled("Open alert dialog")
-        .on_press(Message::DialogOpened)
-        .into()])
+    page::row([material::widget::button::filled_action(
+        "Open alert dialog",
+        Message::DialogOpened,
+    )])
     .into()
 }
 

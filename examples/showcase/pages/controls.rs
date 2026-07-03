@@ -17,13 +17,9 @@ pub(super) fn view(state: &Showcase) -> material::Element<'_, Message> {
 
 fn counter_controls(state: &Showcase) -> material::Element<'_, Message> {
     page::row([
-        material::widget::button::outlined("Minus")
-            .on_press(Message::Decrement)
-            .into(),
+        material::widget::button::outlined_action("Minus", Message::Decrement),
         material::text::headline_medium(state.count.to_string()).into(),
-        material::widget::button::filled("Plus")
-            .on_press(Message::Increment)
-            .into(),
+        material::widget::button::filled_action("Plus", Message::Increment),
     ])
     .into()
 }

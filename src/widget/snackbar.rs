@@ -103,6 +103,18 @@ where
     .style(action_style)
 }
 
+/// Creates a snackbar text action with an on-press message.
+pub fn action_button<'a, Message, Renderer>(
+    label: impl text::IntoFragment<'a>,
+    on_press: Message,
+) -> Element<'a, Message, Theme, Renderer>
+where
+    Message: Clone + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+{
+    action(label).on_press(on_press).into()
+}
+
 /// Creates a snackbar icon action, typically used for dismiss.
 pub fn icon_action<'a, Message, Renderer>(
     icon_name: impl text::IntoFragment<'a>,
@@ -132,6 +144,19 @@ where
     ))
     .padding(Padding::ZERO)
     .style(icon_action_style)
+}
+
+/// Creates a snackbar icon action with an on-press message.
+pub fn icon_action_button<'a, Message, Renderer>(
+    icon_name: impl text::IntoFragment<'a>,
+    on_press: Message,
+) -> Element<'a, Message, Theme, Renderer>
+where
+    Message: Clone + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    iced_widget::core::Font: Into<Renderer::Font>,
+{
+    icon_action(icon_name).on_press(on_press).into()
 }
 
 fn surface<'a, Message, Renderer>(

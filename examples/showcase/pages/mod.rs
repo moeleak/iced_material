@@ -37,8 +37,3 @@ fn page_label(page: ShowcasePage) -> &'static str {
         ShowcasePage::Structure => "Structure",
     }
 }
-
-#[cfg(test)]
-pub(super) fn navigation_showcase_rail_height() -> f32 {
-    navigation::showcase_rail_height()
-}
