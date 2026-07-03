@@ -31,14 +31,14 @@ const SWATCH_ROWS: usize = 2;
 const PALETTE_BUTTON_SIZE: f32 = 56.0;
 const PALETTE_BUTTON_SHAPE: f32 = tokens::shape::CORNER_LARGE;
 const PALETTE_BUTTON_ELEVATION_LEVEL: u8 = 3;
-const THEME_REVEAL_CENTER_ALPHA: f32 = 0.12;
-const THEME_REVEAL_START_FILL_ALPHA: f32 = 0.18;
-const THEME_REVEAL_EDGE_ALPHA: f32 = 0.24;
-const THEME_REVEAL_EDGE_LAYERS: usize = 14;
-const THEME_REVEAL_MIN_BLUR_WIDTH: f32 = 18.0;
-const THEME_REVEAL_MAX_BLUR_WIDTH: f32 = 96.0;
-const THEME_REVEAL_START_FILL_THRESHOLD: f32 = 0.30;
-const THEME_REVEAL_EDGE_FADE_THRESHOLD: f32 = 0.50;
+const THEME_REVEAL_CENTER_ALPHA: f32 = 0.24;
+const THEME_REVEAL_START_FILL_ALPHA: f32 = 0.30;
+const THEME_REVEAL_EDGE_ALPHA: f32 = 0.54;
+const THEME_REVEAL_EDGE_LAYERS: usize = 20;
+const THEME_REVEAL_MIN_BLUR_WIDTH: f32 = 36.0;
+const THEME_REVEAL_MAX_BLUR_WIDTH: f32 = 180.0;
+const THEME_REVEAL_START_FILL_THRESHOLD: f32 = 0.45;
+const THEME_REVEAL_EDGE_FADE_THRESHOLD: f32 = 0.75;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct State {
@@ -644,7 +644,7 @@ fn draw_reveal_blur_halo<Renderer>(
         let bell = 1.0 - (2.0 * t - 1.0).abs().powi(2);
         let mut color = mix(base, target.surface.color, t * 0.55);
         color.a *= THEME_REVEAL_EDGE_ALPHA * edge_alpha * (0.30 + blur_ratio * 0.70) * bell
-            / THEME_REVEAL_EDGE_LAYERS as f32;
+            / (THEME_REVEAL_EDGE_LAYERS as f32).sqrt();
 
         if color.a <= 0.0 {
             continue;
@@ -836,8 +836,13 @@ mod tests {
         assert_eq!(percent_past_threshold(0.5, 0.5), 0.0);
         assert_eq!(percent_past_threshold(1.0, 0.5), 1.0);
         assert_eq!(reveal_gradient_end_alpha(1.0), 0.0);
-        assert!(reveal_gradient_end_alpha(0.25) > reveal_gradient_end_alpha(0.75));
+        assert_eq!(
+            reveal_gradient_end_alpha(THEME_REVEAL_EDGE_FADE_THRESHOLD),
+            1.0
+        );
+        assert!(reveal_gradient_end_alpha(0.80) > reveal_gradient_end_alpha(0.95));
         assert_eq!(reveal_start_fill_alpha(1.0), 0.0);
+        assert!(reveal_start_fill_alpha(0.40) > reveal_start_fill_alpha(0.80));
     }
 
     #[test]

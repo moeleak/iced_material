@@ -5,6 +5,8 @@ use iced_widget::core::{Point, Size};
 
 use crate::{ColorScheme, tokens};
 
+const THEME_REVEAL_DURATION_MS: u64 = 1_200;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ColorSchemeTransition {
     from: ColorScheme,
@@ -95,7 +97,7 @@ impl ThemeRevealTransition {
             to,
             origin,
             started_at,
-            Duration::from_millis(u64::from(tokens::motion::DURATION_MEDIUM4_MS)),
+            Duration::from_millis(THEME_REVEAL_DURATION_MS),
             tokens::motion::EASING_EMPHASIZED_DECELERATE,
         )
     }
@@ -198,6 +200,8 @@ mod tests {
             transition.reveal_radius_at(Size::new(6.0, 8.0), start + Duration::from_millis(200))
                 > 0.0
         );
+        assert!(!transition.is_finished_at(start + Duration::from_millis(1_000)));
+        assert!(transition.is_finished_at(start + Duration::from_millis(THEME_REVEAL_DURATION_MS)));
         assert_eq!(transition.target(), target);
     }
 }
