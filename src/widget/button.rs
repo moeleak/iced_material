@@ -196,19 +196,18 @@ impl ButtonState {
     }
 
     fn has_visible_ripples(&self, now: Instant) -> bool {
-        self.visible_ripple_opacity(now) > 0.0
+        self.ripple_opacity(now) > 0.0
     }
 
-    fn visible_ripple_opacity(&self, now: Instant) -> f32 {
-        self.active_ripple
+    fn ripple_opacity(&self, now: Instant) -> f32 {
+        let active = self.active_ripple.map_or(0.0, |ripple| ripple.opacity(now));
+        let exiting = self
+            .exiting_ripples
+            .iter()
             .map(|ripple| ripple.opacity(now))
-            .into_iter()
-            .chain(
-                self.exiting_ripples
-                    .iter()
-                    .map(|ripple| ripple.opacity(now)),
-            )
-            .fold(0.0, f32::max)
+            .fold(0.0, f32::max);
+
+        active.max(exiting)
     }
 }
 
@@ -477,12 +476,7 @@ where
             button_status(self.on_press.is_some(), state.is_pressed, bounds, cursor)
         });
         let now = state.now.unwrap_or_else(Instant::now);
-        let style = button_draw_style(
-            theme,
-            &self.class,
-            status,
-            state.visible_ripple_opacity(now),
-        );
+        let style = button_draw_style(theme, &self.class, status, state.ripple_opacity(now));
         let content_layout = layout.children().next().unwrap();
 
         if style.background.is_some() || style.border.width > 0.0 || style.shadow.color.a > 0.0 {
@@ -593,20 +587,20 @@ fn button_draw_style(
     theme: &Theme,
     class: &<Theme as Catalog>::Class<'_>,
     status: Status,
-    visible_ripple_opacity: f32,
+    ripple_opacity: f32,
 ) -> Style {
     let mut style = theme.style(class, status);
-    let active = theme.style(class, Status::Active);
+    let active_background = theme.style(class, Status::Active).background;
 
     match status {
         Status::Pressed => {
-            style.background = active.background;
+            style.background = active_background;
         }
-        Status::Hovered if visible_ripple_opacity > 0.0 => {
-            style.background = blend_background(
-                active.background,
+        Status::Hovered if ripple_opacity > 0.0 => {
+            style.background = interpolate_background(
+                active_background,
                 style.background,
-                1.0 - visible_ripple_opacity.clamp(0.0, 1.0),
+                hover_state_layer_progress(ripple_opacity),
             );
         }
         Status::Active | Status::Hovered | Status::Disabled => {}
@@ -615,25 +609,29 @@ fn button_draw_style(
     style
 }
 
-fn blend_background(
+fn hover_state_layer_progress(ripple_opacity: f32) -> f32 {
+    1.0 - ripple_opacity.clamp(0.0, 1.0)
+}
+
+fn interpolate_background(
     from: Option<Background>,
     to: Option<Background>,
-    progress: f32,
+    to_progress: f32,
 ) -> Option<Background> {
-    let progress = progress.clamp(0.0, 1.0);
+    let to_progress = to_progress.clamp(0.0, 1.0);
 
-    if progress <= 0.0 {
+    if to_progress <= 0.0 {
         return from;
-    } else if progress >= 1.0 {
+    } else if to_progress >= 1.0 {
         return to;
     }
 
     match (from, to) {
         (Some(Background::Color(from)), Some(Background::Color(to))) => {
-            Some(Background::Color(mix(from, to, progress)))
+            Some(Background::Color(mix(from, to, to_progress)))
         }
-        (None, Some(to)) => Some(to.scale_alpha(progress)),
-        (Some(from), None) => Some(from.scale_alpha(1.0 - progress)),
+        (None, Some(to)) => Some(to.scale_alpha(to_progress)),
+        (Some(from), None) => Some(from.scale_alpha(1.0 - to_progress)),
         (None, None) => None,
         (_, to) => to,
     }
@@ -1061,7 +1059,7 @@ mod tests {
     }
 
     #[test]
-    fn visible_ripple_opacity_tracks_max_ripple_alpha() {
+    fn ripple_opacity_tracks_max_visible_alpha() {
         let start = Instant::now();
         let release = start + duration_ms(50);
         let mut state = ButtonState::default();
@@ -1069,19 +1067,13 @@ mod tests {
         state.press(Point::new(10.0, 10.0), start);
         state.release(release);
 
-        assert_close(state.visible_ripple_opacity(release + duration_ms(25)), 1.0);
-        assert_close(
-            state.visible_ripple_opacity(release + duration_ms(250)),
-            0.5,
-        );
-        assert_close(
-            state.visible_ripple_opacity(release + duration_ms(325)),
-            0.0,
-        );
+        assert_close(state.ripple_opacity(release + duration_ms(25)), 1.0);
+        assert_close(state.ripple_opacity(release + duration_ms(250)), 0.5);
+        assert_close(state.ripple_opacity(release + duration_ms(325)), 0.0);
     }
 
     #[test]
-    fn visible_ripple_fades_hover_state_layer_background() {
+    fn ripple_fade_reveals_hover_state_layer_background() {
         let theme = Theme::Light;
         let class: StyleFn<'_, Theme> = Box::new(crate::button::text);
         let active = button_draw_style(&theme, &class, Status::Active, 0.0);
@@ -1101,6 +1093,13 @@ mod tests {
 
         assert!(fading_color.a > 0.0);
         assert!(fading_color.a < hovered_color.a);
+    }
+
+    #[test]
+    fn hover_state_layer_progress_inverts_ripple_opacity() {
+        assert_close(hover_state_layer_progress(1.0), 0.0);
+        assert_close(hover_state_layer_progress(0.25), 0.75);
+        assert_close(hover_state_layer_progress(0.0), 1.0);
     }
 
     #[test]
