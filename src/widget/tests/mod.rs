@@ -133,8 +133,24 @@ fn material_dialog_constructors_compile_to_elements() {
         dialog::alert_with_icon("info", "Title", "Supporting text", dialog::actions(actions))
             .into();
 
+    let actions: [TestElement<'_>; 2] = [
+        dialog::action_button_alpha("Cancel", Message::Pressed, 0.5),
+        dialog::action_button_alpha("OK", Message::Pressed, 0.5),
+    ];
+    let _: TestElement<'_> = dialog::alert_with_icon_alpha(
+        "info",
+        "Title",
+        "Supporting text",
+        dialog::actions(actions),
+        0.5,
+    )
+    .into();
+
     let content: TestElement<'_> = Text::new("Scrim content").into();
     let _: TestElement<'_> = dialog::scrim(content).into();
+
+    let content: TestElement<'_> = Text::new("Animated scrim content").into();
+    let _: TestElement<'_> = dialog::scrim_alpha(content, 0.5).into();
 
     let content: TestElement<'_> = Text::new("Modal dialog").into();
     let _: TestElement<'_> = dialog::modal_overlay(content).into();
@@ -145,6 +161,16 @@ fn material_dialog_constructors_compile_to_elements() {
     let content: TestElement<'_> = Text::new("Page content").into();
     let dialog_content: TestElement<'_> = Text::new("Dialog content").into();
     let _: TestElement<'_> = dialog::modal(content, dialog_content);
+
+    let transition = dialog::Transition::default();
+    let content: TestElement<'_> = Text::new("Page content").into();
+    let dialog_content: TestElement<'_> = Text::new("Animated dialog content").into();
+    let _: TestElement<'_> = dialog::modal_animated(
+        content,
+        &transition,
+        iced_widget::core::time::Instant::now(),
+        dialog_content,
+    );
 }
 
 #[test]

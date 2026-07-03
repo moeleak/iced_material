@@ -43,7 +43,7 @@ pub fn shadow_from_elevation(elevation: f32, color: Color) -> Shadow {
 
 pub fn state_layer(color: Color, opacity: f32) -> Color {
     Color {
-        a: opacity,
+        a: color.a * opacity,
         ..color
     }
 }
@@ -152,7 +152,9 @@ pub fn mix(color1: Color, color2: Color, p2: f32) -> Color {
 
 #[cfg(test)]
 mod tests {
-    use super::{Color, HOVERED_LAYER_OPACITY, PRESSED_LAYER_OPACITY, mix, shadow_from_level};
+    use super::{
+        Color, HOVERED_LAYER_OPACITY, PRESSED_LAYER_OPACITY, mix, shadow_from_level, state_layer,
+    };
 
     #[test]
     fn mixing() {
@@ -169,6 +171,13 @@ mod tests {
     fn state_layer_opacities_match_m3_tokens() {
         assert_eq!(HOVERED_LAYER_OPACITY, 0.08);
         assert_eq!(PRESSED_LAYER_OPACITY, 0.10);
+    }
+
+    #[test]
+    fn state_layer_preserves_source_alpha() {
+        let color = Color::from_rgba(1.0, 0.0, 0.0, 0.5);
+
+        assert_eq!(state_layer(color, 0.10).a, 0.05);
     }
 
     #[test]

@@ -1,15 +1,185 @@
 //! Material 3 dialog surface constructors.
 
+use iced_widget::button::{Status, Style};
 use iced_widget::core::text as core_text;
-use iced_widget::core::{Background, Color, Element, Length, Padding, alignment, border};
+use iced_widget::core::time::Instant;
+use iced_widget::core::widget::{self, Tree, tree};
+use iced_widget::core::{
+    Background, Clipboard, Color, Element, Event, Layout, Length, Padding, Rectangle, Shell, Size,
+    Transformation, Vector, Widget, alignment, border, layout, mouse, overlay, renderer,
+};
 use iced_widget::graphics::geometry;
 use iced_widget::text;
 use iced_widget::{Column, Container, Row, Space, Stack, Text, opaque};
 
 use super::absolute_line_height;
-use super::support::alpha_color;
+use super::support::{alpha_color, duration_ms, lerp};
 use crate::utils::shadow_from_level;
 use crate::{Theme, fonts, tokens};
+
+/// Android dialog visibility animation state.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Transition {
+    phase: TransitionPhase,
+    started_at: Option<Instant>,
+}
+
+/// Android dialog transition phase.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TransitionPhase {
+    Hidden,
+    Showing,
+    Shown,
+    Dismissing,
+}
+
+impl Default for Transition {
+    fn default() -> Self {
+        Self {
+            phase: TransitionPhase::Hidden,
+            started_at: None,
+        }
+    }
+}
+
+impl Transition {
+    /// Starts showing the dialog using Android's platform dialog window animation.
+    pub fn show(&mut self, now: Instant) {
+        match self.phase {
+            TransitionPhase::Showing | TransitionPhase::Shown => {}
+            TransitionPhase::Hidden | TransitionPhase::Dismissing => {
+                self.phase = TransitionPhase::Showing;
+                self.started_at = Some(now);
+            }
+        }
+    }
+
+    /// Starts dismissing the dialog.
+    pub fn dismiss(&mut self, now: Instant) {
+        if self.is_active() && self.phase != TransitionPhase::Dismissing {
+            self.phase = TransitionPhase::Dismissing;
+            self.started_at = Some(now);
+        }
+    }
+
+    /// Advances timers and hides the dialog once Android's exit animation ends.
+    pub fn advance(&mut self, now: Instant) -> bool {
+        match self.phase {
+            TransitionPhase::Hidden => {}
+            TransitionPhase::Showing => {
+                if self.scale_progress(now) >= 1.0 {
+                    self.phase = TransitionPhase::Shown;
+                    self.started_at = None;
+                }
+            }
+            TransitionPhase::Shown => {}
+            TransitionPhase::Dismissing => {
+                if self.scale_progress(now) >= 1.0 {
+                    *self = Self::default();
+                }
+            }
+        }
+
+        self.is_animating()
+    }
+
+    /// Returns whether the dialog should remain in the view tree.
+    pub fn is_active(&self) -> bool {
+        self.phase != TransitionPhase::Hidden
+    }
+
+    /// Returns whether the dialog is currently running an enter or exit animation.
+    pub fn is_animating(&self) -> bool {
+        matches!(
+            self.phase,
+            TransitionPhase::Showing | TransitionPhase::Dismissing
+        )
+    }
+
+    /// Returns the current transition phase.
+    pub fn phase(&self) -> TransitionPhase {
+        self.phase
+    }
+
+    /// Computes the Android dialog surface scale.
+    pub fn scale(&self, now: Instant) -> f32 {
+        let eased = android_decelerate(
+            self.scale_progress(now),
+            tokens::component::dialog::DECELERATE_QUINT_FACTOR,
+        );
+
+        match self.phase {
+            TransitionPhase::Hidden => tokens::component::dialog::ENTER_SCALE_FROM,
+            TransitionPhase::Showing => {
+                lerp(tokens::component::dialog::ENTER_SCALE_FROM, 1.0, eased)
+            }
+            TransitionPhase::Shown => 1.0,
+            TransitionPhase::Dismissing => {
+                lerp(1.0, tokens::component::dialog::EXIT_SCALE_TO, eased)
+            }
+        }
+    }
+
+    /// Computes the Android dialog window alpha.
+    pub fn alpha(&self, now: Instant) -> f32 {
+        let eased = android_decelerate(
+            self.alpha_progress(now),
+            tokens::component::dialog::DECELERATE_CUBIC_FACTOR,
+        );
+
+        match self.phase {
+            TransitionPhase::Hidden => 0.0,
+            TransitionPhase::Showing => eased,
+            TransitionPhase::Shown => 1.0,
+            TransitionPhase::Dismissing => 1.0 - eased,
+        }
+    }
+
+    /// Computes the modal scrim fade progress.
+    pub fn scrim_alpha(&self, now: Instant) -> f32 {
+        let eased = android_decelerate(
+            self.scrim_progress(now),
+            tokens::component::dialog::DECELERATE_CUBIC_FACTOR,
+        );
+
+        match self.phase {
+            TransitionPhase::Hidden => 0.0,
+            TransitionPhase::Showing => eased,
+            TransitionPhase::Shown => 1.0,
+            TransitionPhase::Dismissing => 1.0 - eased,
+        }
+    }
+
+    fn scale_progress(&self, now: Instant) -> f32 {
+        self.progress(now, tokens::component::dialog::SCALE_ANIMATION_DURATION_MS)
+    }
+
+    fn alpha_progress(&self, now: Instant) -> f32 {
+        self.progress(now, tokens::component::dialog::ALPHA_ANIMATION_DURATION_MS)
+    }
+
+    fn scrim_progress(&self, now: Instant) -> f32 {
+        self.progress(now, tokens::component::dialog::SCRIM_ANIMATION_DURATION_MS)
+    }
+
+    fn progress(&self, now: Instant, duration_ms_value: u16) -> f32 {
+        let Some(started_at) = self.started_at else {
+            return match self.phase {
+                TransitionPhase::Showing | TransitionPhase::Dismissing => 1.0,
+                TransitionPhase::Hidden | TransitionPhase::Shown => 0.0,
+            };
+        };
+
+        let duration = duration_ms(duration_ms_value);
+
+        if duration.is_zero() {
+            return 1.0;
+        }
+
+        (now.saturating_duration_since(started_at).as_secs_f32() / duration.as_secs_f32())
+            .clamp(0.0, 1.0)
+    }
+}
 
 /// Creates a Material 3 basic dialog surface around custom content.
 pub fn basic<'a, Message, Renderer>(
@@ -19,11 +189,23 @@ where
     Message: 'a,
     Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
 {
+    basic_alpha(content, 1.0)
+}
+
+/// Creates a Material 3 basic dialog surface with Android window alpha applied.
+pub fn basic_alpha<'a, Message, Renderer>(
+    content: impl Into<Element<'a, Message, Theme, Renderer>>,
+    alpha: f32,
+) -> Container<'a, Message, Theme, Renderer>
+where
+    Message: 'a,
+    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+{
     Container::new(content)
         .width(Length::Fill)
         .max_width(tokens::component::dialog::CONTAINER_MAX_WIDTH)
         .padding(tokens::component::dialog::CONTAINER_PADDING)
-        .style(container_style)
+        .style(move |theme| container_style_alpha(theme, alpha))
 }
 
 /// Creates a Material 3 alert dialog with title, supporting text, and actions.
@@ -37,7 +219,22 @@ where
     Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
-    alert_content(None, title, supporting_text, actions)
+    alert_alpha(title, supporting_text, actions, 1.0)
+}
+
+/// Creates a Material 3 alert dialog with Android window alpha applied.
+pub fn alert_alpha<'a, Message, Renderer>(
+    title: impl text::IntoFragment<'a>,
+    supporting_text: impl text::IntoFragment<'a>,
+    actions: impl Into<Element<'a, Message, Theme, Renderer>>,
+    alpha: f32,
+) -> Container<'a, Message, Theme, Renderer>
+where
+    Message: 'a,
+    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    iced_widget::core::Font: Into<Renderer::Font>,
+{
+    alert_content(None, title, supporting_text, actions, alpha)
 }
 
 /// Creates a Material 3 alert dialog with the optional hero icon slot populated.
@@ -52,7 +249,29 @@ where
     Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
-    alert_content(Some(icon.into_fragment()), title, supporting_text, actions)
+    alert_with_icon_alpha(icon, title, supporting_text, actions, 1.0)
+}
+
+/// Creates a Material 3 alert dialog with an icon and Android window alpha applied.
+pub fn alert_with_icon_alpha<'a, Message, Renderer>(
+    icon: impl text::IntoFragment<'a>,
+    title: impl text::IntoFragment<'a>,
+    supporting_text: impl text::IntoFragment<'a>,
+    actions: impl Into<Element<'a, Message, Theme, Renderer>>,
+    alpha: f32,
+) -> Container<'a, Message, Theme, Renderer>
+where
+    Message: 'a,
+    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    iced_widget::core::Font: Into<Renderer::Font>,
+{
+    alert_content(
+        Some(icon.into_fragment()),
+        title,
+        supporting_text,
+        actions,
+        alpha,
+    )
 }
 
 /// Creates a right-aligned Material 3 dialog actions row.
@@ -95,6 +314,31 @@ where
     action(label).on_press(on_press).into()
 }
 
+/// Creates a Material 3 dialog text action with Android window alpha applied.
+pub fn action_alpha<'a, Message, Renderer>(
+    label: impl text::IntoFragment<'a>,
+    alpha: f32,
+) -> super::button::Button<'a, Message, Renderer>
+where
+    Message: Clone + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+{
+    action(label).style(move |theme, status| action_style_alpha(theme, status, alpha))
+}
+
+/// Creates a Material 3 dialog text action button with Android window alpha applied.
+pub fn action_button_alpha<'a, Message, Renderer>(
+    label: impl text::IntoFragment<'a>,
+    on_press: Message,
+    alpha: f32,
+) -> Element<'a, Message, Theme, Renderer>
+where
+    Message: Clone + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+{
+    action_alpha(label, alpha).on_press(on_press).into()
+}
+
 /// Creates a Material 3 modal dialog scrim behind overlay content.
 pub fn scrim<'a, Message, Renderer>(
     content: impl Into<Element<'a, Message, Theme, Renderer>>,
@@ -103,10 +347,22 @@ where
     Message: 'a,
     Renderer: iced_widget::core::Renderer + 'a,
 {
+    scrim_alpha(content, 1.0)
+}
+
+/// Creates a Material 3 modal dialog scrim with Android dim fade alpha applied.
+pub fn scrim_alpha<'a, Message, Renderer>(
+    content: impl Into<Element<'a, Message, Theme, Renderer>>,
+    alpha: f32,
+) -> Container<'a, Message, Theme, Renderer>
+where
+    Message: 'a,
+    Renderer: iced_widget::core::Renderer + 'a,
+{
     Container::new(content)
         .width(Length::Fill)
         .height(Length::Fill)
-        .style(scrim_style)
+        .style(move |theme| scrim_style_alpha(theme, alpha))
 }
 
 /// Centers a Material 3 dialog surface over a modal scrim.
@@ -147,6 +403,35 @@ where
         .into()
 }
 
+/// Creates an event-blocking Material 3 modal dialog layer animated like Android.
+pub fn modal_layer_animated<'a, Message, Renderer>(
+    content: impl Into<Element<'a, Message, Theme, Renderer>>,
+    transition: &Transition,
+    now: Instant,
+) -> Element<'a, Message, Theme, Renderer>
+where
+    Message: 'a,
+    Renderer: iced_widget::core::Renderer + 'a,
+{
+    let scrim = opaque(scrim_alpha(
+        Space::new().width(Length::Fill).height(Length::Fill),
+        transition.scrim_alpha(now),
+    ));
+    let dialog = opaque(
+        Container::new(scaled(
+            content,
+            transition.scale(now),
+            transition.phase() != TransitionPhase::Dismissing,
+        ))
+        .center(Length::Fill),
+    );
+
+    Stack::with_children([scrim, dialog])
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
+}
+
 /// Places a Material 3 modal dialog layer over existing content.
 pub fn modal<'a, Message, Renderer>(
     content: impl Into<Element<'a, Message, Theme, Renderer>>,
@@ -162,11 +447,35 @@ where
         .into()
 }
 
+/// Places an Android-animated Material 3 modal dialog layer over existing content.
+pub fn modal_animated<'a, Message, Renderer>(
+    content: impl Into<Element<'a, Message, Theme, Renderer>>,
+    transition: &Transition,
+    now: Instant,
+    dialog: impl Into<Element<'a, Message, Theme, Renderer>>,
+) -> Element<'a, Message, Theme, Renderer>
+where
+    Message: 'a,
+    Renderer: iced_widget::core::Renderer + 'a,
+{
+    let content = content.into();
+
+    if !transition.is_active() {
+        return content;
+    }
+
+    Stack::with_children([content, modal_layer_animated(dialog, transition, now)])
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
+}
+
 fn alert_content<'a, Message, Renderer>(
     icon: Option<text::Fragment<'a>>,
     title: impl text::IntoFragment<'a>,
     supporting_text: impl text::IntoFragment<'a>,
     actions: impl Into<Element<'a, Message, Theme, Renderer>>,
+    alpha: f32,
 ) -> Container<'a, Message, Theme, Renderer>
 where
     Message: 'a,
@@ -178,7 +487,7 @@ where
 
     if let Some(icon) = icon {
         content = content.push(
-            Container::new(icon_text(icon))
+            Container::new(icon_text(icon, alpha))
                 .width(Length::Fill)
                 .padding(Padding {
                     top: 0.0,
@@ -191,7 +500,7 @@ where
     }
 
     content = content.push(
-        Container::new(title_text(title, title_alignment))
+        Container::new(title_text(title, title_alignment, alpha))
             .width(Length::Fill)
             .padding(Padding {
                 top: 0.0,
@@ -202,7 +511,7 @@ where
     );
 
     content = content.push(
-        Container::new(supporting_text_view(supporting_text))
+        Container::new(supporting_text_view(supporting_text, alpha))
             .width(Length::Fill)
             .padding(Padding {
                 top: 0.0,
@@ -214,10 +523,10 @@ where
 
     content = content.push(actions.into());
 
-    basic(content)
+    basic_alpha(content, alpha)
 }
 
-fn icon_text<'a, Renderer>(icon: text::Fragment<'a>) -> Text<'a, Theme, Renderer>
+fn icon_text<'a, Renderer>(icon: text::Fragment<'a>, alpha: f32) -> Text<'a, Theme, Renderer>
 where
     Renderer: core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
@@ -226,12 +535,13 @@ where
         .width(Length::Fixed(tokens::component::dialog::ICON_SIZE))
         .height(Length::Fixed(tokens::component::dialog::ICON_SIZE))
         .center()
-        .style(icon_style)
+        .style(move |theme| icon_style_alpha(theme, alpha))
 }
 
 fn title_text<'a, Renderer>(
     title: impl text::IntoFragment<'a>,
     alignment: alignment::Horizontal,
+    alpha: f32,
 ) -> Text<'a, Theme, Renderer>
 where
     Renderer: core_text::Renderer + 'a,
@@ -244,7 +554,7 @@ where
         .width(Length::Fill)
         .align_x(alignment)
         .color_maybe(None::<iced_widget::core::Color>)
-        .style(title_style)
+        .style(move |theme| title_style_alpha(theme, alpha))
 }
 
 fn title_alignment(has_icon: bool) -> alignment::Horizontal {
@@ -257,6 +567,7 @@ fn title_alignment(has_icon: bool) -> alignment::Horizontal {
 
 fn supporting_text_view<'a, Renderer>(
     supporting_text: impl text::IntoFragment<'a>,
+    alpha: f32,
 ) -> Text<'a, Theme, Renderer>
 where
     Renderer: core_text::Renderer + 'a,
@@ -268,7 +579,7 @@ where
         .line_height(absolute_line_height(scale.line_height))
         .width(Length::Fill)
         .color_maybe(None::<iced_widget::core::Color>)
-        .style(supporting_text_style)
+        .style(move |theme| supporting_text_style_alpha(theme, alpha))
 }
 
 fn container_style(theme: &Theme) -> iced_widget::container::Style {
@@ -286,9 +597,30 @@ fn container_style(theme: &Theme) -> iced_widget::container::Style {
     }
 }
 
+fn container_style_alpha(theme: &Theme, alpha: f32) -> iced_widget::container::Style {
+    let mut style = container_style(theme);
+
+    style.background = style
+        .background
+        .map(|background| background.scale_alpha(alpha));
+    style.text_color = style.text_color.map(|color| alpha_color(color, alpha));
+    style.border.color = alpha_color(style.border.color, alpha);
+    style.shadow.color = alpha_color(style.shadow.color, alpha);
+
+    style
+}
+
 fn icon_style(theme: &Theme) -> iced_widget::text::Style {
     iced_widget::text::Style {
         color: Some(theme.colors().secondary.color),
+    }
+}
+
+fn icon_style_alpha(theme: &Theme, alpha: f32) -> iced_widget::text::Style {
+    iced_widget::text::Style {
+        color: icon_style(theme)
+            .color
+            .map(|color| alpha_color(color, alpha)),
     }
 }
 
@@ -298,23 +630,282 @@ fn title_style(theme: &Theme) -> iced_widget::text::Style {
     }
 }
 
+fn title_style_alpha(theme: &Theme, alpha: f32) -> iced_widget::text::Style {
+    iced_widget::text::Style {
+        color: title_style(theme)
+            .color
+            .map(|color| alpha_color(color, alpha)),
+    }
+}
+
 fn supporting_text_style(theme: &Theme) -> iced_widget::text::Style {
     iced_widget::text::Style {
         color: Some(theme.colors().surface.text_variant),
     }
 }
 
-fn scrim_style(theme: &Theme) -> iced_widget::container::Style {
+fn supporting_text_style_alpha(theme: &Theme, alpha: f32) -> iced_widget::text::Style {
+    iced_widget::text::Style {
+        color: supporting_text_style(theme)
+            .color
+            .map(|color| alpha_color(color, alpha)),
+    }
+}
+
+fn action_style_alpha(theme: &Theme, status: Status, alpha: f32) -> Style {
+    let mut style = crate::button::text(theme, status);
+
+    style.background = style
+        .background
+        .map(|background| background.scale_alpha(alpha));
+    style.text_color = alpha_color(style.text_color, alpha);
+    style.border.color = alpha_color(style.border.color, alpha);
+    style.shadow.color = alpha_color(style.shadow.color, alpha);
+
+    style
+}
+
+fn scrim_style_alpha(theme: &Theme, alpha: f32) -> iced_widget::container::Style {
     iced_widget::container::Style {
         background: Some(Background::Color(alpha_color(
             Color {
                 a: 1.0,
                 ..theme.colors().scrim
             },
-            tokens::component::dialog::SCRIM_OPACITY,
+            tokens::component::dialog::SCRIM_OPACITY * alpha,
         ))),
         text_color: Some(theme.colors().surface.text),
         ..iced_widget::container::Style::default()
+    }
+}
+
+fn scaled<'a, Message, Renderer>(
+    content: impl Into<Element<'a, Message, Theme, Renderer>>,
+    scale: f32,
+    interactive: bool,
+) -> Element<'a, Message, Theme, Renderer>
+where
+    Message: 'a,
+    Renderer: iced_widget::core::Renderer + 'a,
+{
+    Element::new(Scaled {
+        content: content.into(),
+        scale,
+        interactive,
+    })
+}
+
+struct Scaled<'a, Message, Renderer> {
+    content: Element<'a, Message, Theme, Renderer>,
+    scale: f32,
+    interactive: bool,
+}
+
+struct ScaledTag;
+
+impl<Message, Renderer> std::fmt::Debug for Scaled<'_, Message, Renderer> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Scaled")
+            .field("scale", &self.scale)
+            .field("interactive", &self.interactive)
+            .finish_non_exhaustive()
+    }
+}
+
+impl<Message, Renderer> Scaled<'_, Message, Renderer> {
+    fn transformation(&self, bounds: Rectangle) -> Transformation {
+        Transformation::translate(bounds.center_x(), bounds.center_y())
+            * Transformation::scale(self.scale)
+            * Transformation::translate(-bounds.center_x(), -bounds.center_y())
+    }
+}
+
+impl<Message, Renderer> Widget<Message, Theme, Renderer> for Scaled<'_, Message, Renderer>
+where
+    Renderer: iced_widget::core::Renderer,
+{
+    fn tag(&self) -> tree::Tag {
+        tree::Tag::of::<ScaledTag>()
+    }
+
+    fn state(&self) -> tree::State {
+        tree::State::None
+    }
+
+    fn children(&self) -> Vec<Tree> {
+        vec![Tree::new(&self.content)]
+    }
+
+    fn diff(&self, tree: &mut Tree) {
+        tree.diff_children(std::slice::from_ref(&self.content));
+    }
+
+    fn size(&self) -> Size<Length> {
+        self.content.as_widget().size()
+    }
+
+    fn size_hint(&self) -> Size<Length> {
+        self.content.as_widget().size_hint()
+    }
+
+    fn layout(
+        &mut self,
+        tree: &mut Tree,
+        renderer: &Renderer,
+        limits: &layout::Limits,
+    ) -> layout::Node {
+        self.content
+            .as_widget_mut()
+            .layout(&mut tree.children[0], renderer, limits)
+    }
+
+    fn operate(
+        &mut self,
+        tree: &mut Tree,
+        layout: Layout<'_>,
+        renderer: &Renderer,
+        operation: &mut dyn widget::Operation,
+    ) {
+        self.content
+            .as_widget_mut()
+            .operate(&mut tree.children[0], layout, renderer, operation);
+    }
+
+    fn update(
+        &mut self,
+        tree: &mut Tree,
+        event: &Event,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        renderer: &Renderer,
+        clipboard: &mut dyn Clipboard,
+        shell: &mut Shell<'_, Message>,
+        viewport: &Rectangle,
+    ) {
+        if !self.interactive {
+            if !matches!(
+                event,
+                Event::Window(iced_widget::core::window::Event::RedrawRequested(_))
+            ) {
+                return;
+            }
+        }
+
+        let inverse = self.transformation(layout.bounds()).inverse();
+        let cursor = if self.interactive {
+            cursor * inverse
+        } else {
+            mouse::Cursor::Unavailable
+        };
+
+        self.content.as_widget_mut().update(
+            &mut tree.children[0],
+            event,
+            layout,
+            cursor,
+            renderer,
+            clipboard,
+            shell,
+            &(*viewport * inverse),
+        );
+    }
+
+    fn mouse_interaction(
+        &self,
+        tree: &Tree,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        viewport: &Rectangle,
+        renderer: &Renderer,
+    ) -> mouse::Interaction {
+        if !self.interactive {
+            return mouse::Interaction::None;
+        }
+
+        let inverse = self.transformation(layout.bounds()).inverse();
+
+        self.content.as_widget().mouse_interaction(
+            &tree.children[0],
+            layout,
+            cursor * inverse,
+            &(*viewport * inverse),
+            renderer,
+        )
+    }
+
+    fn draw(
+        &self,
+        tree: &Tree,
+        renderer: &mut Renderer,
+        theme: &Theme,
+        style: &renderer::Style,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        viewport: &Rectangle,
+    ) {
+        let Some(layer_bounds) = scaled_layer_bounds(layout.bounds(), viewport) else {
+            return;
+        };
+        let transformation = self.transformation(layout.bounds());
+        let inverse = transformation.inverse();
+        let cursor = if self.interactive {
+            cursor * inverse
+        } else {
+            mouse::Cursor::Unavailable
+        };
+
+        renderer.with_layer(layer_bounds, |renderer| {
+            renderer.with_transformation(transformation, |renderer| {
+                self.content.as_widget().draw(
+                    &tree.children[0],
+                    renderer,
+                    theme,
+                    style,
+                    layout,
+                    cursor,
+                    &(*viewport * inverse),
+                );
+            });
+        });
+    }
+
+    fn overlay<'b>(
+        &'b mut self,
+        tree: &'b mut Tree,
+        layout: Layout<'b>,
+        renderer: &Renderer,
+        viewport: &Rectangle,
+        translation: Vector,
+    ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
+        if !self.interactive {
+            return None;
+        }
+
+        let transformation = self.transformation(layout.bounds());
+        let inverse = transformation.inverse();
+
+        self.content.as_widget_mut().overlay(
+            &mut tree.children[0],
+            layout,
+            renderer,
+            &(*viewport * inverse),
+            translation + transformation.translation(),
+        )
+    }
+}
+
+fn scaled_layer_bounds(bounds: Rectangle, viewport: &Rectangle) -> Option<Rectangle> {
+    bounds.intersection(viewport).map(|_| *viewport)
+}
+
+fn android_decelerate(progress: f32, factor: f32) -> f32 {
+    let progress = progress.clamp(0.0, 1.0);
+
+    // Mirrors Android's DecelerateInterpolator: 1 - (1 - t) ^ (2 * factor).
+    if (factor - 1.0).abs() <= f32::EPSILON {
+        1.0 - (1.0 - progress) * (1.0 - progress)
+    } else {
+        1.0 - (1.0 - progress).powf(2.0 * factor)
     }
 }
 
@@ -359,6 +950,33 @@ mod tests {
     }
 
     #[test]
+    fn dialog_alpha_styles_scale_material_color_roles() {
+        let theme = Theme::Light;
+        let colors = theme.colors();
+        let alpha = 0.5;
+
+        assert_eq!(
+            container_style_alpha(&theme, alpha).background,
+            Some(Background::Color(alpha_color(
+                colors.surface.container.high,
+                alpha
+            )))
+        );
+        assert_eq!(
+            icon_style_alpha(&theme, alpha).color,
+            Some(alpha_color(colors.secondary.color, alpha))
+        );
+        assert_eq!(
+            title_style_alpha(&theme, alpha).color,
+            Some(alpha_color(colors.surface.text, alpha))
+        );
+        assert_eq!(
+            supporting_text_style_alpha(&theme, alpha).color,
+            Some(alpha_color(colors.surface.text_variant, alpha))
+        );
+    }
+
+    #[test]
     fn dialog_title_alignment_follows_icon_presence() {
         assert_eq!(title_alignment(true), alignment::Horizontal::Center);
         assert_eq!(title_alignment(false), alignment::Horizontal::Left);
@@ -367,7 +985,7 @@ mod tests {
     #[test]
     fn dialog_title_text_fills_width_for_alignment() {
         let title: Text<'_, Theme, iced_widget::Renderer> =
-            title_text("Discard draft?", alignment::Horizontal::Center);
+            title_text("Discard draft?", alignment::Horizontal::Center, 1.0);
 
         assert_eq!(
             Widget::<Message, Theme, iced_widget::Renderer>::size(&title).width,
@@ -378,12 +996,92 @@ mod tests {
     #[test]
     fn dialog_scrim_uses_material_scrim_opacity() {
         let theme = Theme::Light;
-        let style = scrim_style(&theme);
+        let style = scrim_style_alpha(&theme, 1.0);
         let Some(Background::Color(color)) = style.background else {
             panic!("expected solid scrim background");
         };
 
         assert_eq!(color.a, tokens::component::dialog::SCRIM_OPACITY);
         assert_eq!(style.text_color, Some(theme.colors().surface.text));
+    }
+
+    #[test]
+    fn dialog_transition_matches_android_platform_timing() {
+        let start = Instant::now();
+        let mut transition = Transition::default();
+
+        transition.show(start);
+
+        assert_eq!(transition.phase(), TransitionPhase::Showing);
+        assert_eq!(
+            transition.scale(start),
+            tokens::component::dialog::ENTER_SCALE_FROM
+        );
+        assert_eq!(transition.alpha(start), 0.0);
+        assert_eq!(transition.scrim_alpha(start), 0.0);
+
+        let alpha_finished =
+            start + duration_ms(tokens::component::dialog::ALPHA_ANIMATION_DURATION_MS);
+        assert_eq!(transition.alpha(alpha_finished), 1.0);
+        assert!(transition.scale(alpha_finished) < 1.0);
+
+        let shown = start + duration_ms(tokens::component::dialog::SCALE_ANIMATION_DURATION_MS);
+        assert_eq!(transition.scale(shown), 1.0);
+        assert_eq!(transition.scrim_alpha(shown), 1.0);
+        assert!(!transition.advance(shown));
+        assert_eq!(transition.phase(), TransitionPhase::Shown);
+        assert!(!transition.is_animating());
+
+        transition.dismiss(shown);
+        assert_eq!(transition.phase(), TransitionPhase::Dismissing);
+        assert_eq!(transition.scale(shown), 1.0);
+        assert_eq!(transition.alpha(shown), 1.0);
+
+        let hidden = shown + duration_ms(tokens::component::dialog::SCALE_ANIMATION_DURATION_MS);
+        assert_eq!(
+            transition.scale(hidden),
+            tokens::component::dialog::EXIT_SCALE_TO
+        );
+        assert_eq!(transition.alpha(hidden), 0.0);
+        assert!(!transition.advance(hidden));
+        assert_eq!(transition.phase(), TransitionPhase::Hidden);
+    }
+
+    #[test]
+    fn android_decelerate_matches_platform_factor_formula() {
+        assert_eq!(android_decelerate(0.0, 2.5), 0.0);
+        assert_eq!(android_decelerate(1.0, 2.5), 1.0);
+        assert!((android_decelerate(0.5, 1.5) - 0.875).abs() < 0.001);
+        assert!((android_decelerate(0.5, 2.5) - 0.96875).abs() < 0.001);
+    }
+
+    #[test]
+    fn dismissing_scaled_dialog_preserves_child_state() {
+        let interactive: Element<'_, Message, Theme, iced_widget::Renderer> =
+            scaled(Text::new("Dialog"), 1.0, true);
+        let dismissing: Element<'_, Message, Theme, iced_widget::Renderer> =
+            scaled(Text::new("Dialog"), 1.0, false);
+
+        assert_eq!(interactive.as_widget().tag(), dismissing.as_widget().tag());
+        assert_eq!(interactive.as_widget().children().len(), 1);
+        assert_eq!(dismissing.as_widget().children().len(), 1);
+    }
+
+    #[test]
+    fn scaled_dialog_layer_uses_viewport_to_preserve_shadow() {
+        let bounds = Rectangle {
+            x: 100.0,
+            y: 100.0,
+            width: 240.0,
+            height: 160.0,
+        };
+        let viewport = Rectangle {
+            x: 0.0,
+            y: 0.0,
+            width: 800.0,
+            height: 600.0,
+        };
+
+        assert_eq!(scaled_layer_bounds(bounds, &viewport), Some(viewport));
     }
 }

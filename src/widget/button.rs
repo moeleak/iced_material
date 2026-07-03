@@ -469,7 +469,8 @@ where
         let status = self.status.or(state.last_status).unwrap_or_else(|| {
             button_status(self.on_press.is_some(), state.is_pressed, bounds, cursor)
         });
-        let style = button_draw_style(theme, &self.class, status);
+        let now = state.now.unwrap_or_else(Instant::now);
+        let style = button_draw_style(theme, &self.class, status, state.has_visible_ripples(now));
         let content_layout = layout.children().next().unwrap();
 
         if style.background.is_some() || style.border.width > 0.0 || style.shadow.color.a > 0.0 {
@@ -580,10 +581,13 @@ fn button_draw_style(
     theme: &Theme,
     class: &<Theme as Catalog>::Class<'_>,
     status: Status,
+    has_visible_ripple: bool,
 ) -> Style {
     let mut style = theme.style(class, status);
 
-    if matches!(status, Status::Pressed) {
+    if matches!(status, Status::Pressed)
+        || (has_visible_ripple && matches!(status, Status::Hovered))
+    {
         let active = theme.style(class, Status::Active);
         style.background = active.background;
     }
@@ -1010,6 +1014,18 @@ mod tests {
         assert!(state.active_ripple.is_some());
         assert_eq!(state.exiting_ripples.len(), 1);
         assert!(state.has_visible_ripples(start + duration_ms(75)));
+    }
+
+    #[test]
+    fn visible_ripple_suppresses_hover_state_layer_background() {
+        let theme = Theme::Light;
+        let class: StyleFn<'_, Theme> = Box::new(crate::button::text);
+        let hovered = button_draw_style(&theme, &class, Status::Hovered, false);
+        let ripple_hovered = button_draw_style(&theme, &class, Status::Hovered, true);
+        let active = button_draw_style(&theme, &class, Status::Active, false);
+
+        assert!(hovered.background.is_some());
+        assert_eq!(ripple_hovered.background, active.background);
     }
 
     #[test]

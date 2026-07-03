@@ -630,6 +630,15 @@ pub mod component {
         pub const ACTIONS_HORIZONTAL_SPACING: f32 = 8.0;
         pub const ACTIONS_VERTICAL_SPACING: f32 = 8.0;
         pub const SCRIM_OPACITY: f32 = 0.32;
+
+        // Android framework @style/Animation.Dialog uses dialog_enter/dialog_exit.
+        pub const ENTER_SCALE_FROM: f32 = 0.9;
+        pub const EXIT_SCALE_TO: f32 = 0.9;
+        pub const SCALE_ANIMATION_DURATION_MS: u16 = 220;
+        pub const ALPHA_ANIMATION_DURATION_MS: u16 = 150;
+        pub const SCRIM_ANIMATION_DURATION_MS: u16 = 220;
+        pub const DECELERATE_CUBIC_FACTOR: f32 = 1.5;
+        pub const DECELERATE_QUINT_FACTOR: f32 = 2.5;
         pub const ACTION_LABEL_TEXT: super::super::typography::TypeScale =
             super::super::typography::LABEL_LARGE;
         pub const HEADLINE_TEXT: super::super::typography::TypeScale =
@@ -1001,6 +1010,9 @@ pub mod component {
         pub const PLAIN_SUPPORTING_TEXT: super::super::typography::TypeScale =
             super::super::typography::BODY_SMALL;
 
+        // Android framework @style/Animation.Tooltip uses tooltip_enter/tooltip_exit.
+        pub const ANIMATION_DURATION_MS: u16 = 150;
+
         pub const RICH_MAX_WIDTH: f32 = 320.0;
         pub const RICH_MIN_HEIGHT: f32 = 24.0;
         pub const RICH_MIN_WIDTH: f32 = 40.0;
@@ -1366,6 +1378,13 @@ mod tests {
         assert_eq!(component::dialog::ACTIONS_HORIZONTAL_SPACING, 8.0);
         assert_eq!(component::dialog::ACTIONS_VERTICAL_SPACING, 8.0);
         assert_eq!(component::dialog::SCRIM_OPACITY, 0.32);
+        assert_eq!(component::dialog::ENTER_SCALE_FROM, 0.9);
+        assert_eq!(component::dialog::EXIT_SCALE_TO, 0.9);
+        assert_eq!(component::dialog::SCALE_ANIMATION_DURATION_MS, 220);
+        assert_eq!(component::dialog::ALPHA_ANIMATION_DURATION_MS, 150);
+        assert_eq!(component::dialog::SCRIM_ANIMATION_DURATION_MS, 220);
+        assert_eq!(component::dialog::DECELERATE_CUBIC_FACTOR, 1.5);
+        assert_eq!(component::dialog::DECELERATE_QUINT_FACTOR, 2.5);
         assert_eq!(
             component::dialog::ACTION_LABEL_TEXT,
             typography::LABEL_LARGE
@@ -1643,6 +1662,7 @@ mod tests {
         assert_eq!(component::tooltip::PLAIN_VERTICAL_SPACE, 4.0);
         assert_eq!(component::tooltip::PLAIN_CONTAINER_SHAPE, 4.0);
         assert_eq!(component::tooltip::PLAIN_SUPPORTING_TEXT.size, 12.0);
+        assert_eq!(component::tooltip::ANIMATION_DURATION_MS, 150);
         assert_eq!(component::tooltip::RICH_MAX_WIDTH, 320.0);
         assert_eq!(component::tooltip::RICH_MIN_HEIGHT, 24.0);
         assert_eq!(component::tooltip::RICH_MIN_WIDTH, 40.0);

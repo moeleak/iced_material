@@ -2,13 +2,15 @@
 
 use super::*;
 
+use iced_widget::core::Transformation;
+
 pub use iced_tooltip::Position;
 
 pub fn plain<'a, Message, Renderer>(
     content: impl Into<Element<'a, Message, Theme, Renderer>>,
     supporting_text: impl text::IntoFragment<'a>,
     position: Position,
-) -> Tooltip<'a, Message, Theme, Renderer>
+) -> PlainTooltip<'a, Message, Renderer>
 where
     Message: 'a,
     Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
@@ -27,9 +29,10 @@ where
     })
     .max_width(plain_tooltip_inner_max_width());
 
-    Tooltip::new(content, tooltip, position)
+    RichTooltip::new(content, tooltip, position)
         .gap(tokens::component::tooltip::SPACING_BETWEEN_TOOLTIP_AND_ANCHOR)
         .padding(tokens::component::tooltip::PLAIN_VERTICAL_SPACE)
+        .interactive_surface(false)
         .style(tooltip_style::plain)
 }
 
@@ -181,6 +184,10 @@ where
         .style(tooltip_style::rich)
 }
 
+/// A Material plain tooltip with Android platform tooltip show/hide animation.
+pub type PlainTooltip<'a, Message, Renderer = iced_widget::Renderer> =
+    RichTooltip<'a, Message, Renderer>;
+
 /// A Material rich tooltip that remains interactive while the pointer moves
 /// from its anchor to the tooltip surface.
 pub struct RichTooltip<'a, Message, Renderer = iced_widget::Renderer>
@@ -193,6 +200,7 @@ where
     gap: f32,
     padding: f32,
     snap_within_viewport: bool,
+    interactive_surface: bool,
     class: <Theme as iced_container::Catalog>::Class<'a>,
 }
 
@@ -206,6 +214,7 @@ where
             .field("gap", &self.gap)
             .field("padding", &self.padding)
             .field("snap_within_viewport", &self.snap_within_viewport)
+            .field("interactive_surface", &self.interactive_surface)
             .finish_non_exhaustive()
     }
 }
@@ -227,6 +236,7 @@ where
             gap: 0.0,
             padding: 0.0,
             snap_within_viewport: true,
+            interactive_surface: true,
             class: <Theme as iced_container::Catalog>::default(),
         }
     }
@@ -243,6 +253,11 @@ where
 
     pub fn snap_within_viewport(mut self, snap: bool) -> Self {
         self.snap_within_viewport = snap;
+        self
+    }
+
+    fn interactive_surface(mut self, interactive: bool) -> Self {
+        self.interactive_surface = interactive;
         self
     }
 
@@ -306,34 +321,26 @@ where
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
     ) {
-        if let Event::Mouse(_) = event {
+        if let Event::Mouse(_) | Event::Window(window::Event::RedrawRequested(_)) = event {
             let state = tree.state.downcast_mut::<RichTooltipState>();
+            let now = tooltip_event_time(event);
+            let was_visible = state.is_visible();
             let cursor_position = cursor.position_over(layout.bounds());
 
-            match (*state, cursor_position) {
-                (RichTooltipState::Idle, Some(cursor_position)) => {
-                    *state = RichTooltipState::Open { cursor_position };
-                    shell.invalidate_layout();
-                    shell.request_redraw();
-                }
-                (
-                    RichTooltipState::Open {
-                        cursor_position: last_position,
-                    },
-                    Some(cursor_position),
-                ) if self.position == Position::FollowCursor
-                    && cursor_position != last_position =>
-                {
-                    *state = RichTooltipState::Open { cursor_position };
-                    shell.request_redraw();
-                }
-                (RichTooltipState::Open { .. }, None) => {
-                    *state = RichTooltipState::Idle;
-                    shell.invalidate_layout();
-                    shell.request_redraw();
-                }
-                _ => {}
+            state.advance(now);
+
+            if let Some(cursor_position) = cursor_position {
+                state.show(now, cursor_position);
+                shell.request_redraw();
+            } else if rich_tooltip_anchor_exit_dismisses(self.interactive_surface, state) {
+                state.dismiss(now);
             }
+
+            if was_visible != state.is_visible() {
+                shell.invalidate_layout();
+            }
+
+            request_tooltip_redraw(state, shell);
         }
 
         self.content.as_widget_mut().update(
@@ -394,7 +401,7 @@ where
         viewport: &Rectangle,
         translation: Vector,
     ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
-        let state = tree.state.downcast_ref::<RichTooltipState>();
+        let state = tree.state.downcast_mut::<RichTooltipState>();
         let mut children = tree.children.iter_mut();
 
         let content = self.content.as_widget_mut().overlay(
@@ -406,19 +413,21 @@ where
         );
 
         let content_bounds = translated_bounds(layout.bounds(), translation);
-        let tooltip = if let RichTooltipState::Open { cursor_position } = *state {
+        let tooltip = if state.is_visible() {
             Some(overlay::Element::new(Box::new(RichTooltipOverlay {
                 tooltip: &mut self.tooltip,
                 tree: children.next().unwrap(),
-                cursor_position,
+                state,
                 content_bounds,
                 snap_within_viewport: self.snap_within_viewport,
                 position: self.position,
                 gap: self.gap,
                 padding: self.padding,
+                interactive_surface: self.interactive_surface,
                 class: &self.class,
             })))
         } else {
+            let _ = children.next();
             None
         };
 
@@ -462,13 +471,114 @@ where
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
-enum RichTooltipState {
-    #[default]
-    Idle,
-    Open {
-        cursor_position: Point,
-    },
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TooltipPhase {
+    Hidden,
+    Showing,
+    Shown,
+    Dismissing,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct RichTooltipState {
+    phase: TooltipPhase,
+    cursor_position: Point,
+    started_at: Option<Instant>,
+    reveal_from: f32,
+}
+
+impl Default for RichTooltipState {
+    fn default() -> Self {
+        Self {
+            phase: TooltipPhase::Hidden,
+            cursor_position: Point::ORIGIN,
+            started_at: None,
+            reveal_from: 0.0,
+        }
+    }
+}
+
+impl RichTooltipState {
+    fn show(&mut self, now: Instant, cursor_position: Point) {
+        self.cursor_position = cursor_position;
+
+        match self.phase {
+            TooltipPhase::Showing | TooltipPhase::Shown => {}
+            TooltipPhase::Hidden | TooltipPhase::Dismissing => {
+                self.reveal_from = self.reveal(now);
+                self.phase = TooltipPhase::Showing;
+                self.started_at = Some(now);
+            }
+        }
+    }
+
+    fn dismiss(&mut self, now: Instant) {
+        match self.phase {
+            TooltipPhase::Hidden | TooltipPhase::Dismissing => {}
+            TooltipPhase::Showing | TooltipPhase::Shown => {
+                self.reveal_from = self.reveal(now);
+                self.phase = TooltipPhase::Dismissing;
+                self.started_at = Some(now);
+            }
+        }
+    }
+
+    fn advance(&mut self, now: Instant) {
+        match self.phase {
+            TooltipPhase::Hidden | TooltipPhase::Shown => {}
+            TooltipPhase::Showing if self.progress(now) >= 1.0 => {
+                self.phase = TooltipPhase::Shown;
+                self.started_at = None;
+                self.reveal_from = 1.0;
+            }
+            TooltipPhase::Showing => {}
+            TooltipPhase::Dismissing if self.progress(now) >= 1.0 => {
+                *self = Self::default();
+            }
+            TooltipPhase::Dismissing => {}
+        }
+    }
+
+    fn is_visible(&self) -> bool {
+        self.phase != TooltipPhase::Hidden
+    }
+
+    fn is_animating(&self) -> bool {
+        matches!(self.phase, TooltipPhase::Showing | TooltipPhase::Dismissing)
+    }
+
+    fn reveal(&self, now: Instant) -> f32 {
+        match self.phase {
+            TooltipPhase::Hidden => 0.0,
+            TooltipPhase::Shown => 1.0,
+            TooltipPhase::Showing => {
+                let eased = decelerate_quad(self.progress(now));
+                lerp(self.reveal_from, 1.0, eased)
+            }
+            TooltipPhase::Dismissing => {
+                let eased = accelerate_quad(self.progress(now));
+                lerp(self.reveal_from, 0.0, eased)
+            }
+        }
+    }
+
+    fn progress(&self, now: Instant) -> f32 {
+        let Some(started_at) = self.started_at else {
+            return match self.phase {
+                TooltipPhase::Showing | TooltipPhase::Dismissing => 1.0,
+                TooltipPhase::Hidden | TooltipPhase::Shown => 0.0,
+            };
+        };
+
+        let duration = duration_ms(tokens::component::tooltip::ANIMATION_DURATION_MS);
+
+        if duration.is_zero() {
+            return 1.0;
+        }
+
+        (now.saturating_duration_since(started_at).as_secs_f32() / duration.as_secs_f32())
+            .clamp(0.0, 1.0)
+    }
 }
 
 struct RichTooltipOverlay<'a, 'b, Message, Renderer>
@@ -477,12 +587,13 @@ where
 {
     tooltip: &'b mut Element<'a, Message, Theme, Renderer>,
     tree: &'b mut Tree,
-    cursor_position: Point,
+    state: &'b mut RichTooltipState,
     content_bounds: Rectangle,
     snap_within_viewport: bool,
     position: Position,
     gap: f32,
     padding: f32,
+    interactive_surface: bool,
     class: &'b <Theme as iced_container::Catalog>::Class<'a>,
 }
 
@@ -511,7 +622,7 @@ where
             self.content_bounds,
             tooltip_layout.bounds().size(),
             viewport,
-            self.cursor_position,
+            self.state.cursor_position,
             self.position,
             self.gap,
             self.padding,
@@ -535,13 +646,18 @@ where
         shell: &mut Shell<'_, Message>,
     ) {
         let tooltip_bounds = layout.bounds();
-        let hover_bounds = rich_tooltip_hover_bounds(self.content_bounds, tooltip_bounds);
-        let cursor_in_overlay =
-            cursor.is_over(hover_bounds) && !cursor.is_over(self.content_bounds);
+        let now = tooltip_event_time(event);
+        let cursor_in_content = cursor.is_over(self.content_bounds);
+        let cursor_in_tooltip = cursor.is_over(tooltip_bounds);
+        let cursor_in_keep_alive = self.interactive_surface
+            && rich_tooltip_keep_alive_contains(
+                self.content_bounds,
+                tooltip_bounds,
+                self.position,
+                cursor,
+            );
 
-        if cursor.is_over(tooltip_bounds)
-            && let Some(child_layout) = layout.children().next()
-        {
+        if cursor_in_tooltip && let Some(child_layout) = layout.children().next() {
             self.tooltip.as_widget_mut().update(
                 self.tree,
                 event,
@@ -554,7 +670,33 @@ where
             );
         }
 
-        if cursor_in_overlay && matches!(event, Event::Mouse(_)) {
+        if let Event::Mouse(_) | Event::Window(window::Event::RedrawRequested(_)) = event {
+            let was_visible = self.state.is_visible();
+
+            if cursor_in_content || cursor_in_keep_alive {
+                if let Some(cursor_position) = cursor.position_over(self.content_bounds) {
+                    self.state.show(now, cursor_position);
+                } else if self.state.phase == TooltipPhase::Dismissing {
+                    self.state.show(now, self.state.cursor_position);
+                }
+            } else {
+                self.state.dismiss(now);
+            }
+
+            self.state.advance(now);
+
+            if was_visible != self.state.is_visible() {
+                shell.invalidate_layout();
+            }
+
+            request_tooltip_redraw(self.state, shell);
+        }
+
+        if self.interactive_surface
+            && (cursor_in_tooltip || cursor_in_keep_alive)
+            && !cursor_in_content
+            && matches!(event, Event::Mouse(_))
+        {
             shell.capture_event();
         }
     }
@@ -590,23 +732,32 @@ where
         layout: Layout<'_>,
         cursor: mouse::Cursor,
     ) {
-        let style = iced_container::Catalog::style(theme, self.class);
-
-        iced_container::draw_background(renderer, &style, layout.bounds());
-
-        let defaults = renderer::Style {
-            text_color: style.text_color.unwrap_or(inherited_style.text_color),
-        };
-
-        self.tooltip.as_widget().draw(
-            self.tree,
-            renderer,
-            theme,
-            &defaults,
-            layout.children().next().unwrap(),
-            cursor,
-            &Rectangle::with_size(Size::INFINITE),
+        let reveal = self.state.reveal(Instant::now());
+        let style = tooltip_container_style_alpha(
+            iced_container::Catalog::style(theme, self.class),
+            reveal,
         );
+        let transformation = tooltip_reveal_transformation(layout.bounds(), reveal);
+
+        renderer.with_layer(layout.bounds(), |renderer| {
+            renderer.with_transformation(transformation, |renderer| {
+                iced_container::draw_background(renderer, &style, layout.bounds());
+
+                let defaults = renderer::Style {
+                    text_color: style.text_color.unwrap_or(inherited_style.text_color),
+                };
+
+                self.tooltip.as_widget().draw(
+                    self.tree,
+                    renderer,
+                    theme,
+                    &defaults,
+                    layout.children().next().unwrap(),
+                    cursor,
+                    &Rectangle::with_size(Size::INFINITE),
+                );
+            });
+        });
     }
 
     fn overlay<'c>(
@@ -691,20 +842,110 @@ fn rich_tooltip_surface_bounds(
     tooltip_bounds
 }
 
-fn rich_tooltip_hover_bounds(content_bounds: Rectangle, tooltip_bounds: Rectangle) -> Rectangle {
-    let left = content_bounds.x.min(tooltip_bounds.x);
-    let top = content_bounds.y.min(tooltip_bounds.y);
-    let right =
-        (content_bounds.x + content_bounds.width).max(tooltip_bounds.x + tooltip_bounds.width);
-    let bottom =
-        (content_bounds.y + content_bounds.height).max(tooltip_bounds.y + tooltip_bounds.height);
+fn rich_tooltip_keep_alive_contains(
+    content_bounds: Rectangle,
+    tooltip_bounds: Rectangle,
+    position: Position,
+    cursor: mouse::Cursor,
+) -> bool {
+    let Some(cursor) = cursor.position() else {
+        return false;
+    };
 
-    Rectangle {
-        x: left,
-        y: top,
-        width: right - left,
-        height: bottom - top,
+    if content_bounds.contains(cursor) || tooltip_bounds.contains(cursor) {
+        return true;
     }
+
+    rich_tooltip_corridor_bounds(content_bounds, tooltip_bounds, position)
+        .is_some_and(|bounds| bounds.contains(cursor))
+}
+
+fn rich_tooltip_anchor_exit_dismisses(interactive_surface: bool, state: &RichTooltipState) -> bool {
+    !interactive_surface || !state.is_visible()
+}
+
+fn rich_tooltip_corridor_bounds(
+    content_bounds: Rectangle,
+    tooltip_bounds: Rectangle,
+    position: Position,
+) -> Option<Rectangle> {
+    let content_right = content_bounds.x + content_bounds.width;
+    let content_bottom = content_bounds.y + content_bounds.height;
+    let tooltip_right = tooltip_bounds.x + tooltip_bounds.width;
+    let tooltip_bottom = tooltip_bounds.y + tooltip_bounds.height;
+
+    match position {
+        Position::Top if tooltip_bottom <= content_bounds.y => Some(Rectangle {
+            x: content_bounds.x,
+            y: tooltip_bottom,
+            width: content_bounds.width,
+            height: content_bounds.y - tooltip_bottom,
+        }),
+        Position::Bottom if content_bottom <= tooltip_bounds.y => Some(Rectangle {
+            x: content_bounds.x,
+            y: content_bottom,
+            width: content_bounds.width,
+            height: tooltip_bounds.y - content_bottom,
+        }),
+        Position::Left if tooltip_right <= content_bounds.x => Some(Rectangle {
+            x: tooltip_right,
+            y: content_bounds.y,
+            width: content_bounds.x - tooltip_right,
+            height: content_bounds.height,
+        }),
+        Position::Right if content_right <= tooltip_bounds.x => Some(Rectangle {
+            x: content_right,
+            y: content_bounds.y,
+            width: tooltip_bounds.x - content_right,
+            height: content_bounds.height,
+        }),
+        _ => None,
+    }
+}
+
+fn tooltip_container_style_alpha(
+    mut style: iced_container::Style,
+    alpha: f32,
+) -> iced_container::Style {
+    style.background = style
+        .background
+        .map(|background| background.scale_alpha(alpha));
+    style.text_color = style.text_color.map(|color| alpha_color(color, alpha));
+    style.border.color = alpha_color(style.border.color, alpha);
+    style.shadow.color = alpha_color(style.shadow.color, alpha);
+
+    style
+}
+
+fn tooltip_reveal_transformation(bounds: Rectangle, reveal: f32) -> Transformation {
+    Transformation::translate(bounds.center_x(), bounds.center_y())
+        * Transformation::scale(reveal)
+        * Transformation::translate(-bounds.center_x(), -bounds.center_y())
+}
+
+fn tooltip_event_time(event: &Event) -> Instant {
+    match event {
+        Event::Window(window::Event::RedrawRequested(now)) => *now,
+        _ => Instant::now(),
+    }
+}
+
+fn request_tooltip_redraw<Message>(state: &RichTooltipState, shell: &mut Shell<'_, Message>) {
+    if state.is_animating() {
+        shell.request_redraw();
+    }
+}
+
+fn decelerate_quad(progress: f32) -> f32 {
+    let progress = progress.clamp(0.0, 1.0);
+
+    1.0 - (1.0 - progress) * (1.0 - progress)
+}
+
+fn accelerate_quad(progress: f32) -> f32 {
+    let progress = progress.clamp(0.0, 1.0);
+
+    progress * progress
 }
 
 fn rich_title_text<'a, Renderer>(title: impl text::IntoFragment<'a>) -> Text<'a, Theme, Renderer>
@@ -852,7 +1093,7 @@ mod tests {
     }
 
     #[test]
-    fn rich_tooltip_hover_bounds_span_anchor_surface_and_gap() {
+    fn rich_tooltip_corridor_spans_anchor_surface_gap() {
         let content = Rectangle {
             x: 120.0,
             y: 160.0,
@@ -865,10 +1106,103 @@ mod tests {
             width: 180.0,
             height: 96.0,
         };
-        let hover = rich_tooltip_hover_bounds(content, tooltip);
+        let corridor = rich_tooltip_corridor_bounds(content, tooltip, Position::Top)
+            .expect("top tooltip should have a corridor to its anchor");
 
-        assert!(hover.contains(Point::new(160.0, 158.0)));
-        assert!(hover.contains(Point::new(160.0, 120.0)));
-        assert!(hover.contains(Point::new(160.0, 176.0)));
+        assert!(corridor.contains(Point::new(160.0, 158.0)));
+        assert!(!corridor.contains(Point::new(160.0, 120.0)));
+        assert!(!corridor.contains(Point::new(80.0, 158.0)));
+    }
+
+    #[test]
+    fn rich_tooltip_keep_alive_does_not_cover_adjacent_anchor() {
+        let rich_anchor = Rectangle {
+            x: 289.0,
+            y: 290.0,
+            width: 118.0,
+            height: 62.0,
+        };
+        let rich_tooltip = Rectangle {
+            x: 28.0,
+            y: 9.0,
+            width: 640.0,
+            height: 272.0,
+        };
+
+        assert!(rich_tooltip_keep_alive_contains(
+            rich_anchor,
+            rich_tooltip,
+            Position::Top,
+            mouse::Cursor::Available(Point::new(348.0, 286.0)),
+        ));
+        assert!(!rich_tooltip_keep_alive_contains(
+            rich_anchor,
+            rich_tooltip,
+            Position::Top,
+            mouse::Cursor::Available(Point::new(200.0, 322.0)),
+        ));
+    }
+
+    #[test]
+    fn rich_tooltip_anchor_exit_defers_dismissal_to_overlay() {
+        let start = Instant::now();
+        let mut state = RichTooltipState::default();
+
+        state.show(start, Point::new(10.0, 20.0));
+
+        assert!(!rich_tooltip_anchor_exit_dismisses(true, &state));
+        assert!(rich_tooltip_anchor_exit_dismisses(false, &state));
+    }
+
+    #[test]
+    fn rich_tooltip_transition_uses_android_tooltip_easing() {
+        let start = Instant::now();
+        let mut state = RichTooltipState::default();
+
+        state.show(start, Point::new(10.0, 20.0));
+        assert_eq!(state.phase, TooltipPhase::Showing);
+        assert_eq!(state.reveal(start), 0.0);
+
+        let halfway = start + duration_ms(tokens::component::tooltip::ANIMATION_DURATION_MS / 2);
+        assert!((state.reveal(halfway) - 0.75).abs() < 0.001);
+
+        let shown = start + duration_ms(tokens::component::tooltip::ANIMATION_DURATION_MS);
+        state.advance(shown);
+        assert_eq!(state.phase, TooltipPhase::Shown);
+        assert_eq!(state.reveal(shown), 1.0);
+
+        state.dismiss(shown);
+        assert_eq!(state.phase, TooltipPhase::Dismissing);
+        assert_eq!(state.reveal(shown), 1.0);
+        assert!(
+            (state
+                .reveal(halfway + duration_ms(tokens::component::tooltip::ANIMATION_DURATION_MS))
+                - 0.75)
+                .abs()
+                < 0.001
+        );
+
+        let hidden = shown + duration_ms(tokens::component::tooltip::ANIMATION_DURATION_MS);
+        state.advance(hidden);
+        assert_eq!(state.phase, TooltipPhase::Hidden);
+        assert_eq!(state.reveal(hidden), 0.0);
+    }
+
+    #[test]
+    fn tooltip_alpha_style_scales_container_colors() {
+        let theme = Theme::Light;
+        let style = tooltip_container_style_alpha(tooltip_style::rich(&theme), 0.5);
+
+        assert_eq!(
+            style.background,
+            Some(Background::Color(alpha_color(
+                theme.colors().surface.container.base,
+                0.5
+            )))
+        );
+        assert_eq!(
+            style.text_color,
+            Some(alpha_color(theme.colors().surface.text_variant, 0.5))
+        );
     }
 }

@@ -24,7 +24,7 @@ use iced_widget::text_input as iced_text_input;
 use iced_widget::toggler as iced_toggler;
 use iced_widget::tooltip as iced_tooltip;
 use iced_widget::{
-    Container, Row, Rule, Text, TextEditor as IcedTextEditor, TextInput as IcedTextInput, Tooltip,
+    Container, Row, Rule, Text, TextEditor as IcedTextEditor, TextInput as IcedTextInput,
 };
 
 use crate::utils::mix;

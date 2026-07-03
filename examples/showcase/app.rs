@@ -157,7 +157,7 @@ struct Showcase {
     secondary_tab: TabChoice,
     secondary_tab_state: material::widget::tabs::State,
     progress_animation: material::widget::progress_bar::IndeterminateState,
-    alert_dialog_open: bool,
+    alert_dialog: material::widget::dialog::Transition,
     snackbar: material::widget::snackbar::Transition,
     visible_scheme: ColorScheme,
     animation: Option<ColorSchemeTransition>,
@@ -198,7 +198,7 @@ impl Default for Showcase {
             progress_animation: material::widget::progress_bar::IndeterminateState::new(
                 Instant::now(),
             ),
-            alert_dialog_open: false,
+            alert_dialog: material::widget::dialog::Transition::default(),
             snackbar: material::widget::snackbar::Transition::default(),
             visible_scheme: initial_theme.colors(),
             animation: None,
@@ -267,10 +267,10 @@ fn update(state: &mut Showcase, message: Message) {
             );
         }
         Message::MenuPressed => state.navigation.toggle_menu_now(),
-        Message::DialogOpened => state.alert_dialog_open = true,
-        Message::DialogDismissed => state.alert_dialog_open = false,
+        Message::DialogOpened => state.alert_dialog.show(Instant::now()),
+        Message::DialogDismissed => state.alert_dialog.dismiss(Instant::now()),
         Message::DialogConfirmed => {
-            state.alert_dialog_open = false;
+            state.alert_dialog.dismiss(Instant::now());
             state.count += 1;
         }
         Message::ShowSnackbar => state.snackbar.show(Instant::now()),
@@ -308,6 +308,7 @@ fn update(state: &mut Showcase, message: Message) {
             let _ = state.primary_tab_state.advance(now);
             let _ = state.secondary_tab_state.advance(now);
             state.progress_animation.advance(now);
+            let _ = state.alert_dialog.advance(now);
             let _ = state.snackbar.advance(now);
         }
     }
@@ -326,6 +327,7 @@ fn subscription(state: &Showcase) -> Subscription<Message> {
         || state.segment_state.is_animating()
         || state.primary_tab_state.is_animating()
         || state.secondary_tab_state.is_animating()
+        || state.alert_dialog.is_animating()
         || state.snackbar.is_active()
         || (state.navigation.selected() == ShowcasePage::Feedback
             && state.progress_animation.is_animating())
@@ -337,10 +339,11 @@ fn subscription(state: &Showcase) -> Subscription<Message> {
 }
 
 fn view(state: &Showcase) -> material::Element<'_, Message> {
+    let now = Instant::now();
     let page_content = material::widget::snackbar::host_single_line_with_action(
         pages::view(state),
         &state.snackbar,
-        Instant::now(),
+        now,
         "Photo archived",
         "Undo",
         Message::SnackbarUndo,
@@ -351,22 +354,32 @@ fn view(state: &Showcase) -> material::Element<'_, Message> {
         .with_menu("Showcase", Message::MenuPressed)
         .view(Message::Navigate, page_content);
 
-    if state.alert_dialog_open {
-        material::widget::dialog::modal(content, alert_dialog())
-    } else {
-        content
-    }
+    material::widget::dialog::modal_animated(
+        content,
+        &state.alert_dialog,
+        now,
+        alert_dialog(state.alert_dialog.alpha(now)),
+    )
 }
 
-fn alert_dialog() -> material::Element<'static, Message> {
-    material::widget::dialog::alert_with_icon(
+fn alert_dialog(alpha: f32) -> material::Element<'static, Message> {
+    material::widget::dialog::alert_with_icon_alpha(
         "info",
         "Discard draft?",
         "Your current changes will be removed from this device.",
         material::widget::dialog::actions([
-            material::widget::dialog::action_button("Cancel", Message::DialogDismissed),
-            material::widget::dialog::action_button("Discard", Message::DialogConfirmed),
+            material::widget::dialog::action_button_alpha(
+                "Cancel",
+                Message::DialogDismissed,
+                alpha,
+            ),
+            material::widget::dialog::action_button_alpha(
+                "Discard",
+                Message::DialogConfirmed,
+                alpha,
+            ),
         ]),
+        alpha,
     )
     .into()
 }
@@ -419,14 +432,24 @@ mod tests {
         let mut showcase = Showcase::default();
 
         update(&mut showcase, Message::DialogOpened);
-        assert!(showcase.alert_dialog_open);
+        assert_eq!(
+            showcase.alert_dialog.phase(),
+            material::widget::dialog::TransitionPhase::Showing
+        );
+        assert!(showcase.alert_dialog.is_active());
 
         update(&mut showcase, Message::DialogDismissed);
-        assert!(!showcase.alert_dialog_open);
+        assert_eq!(
+            showcase.alert_dialog.phase(),
+            material::widget::dialog::TransitionPhase::Dismissing
+        );
 
         update(&mut showcase, Message::DialogOpened);
         update(&mut showcase, Message::DialogConfirmed);
-        assert!(!showcase.alert_dialog_open);
+        assert_eq!(
+            showcase.alert_dialog.phase(),
+            material::widget::dialog::TransitionPhase::Dismissing
+        );
         assert_eq!(showcase.count, 1);
     }
 
