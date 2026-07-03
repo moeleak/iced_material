@@ -105,7 +105,9 @@ where
         color_phase: phase,
         four_color: false,
     })
-    .width(Length::Fill)
+    .width(Length::Fixed(
+        tokens::component::linear_progress::CONTAINER_WIDTH,
+    ))
     .height(Length::Fixed(
         tokens::component::linear_progress::WAVE_HEIGHT,
     ))
@@ -126,7 +128,9 @@ where
         color_phase: phase * 0.5,
         four_color,
     })
-    .width(Length::Fill)
+    .width(Length::Fixed(
+        tokens::component::linear_progress::CONTAINER_WIDTH,
+    ))
     .height(Length::Fixed(
         tokens::component::linear_progress::WAVE_HEIGHT,
     ))
@@ -147,7 +151,9 @@ where
         color_phase,
         four_color: true,
     })
-    .width(Length::Fill)
+    .width(Length::Fixed(
+        tokens::component::linear_progress::CONTAINER_WIDTH,
+    ))
     .height(Length::Fixed(
         tokens::component::linear_progress::WAVE_HEIGHT,
     ))
