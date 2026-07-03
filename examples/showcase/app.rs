@@ -4,10 +4,10 @@
 mod pages;
 
 use iced::time::Instant;
-use iced::{Point, Size, Subscription};
+use iced::{Size, Subscription};
 use iced_material as material;
+use material::Theme;
 use material::widget::{navigation, theme_picker};
-use material::{ColorScheme, Theme, animation::ThemeRevealTransition};
 
 pub fn main() -> iced::Result {
     let window_size = Size::new(1080.0, 980.0);
@@ -36,9 +36,7 @@ enum Message {
     SearchChanged(String),
     SliderChanged(f32),
     EnabledChanged(bool),
-    DarkModeChanged { dark_mode: bool, origin: Point },
-    ThemePickerToggled,
-    ThemeColorSelected(theme_picker::MaterialColor),
+    ThemeChanged(theme_picker::ThemeAction),
     ChoiceSelected(RadioChoice),
     SegmentSelected(SegmentChoice),
     PrimaryTabSelected(TabChoice),
@@ -152,7 +150,6 @@ struct Showcase {
     search_query: String,
     progress: f32,
     enabled: bool,
-    dark_mode: bool,
     radio_choice: Option<RadioChoice>,
     segment_choice: SegmentChoice,
     segment_state: material::widget::segmented_button::State,
@@ -163,17 +160,11 @@ struct Showcase {
     progress_animation: material::widget::progress_bar::IndeterminateState,
     alert_dialog: material::widget::dialog::Transition,
     snackbar: material::widget::snackbar::Transition,
-    theme_picker: theme_picker::State,
-    theme_color: theme_picker::MaterialColor,
-    visible_scheme: ColorScheme,
-    animation: Option<ThemeRevealTransition>,
+    theme_controller: theme_picker::ThemeController,
 }
 
 impl Default for Showcase {
     fn default() -> Self {
-        let initial_dark_mode = true;
-        let initial_theme_color = theme_picker::MaterialColor::Purple;
-
         Self {
             navigation: navigation::NavigationState::new(ShowcasePage::Inputs),
             window_size: Size::new(1080.0, 980.0),
@@ -192,7 +183,6 @@ impl Default for Showcase {
             search_query: String::new(),
             progress: 42.0,
             enabled: true,
-            dark_mode: initial_dark_mode,
             radio_choice: Some(RadioChoice::Standard),
             segment_choice: SegmentChoice::List,
             segment_state: material::widget::segmented_button::State::new(
@@ -207,17 +197,14 @@ impl Default for Showcase {
             ),
             alert_dialog: material::widget::dialog::Transition::default(),
             snackbar: material::widget::snackbar::Transition::default(),
-            theme_picker: theme_picker::State::new(),
-            theme_color: initial_theme_color,
-            visible_scheme: initial_theme_color.color_scheme(initial_dark_mode),
-            animation: None,
+            theme_controller: theme_picker::ThemeController::default(),
         }
     }
 }
 
 impl Showcase {
     fn theme(&self) -> Theme {
-        Theme::new("Material 3 animated", self.visible_scheme)
+        self.theme_controller.theme("Material 3 animated")
     }
 
     fn navigation_selection(&self) -> navigation::Selection<ShowcasePage> {
@@ -288,32 +275,16 @@ fn update(state: &mut Showcase, message: Message) {
             state.snackbar.dismiss(Instant::now());
         }
         Message::WindowResized(size) => state.window_size = size,
-        Message::DarkModeChanged { dark_mode, origin } => {
-            state.dark_mode = dark_mode;
-
-            animate_to_scheme(state, state.theme_color.color_scheme(dark_mode), origin);
-        }
-        Message::ThemePickerToggled => state.theme_picker.toggle(),
-        Message::ThemeColorSelected(color) => {
-            let origin = theme_picker::swatch_center(
+        Message::ThemeChanged(action) => {
+            state.theme_controller.update(
+                action,
                 state.window_size,
                 theme_picker_bottom_margin(state.adaptive_navigation_layout()),
-                color,
+                Instant::now(),
             );
-
-            state.theme_color = color;
-            state.theme_picker.close();
-            animate_to_scheme(state, color.color_scheme(state.dark_mode), origin);
         }
         Message::Frame(now) => {
-            if let Some(animation) = state.animation {
-                state.visible_scheme = animation.value_at(now);
-
-                if animation.is_finished_at(now) {
-                    state.animation = None;
-                }
-            }
-
+            let _ = state.theme_controller.advance(now);
             let _ = state.navigation.advance(now);
             let _ = state.segment_state.advance(now);
             let _ = state.primary_tab_state.advance(now);
@@ -333,7 +304,7 @@ fn subscription(state: &Showcase) -> Subscription<Message> {
     let mut subscriptions =
         vec![iced::window::resize_events().map(|(_id, size)| Message::WindowResized(size))];
 
-    if state.animation.is_some()
+    if state.theme_controller.is_animating()
         || state.navigation.is_animating()
         || state.segment_state.is_animating()
         || state.primary_tab_state.is_animating()
@@ -364,13 +335,10 @@ fn view(state: &Showcase) -> material::Element<'_, Message> {
         .layout(state.adaptive_navigation_layout())
         .with_menu("Showcase", Message::MenuPressed)
         .view(Message::Navigate, page_content);
-    let content = theme_picker::floating_over(
+    let content = state.theme_controller.controls_over(
         content,
-        &state.theme_picker,
-        state.theme_color,
         theme_picker_bottom_margin(state.adaptive_navigation_layout()),
-        Message::ThemePickerToggled,
-        Message::ThemeColorSelected,
+        Message::ThemeChanged,
     );
 
     let content = material::widget::dialog::modal_animated(
@@ -380,13 +348,7 @@ fn view(state: &Showcase) -> material::Element<'_, Message> {
         alert_dialog(state.alert_dialog.alpha(now)),
     );
 
-    theme_picker::reveal_over(content, state.animation, now)
-}
-
-fn animate_to_scheme(state: &mut Showcase, target: ColorScheme, origin: iced_widget::core::Point) {
-    state.animation = (state.visible_scheme != target).then(|| {
-        ThemeRevealTransition::material_theme(state.visible_scheme, target, origin, Instant::now())
-    });
+    state.theme_controller.reveal_over(content, now)
 }
 
 fn theme_picker_bottom_margin(layout: navigation::AdaptiveLayout) -> f32 {
@@ -425,6 +387,7 @@ fn alert_dialog(alpha: f32) -> material::Element<'static, Message> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use iced::Point;
 
     #[test]
     fn combo_input_preserves_typed_query_and_clears_stale_selection() {
@@ -537,32 +500,35 @@ mod tests {
 
         update(
             &mut showcase,
-            Message::DarkModeChanged {
+            Message::ThemeChanged(theme_picker::ThemeAction::SetDarkMode {
                 dark_mode: true,
                 origin: Point::new(120.0, 360.0),
-            },
+            }),
         );
 
-        assert!(showcase.animation.is_none());
-        assert!(showcase.dark_mode);
+        assert!(!showcase.theme_controller.is_animating());
+        assert!(showcase.theme_controller.dark_mode());
     }
 
     #[test]
-    fn dark_mode_switch_starts_reveal_from_switch_origin() {
+    fn dark_mode_action_starts_reveal_from_switch_origin() {
         let mut showcase = Showcase::default();
         let origin = Point::new(120.0, 640.0);
 
         update(
             &mut showcase,
-            Message::DarkModeChanged {
+            Message::ThemeChanged(theme_picker::ThemeAction::SetDarkMode {
                 dark_mode: false,
                 origin,
-            },
+            }),
         );
 
-        let animation = showcase.animation.expect("dark mode should animate");
+        let animation = showcase
+            .theme_controller
+            .transition()
+            .expect("dark mode should animate");
 
-        assert!(!showcase.dark_mode);
+        assert!(!showcase.theme_controller.dark_mode());
         assert_eq!(animation.origin(), origin);
     }
 
@@ -570,12 +536,17 @@ mod tests {
     fn theme_picker_selects_color_and_closes() {
         let mut showcase = Showcase::default();
 
-        update(&mut showcase, Message::ThemePickerToggled);
-        assert!(showcase.theme_picker.is_open());
+        update(
+            &mut showcase,
+            Message::ThemeChanged(theme_picker::ThemeAction::TogglePicker),
+        );
+        assert!(showcase.theme_controller.is_picker_open());
 
         update(
             &mut showcase,
-            Message::ThemeColorSelected(theme_picker::MaterialColor::Blue),
+            Message::ThemeChanged(theme_picker::ThemeAction::SelectColor(
+                theme_picker::MaterialColor::Blue,
+            )),
         );
 
         let expected_origin = theme_picker::swatch_center(
@@ -583,10 +554,16 @@ mod tests {
             theme_picker_bottom_margin(showcase.adaptive_navigation_layout()),
             theme_picker::MaterialColor::Blue,
         );
-        let animation = showcase.animation.expect("theme selection should animate");
+        let animation = showcase
+            .theme_controller
+            .transition()
+            .expect("theme selection should animate");
 
-        assert_eq!(showcase.theme_color, theme_picker::MaterialColor::Blue);
-        assert!(!showcase.theme_picker.is_open());
+        assert_eq!(
+            showcase.theme_controller.selected_color(),
+            theme_picker::MaterialColor::Blue
+        );
+        assert!(!showcase.theme_controller.is_picker_open());
         assert_eq!(animation.origin(), expected_origin);
     }
 

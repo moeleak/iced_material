@@ -2,13 +2,13 @@
 
 use iced_widget::button::{Status, Style};
 use iced_widget::canvas::{self, Canvas, Path, Stroke};
-use iced_widget::core::text as core_text;
 use iced_widget::core::time::Instant;
 use iced_widget::core::{
     Background, Color, Element, Length, Padding, Point, Rectangle, Size, alignment, border, mouse,
 };
+use iced_widget::core::{svg as core_svg, text as core_text};
 use iced_widget::graphics::geometry;
-use iced_widget::{Column, Container, Row, Space, Stack};
+use iced_widget::{Column, Container, Row, Space, Stack, text};
 
 use super::{absolute_line_height, button::Button};
 use crate::animation::{ThemeRevealTransition, max_radius_from_origin};
@@ -64,6 +64,167 @@ impl State {
 
     pub fn close(&mut self) {
         self.is_open = false;
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ThemeAction {
+    TogglePicker,
+    SelectColor(MaterialColor),
+    SetDarkMode { dark_mode: bool, origin: Point },
+}
+
+#[derive(Debug, Clone)]
+pub struct ThemeController {
+    picker: State,
+    selected: MaterialColor,
+    dark_mode: bool,
+    visible_scheme: ColorScheme,
+    transition: Option<ThemeRevealTransition>,
+}
+
+impl ThemeController {
+    pub fn new(selected: MaterialColor, dark_mode: bool) -> Self {
+        Self {
+            picker: State::new(),
+            selected,
+            dark_mode,
+            visible_scheme: selected.color_scheme(dark_mode),
+            transition: None,
+        }
+    }
+
+    pub fn theme(&self, name: impl Into<std::borrow::Cow<'static, str>>) -> Theme {
+        Theme::new(name, self.visible_scheme)
+    }
+
+    pub const fn picker_state(&self) -> &State {
+        &self.picker
+    }
+
+    pub const fn is_picker_open(&self) -> bool {
+        self.picker.is_open()
+    }
+
+    pub const fn selected_color(&self) -> MaterialColor {
+        self.selected
+    }
+
+    pub const fn dark_mode(&self) -> bool {
+        self.dark_mode
+    }
+
+    pub const fn visible_scheme(&self) -> ColorScheme {
+        self.visible_scheme
+    }
+
+    pub const fn transition(&self) -> Option<ThemeRevealTransition> {
+        self.transition
+    }
+
+    pub const fn is_animating(&self) -> bool {
+        self.transition.is_some()
+    }
+
+    pub fn update(
+        &mut self,
+        action: ThemeAction,
+        viewport: Size,
+        bottom_margin: f32,
+        now: Instant,
+    ) {
+        match action {
+            ThemeAction::TogglePicker => self.picker.toggle(),
+            ThemeAction::SelectColor(color) => {
+                let origin = swatch_center(viewport, bottom_margin, color);
+
+                self.selected = color;
+                self.picker.close();
+                self.animate_to(color.color_scheme(self.dark_mode), origin, now);
+            }
+            ThemeAction::SetDarkMode { dark_mode, origin } => {
+                self.dark_mode = dark_mode;
+                self.animate_to(self.selected.color_scheme(dark_mode), origin, now);
+            }
+        }
+    }
+
+    pub fn advance(&mut self, now: Instant) -> bool {
+        let Some(transition) = self.transition else {
+            return false;
+        };
+
+        self.visible_scheme = transition.value_at(now);
+
+        if transition.is_finished_at(now) {
+            self.visible_scheme = transition.target();
+            self.transition = None;
+        }
+
+        true
+    }
+
+    pub fn dark_mode_switch<'a, Message, Renderer>(
+        &self,
+        label: impl text::IntoFragment<'a>,
+        on_action: impl Fn(ThemeAction) -> Message + 'a,
+    ) -> Element<'a, Message, Theme, Renderer>
+    where
+        Message: 'a,
+        Renderer: iced_widget::core::Renderer + core_text::Renderer + core_svg::Renderer + 'a,
+    {
+        super::toggler::standard_with_origin(self.dark_mode, label, move |dark_mode, origin| {
+            on_action(ThemeAction::SetDarkMode { dark_mode, origin })
+        })
+    }
+
+    pub fn controls_over<'a, Message, Renderer>(
+        &self,
+        content: impl Into<Element<'a, Message, Theme, Renderer>>,
+        bottom_margin: f32,
+        on_action: impl Fn(ThemeAction) -> Message + 'a,
+    ) -> Element<'a, Message, Theme, Renderer>
+    where
+        Message: Clone + 'a,
+        Renderer: iced_widget::core::Renderer + core_text::Renderer + geometry::Renderer + 'a,
+        iced_widget::core::Font: Into<Renderer::Font>,
+    {
+        floating_over(
+            content,
+            &self.picker,
+            self.selected,
+            bottom_margin,
+            on_action(ThemeAction::TogglePicker),
+            move |color| on_action(ThemeAction::SelectColor(color)),
+        )
+    }
+
+    pub fn reveal_over<'a, Message, Renderer>(
+        &self,
+        content: impl Into<Element<'a, Message, Theme, Renderer>>,
+        now: Instant,
+    ) -> Element<'a, Message, Theme, Renderer>
+    where
+        Message: 'a,
+        Renderer: iced_widget::core::Renderer + geometry::Renderer + 'a,
+    {
+        reveal_over(content, self.transition, now)
+    }
+
+    fn animate_to(&mut self, target: ColorScheme, origin: Point, now: Instant) {
+        if let Some(transition) = self.transition {
+            self.visible_scheme = transition.value_at(now);
+        }
+
+        self.transition = (self.visible_scheme != target).then(|| {
+            ThemeRevealTransition::material_theme(self.visible_scheme, target, origin, now)
+        });
+    }
+}
+
+impl Default for ThemeController {
+    fn default() -> Self {
+        Self::new(MaterialColor::Purple, true)
     }
 }
 
@@ -757,6 +918,59 @@ mod tests {
 
         state.close();
         assert!(!state.is_open());
+    }
+
+    #[test]
+    fn controller_selects_color_and_closes_picker_from_action() {
+        let mut controller = ThemeController::new(MaterialColor::Purple, true);
+        let viewport = Size::new(1080.0, 980.0);
+        let bottom_margin = FLOATING_MARGIN;
+        let now = Instant::now();
+
+        controller.update(ThemeAction::TogglePicker, viewport, bottom_margin, now);
+        assert!(controller.is_picker_open());
+
+        controller.update(
+            ThemeAction::SelectColor(MaterialColor::Blue),
+            viewport,
+            bottom_margin,
+            now,
+        );
+
+        let transition = controller
+            .transition()
+            .expect("selecting a different color should animate");
+
+        assert_eq!(controller.selected_color(), MaterialColor::Blue);
+        assert!(!controller.is_picker_open());
+        assert_eq!(
+            transition.origin(),
+            swatch_center(viewport, bottom_margin, MaterialColor::Blue)
+        );
+    }
+
+    #[test]
+    fn controller_dark_mode_action_uses_supplied_origin() {
+        let mut controller = ThemeController::new(MaterialColor::Purple, true);
+        let origin = Point::new(64.0, 512.0);
+        let now = Instant::now();
+
+        controller.update(
+            ThemeAction::SetDarkMode {
+                dark_mode: false,
+                origin,
+            },
+            Size::new(1080.0, 980.0),
+            FLOATING_MARGIN,
+            now,
+        );
+
+        let transition = controller
+            .transition()
+            .expect("changing dark mode should animate");
+
+        assert!(!controller.dark_mode());
+        assert_eq!(transition.origin(), origin);
     }
 
     #[test]

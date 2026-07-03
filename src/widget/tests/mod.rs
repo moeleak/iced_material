@@ -725,6 +725,8 @@ fn material_selection_constructors_compile_to_elements() {
     let _: TestElement<'_> = checkbox::standard(true, "Enable actions", toggled);
     let _: TestElement<'_> = toggler::standard(true, "Dark theme", toggled);
     let _: TestElement<'_> = toggler::standard_with_origin(true, "Dark theme", toggled_at);
+    let controller = theme_picker::ThemeController::new(theme_picker::MaterialColor::Purple, true);
+    let _: TestElement<'_> = controller.dark_mode_switch("Dark theme", |_| Message::Toggled);
 }
 
 #[test]

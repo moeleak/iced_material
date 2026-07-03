@@ -109,12 +109,10 @@ fn selection_controls(state: &Showcase) -> material::Element<'_, Message> {
             Message::EnabledChanged,
         )
         .into(),
-        material::widget::toggler::standard_with_origin(
-            state.dark_mode,
-            "Dark theme",
-            |dark_mode, origin| Message::DarkModeChanged { dark_mode, origin },
-        )
-        .into(),
+        state
+            .theme_controller
+            .dark_mode_switch("Dark theme", Message::ThemeChanged)
+            .into(),
     ]);
 
     let radios = page::row([
