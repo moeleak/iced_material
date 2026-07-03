@@ -13,8 +13,8 @@ use iced_widget::core::text::{self, Text};
 use iced_widget::core::time::Instant;
 use iced_widget::core::widget::tree::{self, Tree};
 use iced_widget::core::{
-    Clipboard, Element, Event, Layout, Length, Padding, Pixels, Point, Rectangle, Shell, Size,
-    Vector, Widget, alignment, keyboard, layout, mouse, overlay, renderer, touch, window,
+    Clipboard, Color, Element, Event, Layout, Length, Padding, Pixels, Point, Rectangle, Shell,
+    Size, Vector, Widget, alignment, keyboard, layout, mouse, overlay, renderer, touch, window,
 };
 use iced_widget::overlay::menu;
 use iced_widget::pick_list::{self, Handle, Icon, Status};
@@ -43,6 +43,7 @@ where
     on_open: Option<Message>,
     on_close: Option<Message>,
     options: L,
+    label: Option<String>,
     placeholder: Option<String>,
     selected: Option<V>,
     width: Length,
@@ -89,6 +90,7 @@ where
             on_open: None,
             on_close: None,
             options,
+            label: None,
             placeholder: None,
             selected,
             width: Length::Shrink,
@@ -109,6 +111,12 @@ where
     /// Sets the placeholder of the select.
     pub fn placeholder(mut self, placeholder: impl Into<String>) -> Self {
         self.placeholder = Some(placeholder.into());
+        self
+    }
+
+    /// Sets the floating label of the select.
+    pub fn label(mut self, label: impl Into<String>) -> Self {
+        self.label = Some(label.into());
         self
     }
 
@@ -274,18 +282,36 @@ where
             });
         }
 
+        if let Some(label) = &self.label {
+            let _ = state.label.update(Text {
+                content: label,
+                size: Pixels(tokens::component::text_field::LABEL_TEXT_POPULATED_SIZE),
+                line_height: text::LineHeight::Absolute(Pixels(
+                    tokens::component::text_field::LABEL_TEXT_POPULATED_LINE_HEIGHT,
+                )),
+                ..option_text
+            });
+        }
+
         let max_width = match self.width {
             Length::Shrink => {
                 let labels_width = state.options.iter().fold(0.0, |width, paragraph| {
                     f32::max(width, paragraph.min_width())
                 });
 
-                labels_width.max(
-                    self.placeholder
-                        .as_ref()
-                        .map(|_| state.placeholder.min_width())
-                        .unwrap_or(0.0),
-                )
+                labels_width
+                    .max(
+                        self.placeholder
+                            .as_ref()
+                            .map(|_| state.placeholder.min_width())
+                            .unwrap_or(0.0),
+                    )
+                    .max(
+                        self.label
+                            .as_ref()
+                            .map(|_| state.label.min_width())
+                            .unwrap_or(0.0),
+                    )
             }
             _ => 0.0,
         };
@@ -448,13 +474,19 @@ where
             self.last_status.unwrap_or(Status::Active),
         );
 
-        renderer.fill_quad(
-            renderer::Quad {
-                bounds,
-                border: style.border,
-                ..renderer::Quad::default()
-            },
+        let label_width = self
+            .label
+            .as_ref()
+            .map(|_| state.label.min_width())
+            .unwrap_or(0.0);
+
+        draw_select_outline(
+            renderer,
+            bounds,
+            style.border,
             style.background,
+            label_width,
+            theme.colors().surface.container.high,
         );
 
         let handle = match &self.handle {
@@ -547,6 +579,36 @@ where
                 *viewport,
             );
         }
+
+        if let Some(label) = &self.label {
+            let label_size = Pixels(tokens::component::text_field::LABEL_TEXT_POPULATED_SIZE);
+            let label_line_height = text::LineHeight::Absolute(Pixels(
+                tokens::component::text_field::LABEL_TEXT_POPULATED_LINE_HEIGHT,
+            ));
+
+            renderer.fill_text(
+                Text {
+                    content: label.clone(),
+                    size: label_size,
+                    line_height: label_line_height,
+                    font,
+                    bounds: Size::new(
+                        label_width,
+                        f32::from(label_line_height.to_absolute(label_size)),
+                    ),
+                    align_x: text::Alignment::Default,
+                    align_y: alignment::Vertical::Center,
+                    shaping: self.text_shaping,
+                    wrapping: text::Wrapping::None,
+                },
+                Point::new(
+                    bounds.x + tokens::component::text_field::LEADING_SPACE,
+                    bounds.y,
+                ),
+                select_label_color(theme, self.last_status.unwrap_or(Status::Active)),
+                *viewport,
+            );
+        }
     }
 
     fn overlay<'b>(
@@ -630,6 +692,7 @@ struct State<P: text::Paragraph> {
     hovered_option: Option<usize>,
     options: Vec<paragraph::Plain<P>>,
     placeholder: paragraph::Plain<P>,
+    label: paragraph::Plain<P>,
 }
 
 impl<P: text::Paragraph> State<P> {
@@ -641,7 +704,59 @@ impl<P: text::Paragraph> State<P> {
             hovered_option: Option::default(),
             options: Vec::new(),
             placeholder: paragraph::Plain::default(),
+            label: paragraph::Plain::default(),
         }
+    }
+}
+
+fn draw_select_outline<Renderer>(
+    renderer: &mut Renderer,
+    bounds: Rectangle,
+    border: iced_widget::core::Border,
+    background: iced_widget::core::Background,
+    label_width: f32,
+    notch_background: Color,
+) where
+    Renderer: iced_widget::core::Renderer,
+{
+    renderer.fill_quad(
+        renderer::Quad {
+            bounds,
+            border,
+            ..renderer::Quad::default()
+        },
+        background,
+    );
+
+    if label_width <= 0.0 || border.width <= 0.0 {
+        return;
+    }
+
+    let notch_width = label_width + tokens::component::text_field::OUTLINE_LABEL_PADDING * 2.0;
+    let notch_x = bounds.x + tokens::component::text_field::LEADING_SPACE
+        - tokens::component::text_field::OUTLINE_LABEL_PADDING;
+
+    renderer.fill_quad(
+        renderer::Quad {
+            bounds: Rectangle {
+                x: notch_x,
+                y: bounds.y,
+                width: notch_width.min((bounds.x + bounds.width - notch_x).max(0.0)),
+                height: border.width.ceil() + 1.0,
+            },
+            ..renderer::Quad::default()
+        },
+        notch_background,
+    );
+}
+
+fn select_label_color(theme: &Theme, status: Status) -> Color {
+    let colors = theme.colors();
+
+    match status {
+        Status::Opened { .. } => colors.primary.color,
+        Status::Hovered => colors.surface.text,
+        Status::Active => colors.surface.text_variant,
     }
 }
 

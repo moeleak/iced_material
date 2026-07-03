@@ -5,11 +5,12 @@ use std::fmt::{self, Display};
 
 use iced_widget::core::keyboard::key;
 use iced_widget::core::text as core_text;
+use iced_widget::core::text::paragraph;
 use iced_widget::core::time::Instant;
 use iced_widget::core::widget::{self, Widget};
 use iced_widget::core::{
-    Clipboard, Element, Event, Layout, Length, Padding, Pixels, Rectangle, Shell, Size, Vector,
-    keyboard, layout, mouse, overlay, renderer,
+    Clipboard, Color, Element, Event, Layout, Length, Padding, Pixels, Point, Rectangle, Shell,
+    Size, Vector, keyboard, layout, mouse, overlay, renderer,
 };
 use iced_widget::overlay::menu as overlay_menu;
 use iced_widget::text::{self, LineHeight};
@@ -184,6 +185,12 @@ where
         self
     }
 
+    /// Sets the floating label of the combo box.
+    pub fn label(mut self, label: impl Into<String>) -> Self {
+        self.inner = self.inner.label(label);
+        self
+    }
+
     /// Sets the padding.
     pub fn padding(mut self, padding: impl Into<Padding>) -> Self {
         self.inner = self.inner.padding(padding);
@@ -329,6 +336,7 @@ where
 {
     state: &'a SearchState<T>,
     text_input: TextInput<'a, TextInputEvent, Theme, Renderer>,
+    label: Option<String>,
     font: Option<Renderer::Font>,
     selection: text_input::Value,
     on_selected: Box<dyn Fn(T) -> Message>,
@@ -375,6 +383,7 @@ where
         Self {
             state,
             text_input,
+            label: None,
             font: None,
             selection: text_input::Value::new(&selection),
             on_selected: Box::new(on_selected),
@@ -409,6 +418,11 @@ where
 
     fn on_close(mut self, message: Message) -> Self {
         self.on_close = Some(message);
+        self
+    }
+
+    fn label(mut self, label: impl Into<String>) -> Self {
+        self.label = Some(label.into());
         self
     }
 
@@ -602,11 +616,12 @@ where
     }
 }
 
-struct MenuState<T> {
+struct MenuState<T, P: core_text::Paragraph> {
     menu: menu_overlay::State,
     hovered_option: Option<usize>,
     new_selection: Option<T>,
     filtered_options: Filtered<T>,
+    label: paragraph::Plain<P>,
 }
 
 #[derive(Debug, Clone)]
@@ -631,6 +646,31 @@ where
         renderer: &Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
+        if let Some(label) = &self.label {
+            let state = tree
+                .state
+                .downcast_mut::<MenuState<T, Renderer::Paragraph>>();
+            let label_size = Pixels(tokens::component::text_field::LABEL_TEXT_POPULATED_SIZE);
+            let label_line_height = LineHeight::Absolute(Pixels(
+                tokens::component::text_field::LABEL_TEXT_POPULATED_LINE_HEIGHT,
+            ));
+
+            let _ = state.label.update(core_text::Text {
+                content: label,
+                bounds: Size::new(
+                    f32::INFINITY,
+                    f32::from(label_line_height.to_absolute(label_size)),
+                ),
+                size: label_size,
+                line_height: label_line_height,
+                font: self.font.unwrap_or_else(|| renderer.default_font()),
+                align_x: text::Alignment::Default,
+                align_y: iced_widget::core::alignment::Vertical::Center,
+                shaping: self.text_shaping,
+                wrapping: text::Wrapping::None,
+            });
+        }
+
         let is_focused = {
             let text_input_state = tree.children[0]
                 .state
@@ -648,15 +688,16 @@ where
     }
 
     fn tag(&self) -> widget::tree::Tag {
-        widget::tree::Tag::of::<MenuState<T>>()
+        widget::tree::Tag::of::<MenuState<T, Renderer::Paragraph>>()
     }
 
     fn state(&self) -> widget::tree::State {
-        widget::tree::State::new(MenuState::<T> {
+        widget::tree::State::new(MenuState::<T, Renderer::Paragraph> {
             menu: menu_overlay::State::new(),
             filtered_options: Filtered::empty(),
             hovered_option: Some(0),
             new_selection: None,
+            label: paragraph::Plain::default(),
         })
     }
 
@@ -677,7 +718,9 @@ where
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
     ) {
-        let menu = tree.state.downcast_mut::<MenuState<T>>();
+        let menu = tree
+            .state
+            .downcast_mut::<MenuState<T, Renderer::Paragraph>>();
 
         let started_focused = {
             let text_input_state = tree.children[0]
@@ -927,6 +970,50 @@ where
             selection,
             viewport,
         );
+
+        if let Some(label) = &self.label {
+            let state = tree
+                .state
+                .downcast_ref::<MenuState<T, Renderer::Paragraph>>();
+            let bounds = layout.bounds();
+            let is_hovered = cursor.is_over(bounds);
+            let label_width = state.label.min_width();
+            let label_size = Pixels(tokens::component::text_field::LABEL_TEXT_POPULATED_SIZE);
+            let label_line_height = LineHeight::Absolute(Pixels(
+                tokens::component::text_field::LABEL_TEXT_POPULATED_LINE_HEIGHT,
+            ));
+
+            draw_combo_label_notch(
+                renderer,
+                bounds,
+                label_width,
+                combo_label_notch_height(is_focused),
+                theme.colors().surface.container.high,
+            );
+
+            renderer.fill_text(
+                core_text::Text {
+                    content: label.clone(),
+                    size: label_size,
+                    line_height: label_line_height,
+                    font: self.font.unwrap_or_else(|| renderer.default_font()),
+                    bounds: Size::new(
+                        label_width,
+                        f32::from(label_line_height.to_absolute(label_size)),
+                    ),
+                    align_x: text::Alignment::Default,
+                    align_y: iced_widget::core::alignment::Vertical::Center,
+                    shaping: self.text_shaping,
+                    wrapping: text::Wrapping::None,
+                },
+                Point::new(
+                    bounds.x + tokens::component::text_field::LEADING_SPACE,
+                    bounds.y,
+                ),
+                combo_label_color(theme, is_focused, is_hovered),
+                *viewport,
+            );
+        }
     }
 
     fn overlay<'b>(
@@ -951,7 +1038,9 @@ where
                 filtered_options,
                 hovered_option,
                 ..
-            } = tree.state.downcast_mut::<MenuState<T>>();
+            } = tree
+                .state
+                .downcast_mut::<MenuState<T, Renderer::Paragraph>>();
 
             self.state.sync_filtered_options(filtered_options);
 
@@ -1026,6 +1115,59 @@ where
 {
     fn from(combo_box: MaterialComboBox<'a, T, Message, Renderer>) -> Self {
         Self::new(combo_box)
+    }
+}
+
+fn draw_combo_label_notch<Renderer>(
+    renderer: &mut Renderer,
+    bounds: Rectangle,
+    label_width: f32,
+    notch_height: f32,
+    notch_background: Color,
+) where
+    Renderer: iced_widget::core::Renderer,
+{
+    if label_width <= 0.0 || notch_height <= 0.0 {
+        return;
+    }
+
+    let notch_width = label_width + tokens::component::text_field::OUTLINE_LABEL_PADDING * 2.0;
+    let notch_x = bounds.x + tokens::component::text_field::LEADING_SPACE
+        - tokens::component::text_field::OUTLINE_LABEL_PADDING;
+
+    renderer.fill_quad(
+        renderer::Quad {
+            bounds: Rectangle {
+                x: notch_x,
+                y: bounds.y,
+                width: notch_width.min((bounds.x + bounds.width - notch_x).max(0.0)),
+                height: notch_height,
+            },
+            ..renderer::Quad::default()
+        },
+        notch_background,
+    );
+}
+
+fn combo_label_notch_height(is_focused: bool) -> f32 {
+    let outline_width = if is_focused {
+        tokens::component::text_field::FOCUS_OUTLINE_WIDTH
+    } else {
+        tokens::component::text_field::OUTLINE_WIDTH
+    };
+
+    outline_width.ceil() + 1.0
+}
+
+fn combo_label_color(theme: &Theme, is_focused: bool, is_hovered: bool) -> Color {
+    let colors = theme.colors();
+
+    if is_focused {
+        colors.primary.color
+    } else if is_hovered {
+        colors.surface.text
+    } else {
+        colors.surface.text_variant
     }
 }
 

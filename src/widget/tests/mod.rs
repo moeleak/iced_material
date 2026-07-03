@@ -640,6 +640,7 @@ fn material_pick_list_constructor_compiles_to_element() {
     let options = ["Assist", "Suggestion", "Filter"];
     let _: TestElement<'_> = pick_list::outlined(options, Some("Assist"), |_| Message::Pressed)
         .placeholder("Choose")
+        .label("Chip type")
         .into();
 }
 
@@ -661,7 +662,9 @@ fn material_combo_box_constructor_compiles_to_element() {
     let options =
         combo_box::State::with_selection(vec!["Assist", "Suggestion", "Filter"], Some(&selected));
     let _: TestElement<'_> =
-        combo_box::outlined(&options, "Choose", Some(&selected), |_| Message::Pressed).into();
+        combo_box::outlined(&options, "Choose", Some(&selected), |_| Message::Pressed)
+            .label("Chip type")
+            .into();
 }
 
 #[test]

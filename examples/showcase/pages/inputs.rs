@@ -17,7 +17,8 @@ pub(super) fn view(state: &Showcase) -> material::Element<'_, Message> {
         state.select_choice,
         Message::SelectChanged,
     )
-    .placeholder("Choose a chip");
+    .placeholder("Choose a chip")
+    .label("Chip type");
 
     let combo_box = material::widget::combo_box::outlined_with_input(
         &state.combo_options,
@@ -26,6 +27,7 @@ pub(super) fn view(state: &Showcase) -> material::Element<'_, Message> {
         state.combo_choice.as_ref(),
         Message::ComboSelected,
     )
+    .label("Searchable chip")
     .on_input(Message::ComboInputChanged);
 
     page::sections([
