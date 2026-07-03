@@ -629,6 +629,7 @@ pub mod component {
         pub const SUPPORTING_TEXT_BOTTOM_PADDING: f32 = 24.0;
         pub const ACTIONS_HORIZONTAL_SPACING: f32 = 8.0;
         pub const ACTIONS_VERTICAL_SPACING: f32 = 8.0;
+        pub const SCRIM_OPACITY: f32 = 0.32;
         pub const ACTION_LABEL_TEXT: super::super::typography::TypeScale =
             super::super::typography::LABEL_LARGE;
         pub const HEADLINE_TEXT: super::super::typography::TypeScale =
@@ -917,6 +918,20 @@ pub mod component {
             super::super::motion::EASING_LEGACY;
     }
 
+    pub mod side_sheet {
+        pub const DOCKED_CONTAINER_WIDTH: f32 = 256.0;
+        pub const DETACHED_MARGIN: f32 = 16.0;
+        pub const DOCKED_STANDARD_CONTAINER_SHAPE: f32 = super::super::shape::CORNER_NONE;
+        pub const DOCKED_MODAL_CONTAINER_SHAPE: f32 = super::super::shape::CORNER_LARGE;
+        pub const DETACHED_CONTAINER_SHAPE: f32 = super::super::shape::CORNER_LARGE;
+        pub const MODAL_CONTAINER_ELEVATION_LEVEL: u8 = 1;
+        pub const STANDARD_CONTAINER_ELEVATION_LEVEL: u8 = 0;
+        pub const SCRIM_OPACITY: f32 = 0.32;
+        pub const ANIMATION_DURATION_MS: u16 = 275;
+        pub const ANIMATION_EASING: super::super::motion::CubicBezier =
+            super::super::motion::EASING_EMPHASIZED;
+    }
+
     pub mod primary_tab {
         pub const CONTAINER_HEIGHT: f32 = 48.0;
         pub const WITH_ICON_AND_LABEL_TEXT_CONTAINER_HEIGHT: f32 = 64.0;
@@ -975,7 +990,15 @@ pub mod component {
             super::super::typography::BODY_SMALL;
 
         pub const RICH_MAX_WIDTH: f32 = 320.0;
+        pub const RICH_MIN_HEIGHT: f32 = 24.0;
+        pub const RICH_MIN_WIDTH: f32 = 40.0;
         pub const RICH_HORIZONTAL_SPACE: f32 = 16.0;
+        pub const RICH_TEXT_VERTICAL_SPACE_WITHOUT_TITLE_OR_ACTION: f32 = 4.0;
+        pub const RICH_HEIGHT_TO_SUBHEAD_FIRST_LINE: f32 = 28.0;
+        pub const RICH_HEIGHT_FROM_SUBHEAD_TO_TEXT_FIRST_LINE: f32 = 24.0;
+        pub const RICH_TEXT_BOTTOM_PADDING: f32 = 16.0;
+        pub const RICH_ACTION_LABEL_MIN_HEIGHT: f32 = 36.0;
+        pub const RICH_ACTION_LABEL_BOTTOM_PADDING: f32 = 8.0;
         pub const RICH_CONTAINER_SHAPE: f32 = super::super::shape::CORNER_MEDIUM;
         pub const RICH_CONTAINER_ELEVATION_LEVEL: u8 = 2;
         pub const RICH_SUBHEAD_TEXT: super::super::typography::TypeScale =
@@ -1330,6 +1353,7 @@ mod tests {
         assert_eq!(component::dialog::SUPPORTING_TEXT_BOTTOM_PADDING, 24.0);
         assert_eq!(component::dialog::ACTIONS_HORIZONTAL_SPACING, 8.0);
         assert_eq!(component::dialog::ACTIONS_VERTICAL_SPACING, 8.0);
+        assert_eq!(component::dialog::SCRIM_OPACITY, 0.32);
         assert_eq!(
             component::dialog::ACTION_LABEL_TEXT,
             typography::LABEL_LARGE
@@ -1515,6 +1539,28 @@ mod tests {
             component::bottom_sheet::ANIMATION_EASING,
             motion::EASING_LEGACY
         );
+        assert_eq!(component::side_sheet::DOCKED_CONTAINER_WIDTH, 256.0);
+        assert_eq!(component::side_sheet::DETACHED_MARGIN, 16.0);
+        assert_eq!(
+            component::side_sheet::DOCKED_STANDARD_CONTAINER_SHAPE,
+            shape::CORNER_NONE
+        );
+        assert_eq!(
+            component::side_sheet::DOCKED_MODAL_CONTAINER_SHAPE,
+            shape::CORNER_LARGE
+        );
+        assert_eq!(
+            component::side_sheet::DETACHED_CONTAINER_SHAPE,
+            shape::CORNER_LARGE
+        );
+        assert_eq!(component::side_sheet::MODAL_CONTAINER_ELEVATION_LEVEL, 1);
+        assert_eq!(component::side_sheet::STANDARD_CONTAINER_ELEVATION_LEVEL, 0);
+        assert_eq!(component::side_sheet::SCRIM_OPACITY, 0.32);
+        assert_eq!(component::side_sheet::ANIMATION_DURATION_MS, 275);
+        assert_eq!(
+            component::side_sheet::ANIMATION_EASING,
+            motion::EASING_EMPHASIZED
+        );
         assert_eq!(component::primary_tab::CONTAINER_HEIGHT, 48.0);
         assert_eq!(
             component::primary_tab::WITH_ICON_AND_LABEL_TEXT_CONTAINER_HEIGHT,
@@ -1570,7 +1616,21 @@ mod tests {
         assert_eq!(component::tooltip::PLAIN_CONTAINER_SHAPE, 4.0);
         assert_eq!(component::tooltip::PLAIN_SUPPORTING_TEXT.size, 12.0);
         assert_eq!(component::tooltip::RICH_MAX_WIDTH, 320.0);
+        assert_eq!(component::tooltip::RICH_MIN_HEIGHT, 24.0);
+        assert_eq!(component::tooltip::RICH_MIN_WIDTH, 40.0);
         assert_eq!(component::tooltip::RICH_HORIZONTAL_SPACE, 16.0);
+        assert_eq!(
+            component::tooltip::RICH_TEXT_VERTICAL_SPACE_WITHOUT_TITLE_OR_ACTION,
+            4.0
+        );
+        assert_eq!(component::tooltip::RICH_HEIGHT_TO_SUBHEAD_FIRST_LINE, 28.0);
+        assert_eq!(
+            component::tooltip::RICH_HEIGHT_FROM_SUBHEAD_TO_TEXT_FIRST_LINE,
+            24.0
+        );
+        assert_eq!(component::tooltip::RICH_TEXT_BOTTOM_PADDING, 16.0);
+        assert_eq!(component::tooltip::RICH_ACTION_LABEL_MIN_HEIGHT, 36.0);
+        assert_eq!(component::tooltip::RICH_ACTION_LABEL_BOTTOM_PADDING, 8.0);
         assert_eq!(component::tooltip::RICH_CONTAINER_SHAPE, 12.0);
         assert_eq!(component::tooltip::RICH_CONTAINER_ELEVATION_LEVEL, 2);
         assert_eq!(component::tooltip::RICH_SUBHEAD_TEXT.size, 14.0);

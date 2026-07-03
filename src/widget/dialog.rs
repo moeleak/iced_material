@@ -1,12 +1,13 @@
 //! Material 3 dialog surface constructors.
 
 use iced_widget::core::text as core_text;
-use iced_widget::core::{Background, Element, Length, Padding, alignment, border};
+use iced_widget::core::{Background, Color, Element, Length, Padding, alignment, border};
 use iced_widget::graphics::geometry;
 use iced_widget::text;
 use iced_widget::{Column, Container, Row, Text};
 
 use super::absolute_line_height;
+use super::support::alpha_color;
 use crate::utils::shadow_from_level;
 use crate::{Theme, fonts, tokens};
 
@@ -80,6 +81,37 @@ where
     Renderer: geometry::Renderer + core_text::Renderer + 'a,
 {
     super::button::text(label)
+}
+
+/// Creates a Material 3 modal dialog scrim behind overlay content.
+pub fn scrim<'a, Message, Renderer>(
+    content: impl Into<Element<'a, Message, Theme, Renderer>>,
+) -> Container<'a, Message, Theme, Renderer>
+where
+    Message: 'a,
+    Renderer: iced_widget::core::Renderer + 'a,
+{
+    Container::new(content)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .style(scrim_style)
+}
+
+/// Centers a Material 3 dialog surface over a modal scrim.
+pub fn modal_overlay<'a, Message, Renderer>(
+    content: impl Into<Element<'a, Message, Theme, Renderer>>,
+) -> Container<'a, Message, Theme, Renderer>
+where
+    Message: 'a,
+    Renderer: iced_widget::core::Renderer + 'a,
+{
+    scrim(
+        Container::new(content)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .align_x(alignment::Horizontal::Center)
+            .align_y(alignment::Vertical::Center),
+    )
 }
 
 fn alert_content<'a, Message, Renderer>(
@@ -210,6 +242,20 @@ fn supporting_text_style(theme: &Theme) -> iced_widget::text::Style {
     }
 }
 
+fn scrim_style(theme: &Theme) -> iced_widget::container::Style {
+    iced_widget::container::Style {
+        background: Some(Background::Color(alpha_color(
+            Color {
+                a: 1.0,
+                ..theme.colors().scrim
+            },
+            tokens::component::dialog::SCRIM_OPACITY,
+        ))),
+        text_color: Some(theme.colors().surface.text),
+        ..iced_widget::container::Style::default()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -243,5 +289,17 @@ mod tests {
             supporting_text_style(&theme).color,
             Some(colors.surface.text_variant)
         );
+    }
+
+    #[test]
+    fn dialog_scrim_uses_material_scrim_opacity() {
+        let theme = Theme::Light;
+        let style = scrim_style(&theme);
+        let Some(Background::Color(color)) = style.background else {
+            panic!("expected solid scrim background");
+        };
+
+        assert_eq!(color.a, tokens::component::dialog::SCRIM_OPACITY);
+        assert_eq!(style.text_color, Some(theme.colors().surface.text));
     }
 }

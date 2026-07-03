@@ -2,7 +2,8 @@
 mod pages;
 
 use iced::time::Instant;
-use iced::{Size, Subscription};
+use iced::widget::{MouseArea, Space, Stack};
+use iced::{Length, Size, Subscription, mouse};
 use iced_material as material;
 use material::widget::navigation;
 use material::{ColorScheme, Theme, animation::ColorSchemeTransition};
@@ -40,6 +41,10 @@ enum Message {
     PrimaryTabSelected(TabChoice),
     SecondaryTabSelected(TabChoice),
     MenuPressed,
+    DialogOpened,
+    DialogDismissed,
+    DialogConfirmed,
+    DialogSurfacePressed,
     WindowResized(Size),
     Frame(Instant),
 }
@@ -152,6 +157,7 @@ struct Showcase {
     secondary_tab: TabChoice,
     secondary_tab_state: material::widget::tabs::State,
     progress_animation: material::widget::progress_bar::IndeterminateState,
+    alert_dialog_open: bool,
     visible_scheme: ColorScheme,
     animation: Option<ColorSchemeTransition>,
 }
@@ -191,6 +197,7 @@ impl Default for Showcase {
             progress_animation: material::widget::progress_bar::IndeterminateState::new(
                 Instant::now(),
             ),
+            alert_dialog_open: false,
             visible_scheme: initial_theme.colors(),
             animation: None,
         }
@@ -258,6 +265,13 @@ fn update(state: &mut Showcase, message: Message) {
             );
         }
         Message::MenuPressed => state.navigation.toggle_menu_now(),
+        Message::DialogOpened => state.alert_dialog_open = true,
+        Message::DialogDismissed => state.alert_dialog_open = false,
+        Message::DialogConfirmed => {
+            state.alert_dialog_open = false;
+            state.count += 1;
+        }
+        Message::DialogSurfacePressed => {}
         Message::WindowResized(size) => state.window_size = size,
         Message::DarkModeChanged(dark_mode) => {
             state.dark_mode = dark_mode;
@@ -315,10 +329,49 @@ fn subscription(state: &Showcase) -> Subscription<Message> {
 }
 
 fn view(state: &Showcase) -> material::Element<'_, Message> {
-    navigation::suite(&NAV_DESTINATIONS, &state.navigation)
+    let content = navigation::suite(&NAV_DESTINATIONS, &state.navigation)
         .layout(state.adaptive_navigation_layout())
         .with_menu("Showcase", Message::MenuPressed)
-        .view(Message::Navigate, pages::view(state))
+        .view(Message::Navigate, pages::view(state));
+
+    if state.alert_dialog_open {
+        Stack::with_children([content, alert_dialog_overlay()])
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into()
+    } else {
+        content
+    }
+}
+
+fn alert_dialog_overlay() -> material::Element<'static, Message> {
+    let scrim = MouseArea::new(material::widget::dialog::scrim(
+        Space::new().width(Length::Fill).height(Length::Fill),
+    ))
+    .on_press(Message::DialogSurfacePressed)
+    .interaction(mouse::Interaction::Idle);
+
+    let dialog = material::widget::dialog::alert_with_icon(
+        "info",
+        "Discard draft?",
+        "Your current changes will be removed from this device.",
+        material::widget::dialog::actions([
+            material::widget::dialog::action("Cancel")
+                .on_press(Message::DialogDismissed)
+                .into(),
+            material::widget::dialog::action("Discard")
+                .on_press(Message::DialogConfirmed)
+                .into(),
+        ]),
+    );
+
+    Stack::with_children([
+        scrim.into(),
+        material::Container::new(dialog).center(Length::Fill).into(),
+    ])
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .into()
 }
 
 #[cfg(test)]
@@ -362,6 +415,25 @@ mod tests {
                 .progress(ShowcasePage::Inputs),
             1.0
         );
+    }
+
+    #[test]
+    fn alert_dialog_messages_toggle_modal_state() {
+        let mut showcase = Showcase::default();
+
+        update(&mut showcase, Message::DialogOpened);
+        assert!(showcase.alert_dialog_open);
+
+        update(&mut showcase, Message::DialogSurfacePressed);
+        assert!(showcase.alert_dialog_open);
+
+        update(&mut showcase, Message::DialogDismissed);
+        assert!(!showcase.alert_dialog_open);
+
+        update(&mut showcase, Message::DialogOpened);
+        update(&mut showcase, Message::DialogConfirmed);
+        assert!(!showcase.alert_dialog_open);
+        assert_eq!(showcase.count, 1);
     }
 
     #[test]

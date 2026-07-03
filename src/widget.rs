@@ -2768,6 +2768,67 @@ pub mod tooltip {
             .style(tooltip_style::plain)
     }
 
+    pub fn rich<'a, Message, Renderer>(
+        content: impl Into<Element<'a, Message, Theme, Renderer>>,
+        supporting_text: impl text::IntoFragment<'a>,
+        position: Position,
+    ) -> Tooltip<'a, Message, Theme, Renderer>
+    where
+        Message: 'a,
+        Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    {
+        rich_surface(content, None, supporting_text, None, position)
+    }
+
+    pub fn rich_with_title<'a, Message, Renderer>(
+        content: impl Into<Element<'a, Message, Theme, Renderer>>,
+        title: impl text::IntoFragment<'a>,
+        supporting_text: impl text::IntoFragment<'a>,
+        position: Position,
+    ) -> Tooltip<'a, Message, Theme, Renderer>
+    where
+        Message: 'a,
+        Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    {
+        rich_surface(
+            content,
+            Some(title.into_fragment()),
+            supporting_text,
+            None,
+            position,
+        )
+    }
+
+    pub fn rich_with_title_action<'a, Message, Renderer>(
+        content: impl Into<Element<'a, Message, Theme, Renderer>>,
+        title: impl text::IntoFragment<'a>,
+        supporting_text: impl text::IntoFragment<'a>,
+        action: impl Into<Element<'a, Message, Theme, Renderer>>,
+        position: Position,
+    ) -> Tooltip<'a, Message, Theme, Renderer>
+    where
+        Message: 'a,
+        Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    {
+        rich_surface(
+            content,
+            Some(title.into_fragment()),
+            supporting_text,
+            Some(action.into()),
+            position,
+        )
+    }
+
+    pub fn rich_action<'a, Message, Renderer>(
+        label: impl text::IntoFragment<'a>,
+    ) -> button::Button<'a, Message, Renderer>
+    where
+        Message: Clone + 'a,
+        Renderer: iced_widget::graphics::geometry::Renderer + core_text::Renderer + 'a,
+    {
+        button::text(label)
+    }
+
     fn plain_supporting_text<'a, Renderer>(
         supporting_text: impl text::IntoFragment<'a>,
         type_scale: tokens::typography::TypeScale,
@@ -2777,6 +2838,136 @@ pub mod tooltip {
     {
         text_with_metrics(supporting_text, type_scale.size, type_scale.line_height)
             .wrapping(text::Wrapping::Word)
+    }
+
+    fn rich_surface<'a, Message, Renderer>(
+        content: impl Into<Element<'a, Message, Theme, Renderer>>,
+        title: Option<text::Fragment<'a>>,
+        supporting_text: impl text::IntoFragment<'a>,
+        action: Option<Element<'a, Message, Theme, Renderer>>,
+        position: Position,
+    ) -> Tooltip<'a, Message, Theme, Renderer>
+    where
+        Message: 'a,
+        Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
+    {
+        let has_title = title.is_some();
+        let has_action = action.is_some();
+        let mut tooltip = iced_widget::Column::new()
+            .width(Length::Fill)
+            .padding(Padding {
+                top: 0.0,
+                right: tokens::component::tooltip::RICH_HORIZONTAL_SPACE,
+                bottom: 0.0,
+                left: tokens::component::tooltip::RICH_HORIZONTAL_SPACE,
+            });
+
+        if let Some(title) = title {
+            tooltip = tooltip.push(
+                Container::new(rich_title_text::<Renderer>(title))
+                    .padding(Padding {
+                        top: rich_title_top_padding(),
+                        right: 0.0,
+                        bottom: 0.0,
+                        left: 0.0,
+                    })
+                    .width(Length::Fill),
+            );
+        }
+
+        tooltip = tooltip.push(
+            Container::new(rich_supporting_text::<Renderer>(supporting_text))
+                .padding(rich_supporting_text_padding(has_title, has_action))
+                .width(Length::Fill),
+        );
+
+        if let Some(action) = action {
+            tooltip = tooltip.push(
+                Container::new(action)
+                    .padding(Padding {
+                        top: 0.0,
+                        right: 0.0,
+                        bottom: tokens::component::tooltip::RICH_ACTION_LABEL_BOTTOM_PADDING,
+                        left: 0.0,
+                    })
+                    .width(Length::Fill),
+            );
+        }
+
+        let tooltip = Container::new(tooltip)
+            .width(Length::Fill)
+            .height(Length::Shrink)
+            .max_width(tokens::component::tooltip::RICH_MAX_WIDTH);
+
+        Tooltip::new(content, tooltip, position)
+            .gap(tokens::component::tooltip::SPACING_BETWEEN_TOOLTIP_AND_ANCHOR)
+            .padding(0.0)
+            .style(tooltip_style::rich)
+    }
+
+    fn rich_title_text<'a, Renderer>(
+        title: impl text::IntoFragment<'a>,
+    ) -> Text<'a, Theme, Renderer>
+    where
+        Renderer: core_text::Renderer,
+    {
+        let scale = tokens::component::tooltip::RICH_SUBHEAD_TEXT;
+
+        text_with_metrics(title, scale.size, scale.line_height)
+            .wrapping(text::Wrapping::Word)
+            .style(rich_title_style)
+    }
+
+    fn rich_supporting_text<'a, Renderer>(
+        supporting_text: impl text::IntoFragment<'a>,
+    ) -> Text<'a, Theme, Renderer>
+    where
+        Renderer: core_text::Renderer,
+    {
+        let scale = tokens::component::tooltip::RICH_SUPPORTING_TEXT;
+
+        text_with_metrics(supporting_text, scale.size, scale.line_height)
+            .wrapping(text::Wrapping::Word)
+            .style(rich_supporting_text_style)
+    }
+
+    fn rich_title_top_padding() -> f32 {
+        (tokens::component::tooltip::RICH_HEIGHT_TO_SUBHEAD_FIRST_LINE
+            - tokens::component::tooltip::RICH_SUBHEAD_TEXT.line_height)
+            .max(0.0)
+    }
+
+    fn rich_supporting_text_padding(has_title: bool, has_action: bool) -> Padding {
+        if !has_title && !has_action {
+            return Padding {
+                top: tokens::component::tooltip::RICH_TEXT_VERTICAL_SPACE_WITHOUT_TITLE_OR_ACTION,
+                right: 0.0,
+                bottom:
+                    tokens::component::tooltip::RICH_TEXT_VERTICAL_SPACE_WITHOUT_TITLE_OR_ACTION,
+                left: 0.0,
+            };
+        }
+
+        Padding {
+            top: (tokens::component::tooltip::RICH_HEIGHT_FROM_SUBHEAD_TO_TEXT_FIRST_LINE
+                - tokens::component::tooltip::RICH_SUPPORTING_TEXT.line_height)
+                .max(0.0),
+            right: 0.0,
+            bottom: tokens::component::tooltip::RICH_TEXT_BOTTOM_PADDING,
+            left: 0.0,
+        }
+    }
+
+    fn rich_title_style(theme: &Theme) -> iced_widget::text::Style {
+        iced_widget::text::Style {
+            color: Some(theme.colors().surface.text_variant),
+        }
+    }
+
+    fn rich_supporting_text_style(theme: &Theme) -> iced_widget::text::Style {
+        iced_widget::text::Style {
+            color: Some(theme.colors().surface.text_variant),
+        }
     }
 
     fn plain_tooltip_inner_horizontal_padding() -> f32 {
@@ -2810,6 +3001,29 @@ pub mod tooltip {
                 plain_tooltip_inner_max_width()
                     + tokens::component::tooltip::PLAIN_VERTICAL_SPACE * 2.0,
                 tokens::component::tooltip::PLAIN_MAX_WIDTH
+            );
+        }
+
+        #[test]
+        fn rich_tooltip_padding_matches_androidx_material_layout_constants() {
+            assert_eq!(rich_title_top_padding(), 8.0);
+            assert_eq!(
+                rich_supporting_text_padding(false, false),
+                Padding {
+                    top: 4.0,
+                    right: 0.0,
+                    bottom: 4.0,
+                    left: 0.0,
+                }
+            );
+            assert_eq!(
+                rich_supporting_text_padding(true, true),
+                Padding {
+                    top: 4.0,
+                    right: 0.0,
+                    bottom: 16.0,
+                    left: 0.0,
+                }
             );
         }
     }
@@ -5327,6 +5541,31 @@ mod tests {
     }
 
     #[test]
+    fn material_dialog_constructors_compile_to_elements() {
+        let content: TestElement<'_> = Text::new("Custom dialog content").into();
+        let _: TestElement<'_> = dialog::basic(content).into();
+
+        let actions: [TestElement<'_>; 2] = [
+            dialog::action("Cancel").on_press(Message::Pressed).into(),
+            dialog::action("OK").on_press(Message::Pressed).into(),
+        ];
+        let _: TestElement<'_> =
+            dialog::alert("Title", "Supporting text", dialog::actions(actions)).into();
+
+        let actions: [TestElement<'_>; 1] =
+            [dialog::action("Done").on_press(Message::Pressed).into()];
+        let _: TestElement<'_> =
+            dialog::alert_with_icon("info", "Title", "Supporting text", dialog::actions(actions))
+                .into();
+
+        let content: TestElement<'_> = Text::new("Scrim content").into();
+        let _: TestElement<'_> = dialog::scrim(content).into();
+
+        let content: TestElement<'_> = Text::new("Modal dialog").into();
+        let _: TestElement<'_> = dialog::modal_overlay(content).into();
+    }
+
+    #[test]
     fn material_navigation_constructors_compile_to_elements() {
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         enum Page {
@@ -5527,6 +5766,38 @@ mod tests {
 
         let content: TestElement<'_> = Text::new("Modal overlay content").into();
         let _: TestElement<'_> = sheet::modal_overlay(content).into();
+
+        let content: TestElement<'_> = Text::new("Modal side sheet content").into();
+        let _: TestElement<'_> = sheet::modal_side(content).into();
+
+        let content: TestElement<'_> = Text::new("Left modal side sheet content").into();
+        let _: TestElement<'_> = sheet::modal_side_on(sheet::Side::Left, content).into();
+
+        let content: TestElement<'_> = Text::new("Detached modal side sheet content").into();
+        let _: TestElement<'_> = sheet::detached_modal_side(content).into();
+
+        let content: TestElement<'_> = Text::new("Detached left modal side sheet content").into();
+        let _: TestElement<'_> = sheet::detached_modal_side_on(sheet::Side::Left, content).into();
+
+        let content: TestElement<'_> = Text::new("Standard side sheet content").into();
+        let _: TestElement<'_> = sheet::standard_side(content).into();
+
+        let content: TestElement<'_> = Text::new("Left standard side sheet content").into();
+        let _: TestElement<'_> = sheet::standard_side_on(sheet::Side::Left, content).into();
+
+        let content: TestElement<'_> = Text::new("Detached standard side sheet content").into();
+        let _: TestElement<'_> = sheet::detached_standard_side(content).into();
+
+        let content: TestElement<'_> =
+            Text::new("Detached left standard side sheet content").into();
+        let _: TestElement<'_> =
+            sheet::detached_standard_side_on(sheet::Side::Left, content).into();
+
+        let content: TestElement<'_> = Text::new("Side scrim content").into();
+        let _: TestElement<'_> = sheet::side_scrim(content).into();
+
+        let content: TestElement<'_> = Text::new("Side overlay content").into();
+        let _: TestElement<'_> = sheet::modal_side_overlay(sheet::Side::Right, content).into();
     }
 
     #[test]
@@ -5603,6 +5874,30 @@ mod tests {
         let content = button::assist_chip("Hint").on_press(Message::Pressed);
         let _: TestElement<'_> =
             tooltip::plain(content, "Material 3 plain tooltip", tooltip::Position::Top).into();
+
+        let content = button::assist_chip("Rich").on_press(Message::Pressed);
+        let _: TestElement<'_> =
+            tooltip::rich(content, "Material 3 rich tooltip", tooltip::Position::Top).into();
+
+        let content = button::assist_chip("Rich title").on_press(Message::Pressed);
+        let _: TestElement<'_> = tooltip::rich_with_title(
+            content,
+            "Rich tooltip",
+            "Supporting text",
+            tooltip::Position::Top,
+        )
+        .into();
+
+        let content = button::assist_chip("Rich action").on_press(Message::Pressed);
+        let action = tooltip::rich_action("Action").on_press(Message::Pressed);
+        let _: TestElement<'_> = tooltip::rich_with_title_action(
+            content,
+            "Rich tooltip",
+            "Supporting text",
+            action,
+            tooltip::Position::Top,
+        )
+        .into();
     }
 
     #[test]

@@ -8,16 +8,8 @@ pub(super) fn view(state: &Showcase) -> material::Element<'_, Message> {
         page::section("Progress", progress_indicators(state)).into(),
         page::section("Badges", badges()).into(),
         page::section("Snackbars", snackbars()).into(),
-        page::section(
-            "Tooltip",
-            material::widget::tooltip::plain(
-                material::widget::button::assist_chip("Hint")
-                    .on_press_maybe(state.enabled.then_some(Message::Increment)),
-                "Material 3 plain tooltip",
-                material::widget::tooltip::Position::Top,
-            ),
-        )
-        .into(),
+        page::section("Dialogs", dialogs()).into(),
+        page::section("Tooltips", tooltips(state)).into(),
     ])
     .into()
 }
@@ -75,5 +67,34 @@ fn snackbars() -> material::Element<'static, Message> {
         .into(),
     ])
     .spacing(8)
+    .into()
+}
+
+fn dialogs() -> material::Element<'static, Message> {
+    page::row([material::widget::button::filled("Open alert dialog")
+        .on_press(Message::DialogOpened)
+        .into()])
+    .into()
+}
+
+fn tooltips(state: &Showcase) -> material::Element<'_, Message> {
+    page::row([
+        material::widget::tooltip::plain(
+            material::widget::button::assist_chip("Plain")
+                .on_press_maybe(state.enabled.then_some(Message::Increment)),
+            "Material 3 plain tooltip",
+            material::widget::tooltip::Position::Top,
+        )
+        .into(),
+        material::widget::tooltip::rich_with_title_action(
+            material::widget::button::assist_chip("Rich")
+                .on_press_maybe(state.enabled.then_some(Message::Increment)),
+            "Rich tooltip",
+            "Additional context and a related action can be shown together.",
+            material::widget::tooltip::rich_action("Action").on_press(Message::Increment),
+            material::widget::tooltip::Position::Top,
+        )
+        .into(),
+    ])
     .into()
 }

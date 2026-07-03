@@ -15,6 +15,7 @@ pub(super) fn view(state: &Showcase) -> material::Element<'_, Message> {
         page::section("Search view", search_view(state)).into(),
         page::section("Bottom app bar", bottom_app_bar()).into(),
         page::section("Bottom sheets", bottom_sheets(state)).into(),
+        page::section("Side sheets", side_sheets(state)).into(),
     ])
     .into()
 }
@@ -162,6 +163,34 @@ fn bottom_sheets(state: &Showcase) -> material::Element<'static, Message> {
     .into()
 }
 
+fn side_sheets(state: &Showcase) -> material::Element<'static, Message> {
+    let width = structure_preview_width(state);
+    let standard =
+        material::Container::new(material::widget::sheet::standard_side(side_sheet_content(
+            "Standard side sheet",
+            "Coexists with the page while supporting content remains visible.",
+        )))
+        .width(Length::Fill)
+        .height(Length::Fixed(260.0))
+        .align_x(alignment::Horizontal::Right);
+
+    let modal = material::widget::sheet::modal_side_overlay(
+        material::widget::sheet::Side::Right,
+        side_sheet_content(
+            "Modal side sheet",
+            "Uses a scrim and keeps focus on a temporary side task.",
+        ),
+    )
+    .height(Length::Fixed(260.0));
+
+    page::stack([
+        centered_preview(width, standard).into(),
+        centered_preview(width, modal).into(),
+    ])
+    .spacing(12)
+    .into()
+}
+
 fn sheet_content(
     title: &'static str,
     supporting: &'static str,
@@ -189,6 +218,32 @@ fn sheet_content(
         left: 24.0,
     })
     .width(Length::Fill)
+    .into()
+}
+
+fn side_sheet_content(
+    title: &'static str,
+    supporting: &'static str,
+) -> material::Element<'static, Message> {
+    material::Container::new(
+        page::stack([
+            material::text::title_medium(title).into(),
+            material::text::body_medium(supporting).into(),
+            page::row([
+                material::widget::button::text("Dismiss")
+                    .on_press(Message::Decrement)
+                    .into(),
+                material::widget::button::filled("Apply")
+                    .on_press(Message::Increment)
+                    .into(),
+            ])
+            .into(),
+        ])
+        .spacing(8),
+    )
+    .padding(24)
+    .width(Length::Fill)
+    .height(Length::Fill)
     .into()
 }
 
