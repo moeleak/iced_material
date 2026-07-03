@@ -1,7 +1,7 @@
 //! Floating Material color theme picker.
 
 use iced_widget::button::{Status, Style};
-use iced_widget::canvas::{self, Canvas, Path};
+use iced_widget::canvas::{self, Canvas, Path, Stroke};
 use iced_widget::core::text as core_text;
 use iced_widget::core::time::Instant;
 use iced_widget::core::{
@@ -31,8 +31,14 @@ const SWATCH_ROWS: usize = 2;
 const PALETTE_BUTTON_SIZE: f32 = 56.0;
 const PALETTE_BUTTON_SHAPE: f32 = tokens::shape::CORNER_LARGE;
 const PALETTE_BUTTON_ELEVATION_LEVEL: u8 = 3;
-const THEME_REVEAL_CORE_RADIUS_FACTOR: f32 = 0.36;
-const THEME_REVEAL_MAX_ALPHA: f32 = 0.42;
+const THEME_REVEAL_CENTER_ALPHA: f32 = 0.12;
+const THEME_REVEAL_START_FILL_ALPHA: f32 = 0.18;
+const THEME_REVEAL_EDGE_ALPHA: f32 = 0.24;
+const THEME_REVEAL_EDGE_LAYERS: usize = 14;
+const THEME_REVEAL_MIN_BLUR_WIDTH: f32 = 18.0;
+const THEME_REVEAL_MAX_BLUR_WIDTH: f32 = 96.0;
+const THEME_REVEAL_START_FILL_THRESHOLD: f32 = 0.30;
+const THEME_REVEAL_EDGE_FADE_THRESHOLD: f32 = 0.50;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct State {
@@ -548,34 +554,144 @@ where
         let mut frame = canvas::Frame::new(renderer, bounds.size());
         let progress = self.progress.clamp(0.0, 1.0);
         let origin = Point::new(self.origin.x - bounds.x, self.origin.y - bounds.y);
-        let radius = max_radius_from_origin(origin, bounds.size()) * progress;
+        let max_radius = max_radius_from_origin(origin, bounds.size());
+        let radius = max_radius * progress;
+
+        draw_start_fill(&mut frame, bounds.size(), self.target, progress);
 
         if radius <= 0.0 {
             return vec![frame.into_geometry()];
         }
 
-        let alpha = reveal_overlay_alpha(progress);
-        let mut surface = self.target.surface.color;
-        surface.a *= alpha;
-        let mut core = mix(
-            self.target.primary.container,
-            self.target.surface.color,
-            0.20,
-        );
-        core.a *= alpha * 0.75;
-
-        frame.fill(&Path::circle(origin, radius), surface);
-        frame.fill(
-            &Path::circle(origin, radius * THEME_REVEAL_CORE_RADIUS_FACTOR),
-            core,
+        draw_reveal_center(&mut frame, origin, radius, self.target, progress);
+        draw_reveal_blur_halo(
+            &mut frame,
+            origin,
+            radius,
+            max_radius,
+            self.target,
+            progress,
         );
 
         vec![frame.into_geometry()]
     }
 }
 
-fn reveal_overlay_alpha(progress: f32) -> f32 {
-    THEME_REVEAL_MAX_ALPHA * (1.0 - progress.clamp(0.0, 1.0)).sqrt()
+fn draw_start_fill<Renderer>(
+    frame: &mut canvas::Frame<Renderer>,
+    size: Size,
+    target: ColorScheme,
+    progress: f32,
+) where
+    Renderer: geometry::Renderer,
+{
+    let alpha = reveal_start_fill_alpha(progress);
+
+    if alpha <= 0.0 {
+        return;
+    }
+
+    let mut color = mix(target.surface.color, target.primary.container, 0.16);
+    color.a *= alpha;
+
+    frame.fill(&Path::rectangle(Point::ORIGIN, size), color);
+}
+
+fn draw_reveal_center<Renderer>(
+    frame: &mut canvas::Frame<Renderer>,
+    origin: Point,
+    radius: f32,
+    target: ColorScheme,
+    progress: f32,
+) where
+    Renderer: geometry::Renderer,
+{
+    let mut surface = target.surface.color;
+    surface.a *= THEME_REVEAL_CENTER_ALPHA
+        * reveal_gradient_end_alpha(progress)
+        * (1.0 - reveal_blur_ratio(progress) * 0.35);
+
+    if surface.a > 0.0 {
+        frame.fill(&Path::circle(origin, radius), surface);
+    }
+}
+
+fn draw_reveal_blur_halo<Renderer>(
+    frame: &mut canvas::Frame<Renderer>,
+    origin: Point,
+    radius: f32,
+    max_radius: f32,
+    target: ColorScheme,
+    progress: f32,
+) where
+    Renderer: geometry::Renderer,
+{
+    let edge_alpha = reveal_gradient_end_alpha(progress);
+    let blur_ratio = reveal_blur_ratio(progress);
+    let blur_width = reveal_blur_width(max_radius, progress);
+
+    if edge_alpha <= 0.0 || blur_width <= 0.0 {
+        return;
+    }
+
+    let layer_width = (blur_width / THEME_REVEAL_EDGE_LAYERS as f32).max(1.0);
+    let base = mix(target.primary.container, target.surface.color, 0.28);
+
+    for layer in 0..THEME_REVEAL_EDGE_LAYERS {
+        let t = layer as f32 / (THEME_REVEAL_EDGE_LAYERS - 1) as f32;
+        let offset = (t - 0.5) * blur_width;
+        let ring_radius = (radius + offset).max(layer_width / 2.0);
+        let bell = 1.0 - (2.0 * t - 1.0).abs().powi(2);
+        let mut color = mix(base, target.surface.color, t * 0.55);
+        color.a *= THEME_REVEAL_EDGE_ALPHA * edge_alpha * (0.30 + blur_ratio * 0.70) * bell
+            / THEME_REVEAL_EDGE_LAYERS as f32;
+
+        if color.a <= 0.0 {
+            continue;
+        }
+
+        frame.stroke(
+            &Path::circle(origin, ring_radius),
+            Stroke::default()
+                .with_width(layer_width * (1.0 + blur_ratio * 1.2))
+                .with_color(color),
+        );
+    }
+}
+
+fn percent_past_threshold(value: f32, threshold: f32) -> f32 {
+    let threshold = threshold.clamp(0.0, 0.999_999);
+
+    ((value.clamp(0.0, 1.0) - threshold).max(0.0) / (1.0 - threshold)).clamp(0.0, 1.0)
+}
+
+fn reveal_gradient_end_alpha(progress: f32) -> f32 {
+    1.0 - percent_past_threshold(progress, THEME_REVEAL_EDGE_FADE_THRESHOLD)
+}
+
+fn reveal_start_fill_alpha(progress: f32) -> f32 {
+    THEME_REVEAL_START_FILL_ALPHA
+        * (1.0 - percent_past_threshold(progress, THEME_REVEAL_START_FILL_THRESHOLD))
+}
+
+fn reveal_blur_ratio(progress: f32) -> f32 {
+    let progress = progress.clamp(0.0, 1.0);
+
+    (1.0 - (progress * 2.0 - 1.0).abs()).clamp(0.0, 1.0).sqrt()
+}
+
+fn reveal_blur_width(max_radius: f32, progress: f32) -> f32 {
+    let max_width = THEME_REVEAL_MAX_BLUR_WIDTH.min(max_radius * 0.12);
+
+    lerp(
+        THEME_REVEAL_MIN_BLUR_WIDTH.min(max_width),
+        max_width,
+        reveal_blur_ratio(progress),
+    )
+}
+
+fn lerp(from: f32, to: f32, progress: f32) -> f32 {
+    from + (to - from) * progress.clamp(0.0, 1.0)
 }
 
 fn picker_panel_width() -> f32 {
@@ -716,8 +832,18 @@ mod tests {
     }
 
     #[test]
-    fn reveal_overlay_fades_as_reveal_completes() {
-        assert_eq!(reveal_overlay_alpha(1.0), 0.0);
-        assert!(reveal_overlay_alpha(0.25) > reveal_overlay_alpha(0.75));
+    fn reveal_overlay_uses_android_style_thresholds() {
+        assert_eq!(percent_past_threshold(0.5, 0.5), 0.0);
+        assert_eq!(percent_past_threshold(1.0, 0.5), 1.0);
+        assert_eq!(reveal_gradient_end_alpha(1.0), 0.0);
+        assert!(reveal_gradient_end_alpha(0.25) > reveal_gradient_end_alpha(0.75));
+        assert_eq!(reveal_start_fill_alpha(1.0), 0.0);
+    }
+
+    #[test]
+    fn reveal_blur_is_strongest_mid_transition() {
+        assert!(reveal_blur_ratio(0.5) > reveal_blur_ratio(0.1));
+        assert!(reveal_blur_ratio(0.5) > reveal_blur_ratio(0.9));
+        assert!(reveal_blur_width(1000.0, 0.5) > reveal_blur_width(1000.0, 0.0));
     }
 }
