@@ -3328,19 +3328,20 @@ where
     let calendar = Column::new()
         .push(weekdays_row(state.first_day_of_week, content_alpha))
         .push(animated_month_grid(state, on_action.clone(), content_alpha));
-    let content: Element<'a, Message, Theme, Renderer> = if year_picker_progress > 0.0 {
-        Stack::new()
-            .push(calendar)
-            .push(year_grid(
-                state,
-                on_action.clone(),
-                year_picker_progress,
-                year_picker_alpha,
-            ))
-            .into()
-    } else {
-        calendar.into()
-    };
+    let content: Element<'a, Message, Theme, Renderer> =
+        if year_picker_should_render(year_picker_progress, state.year_picker_visible) {
+            Stack::new()
+                .push(calendar)
+                .push(year_grid(
+                    state,
+                    on_action.clone(),
+                    year_picker_progress,
+                    year_picker_alpha,
+                ))
+                .into()
+        } else {
+            calendar.into()
+        };
 
     Column::new()
         .push(month_navigation(state, on_action, content_alpha))
@@ -3371,7 +3372,7 @@ where
             content_alpha,
         ));
 
-    if year_picker_progress > 0.0 {
+    if year_picker_should_render(year_picker_progress, state.year_picker_visible) {
         Stack::new()
             .push(calendar)
             .push(range_year_grid(
@@ -3394,6 +3395,10 @@ fn year_picker_content_alpha(progress: f32, visible: bool) -> f32 {
     } else {
         progress
     }
+}
+
+fn year_picker_should_render(progress: f32, visible: bool) -> bool {
+    visible || progress > 0.0
 }
 
 fn date_input_content<'a, Message, Renderer>(
@@ -7383,6 +7388,14 @@ mod tests {
         let _: iced::Task<()> =
             range.update_and_scroll_to_displayed_year(DateRangePickerAction::ToggleYearPicker);
         assert!(range.year_picker_visible());
+    }
+
+    #[test]
+    fn year_picker_renders_before_opening_animation_advances() {
+        assert!(year_picker_should_render(0.0, true));
+        assert!(year_picker_should_render(0.5, true));
+        assert!(year_picker_should_render(0.5, false));
+        assert!(!year_picker_should_render(0.0, false));
     }
 
     #[test]
