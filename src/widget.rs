@@ -426,7 +426,11 @@ fn union_bounds(a: Rectangle, b: Rectangle) -> Rectangle {
 }
 
 fn should_suppress_ime_caret() -> bool {
-    !cfg!(any(target_os = "android", target_os = "windows"))
+    !cfg!(any(
+        target_arch = "wasm32",
+        target_os = "android",
+        target_os = "windows"
+    ))
 }
 
 fn checkbox_checkmark_svg(mark_progress: f32) -> Vec<u8> {

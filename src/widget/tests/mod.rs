@@ -519,13 +519,13 @@ fn selection_control_hit_bounds_cover_switch_state_layer_edges() {
     );
 }
 
-#[cfg(not(any(target_os = "android", target_os = "windows")))]
+#[cfg(not(any(target_arch = "wasm32", target_os = "android", target_os = "windows")))]
 #[test]
 fn ime_caret_suppression_is_enabled_on_desktop_composition_platforms() {
     assert!(should_suppress_ime_caret());
 }
 
-#[cfg(any(target_os = "android", target_os = "windows"))]
+#[cfg(any(target_arch = "wasm32", target_os = "android", target_os = "windows"))]
 #[test]
 fn ime_caret_suppression_is_disabled_on_platform_owned_ime_caret() {
     assert!(!should_suppress_ime_caret());
