@@ -1,0 +1,14 @@
+pub const ACTIVE_TRACK_HEIGHT: f32 = 4.0;
+pub const INACTIVE_TRACK_HEIGHT: f32 = 4.0;
+pub const TRACK_SHAPE: f32 = super::super::shape::CORNER_FULL;
+pub const HANDLE_WIDTH: f32 = 20.0;
+pub const HANDLE_HEIGHT: f32 = 20.0;
+pub const HANDLE_RADIUS: f32 = HANDLE_WIDTH / 2.0;
+pub const HANDLE_ELEVATION: f32 = 2.0;
+pub const STATE_LAYER_SIZE: f32 = 40.0;
+pub const LABEL_CONTAINER_HEIGHT: f32 = 28.0;
+pub const TICK_MARK_SIZE: f32 = 2.0;
+pub const WITH_OVERLAP_HANDLE_OUTLINE_WIDTH: f32 = 1.0;
+pub const DISABLED_ACTIVE_TRACK_OPACITY: f32 = 0.38;
+pub const DISABLED_INACTIVE_TRACK_OPACITY: f32 = 0.12;
+pub const DISABLED_HANDLE_OPACITY: f32 = 0.38;

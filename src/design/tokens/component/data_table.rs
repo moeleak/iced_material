@@ -1,0 +1,7 @@
+pub const CONTAINER_SHAPE: f32 = super::super::shape::CORNER_EXTRA_SMALL;
+pub const OUTLINE_WIDTH: f32 = 1.0;
+pub const HEADER_CONTAINER_HEIGHT: f32 = 56.0;
+pub const FOOTER_CONTAINER_HEIGHT: f32 = 52.0;
+pub const ROW_ITEM_CONTAINER_HEIGHT: f32 = 52.0;
+pub const ROW_ITEM_OUTLINE_WIDTH: f32 = 1.0;
+pub const ROW_ITEM_DISABLED_LABEL_TEXT_OPACITY: f32 = 0.38;

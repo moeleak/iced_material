@@ -1,0 +1,10 @@
+pub const SMALL_SIZE: f32 = 6.0;
+pub const LARGE_CONTAINER_HEIGHT: f32 = 16.0;
+pub const LARGE_CONTAINER_MIN_WIDTH: f32 = 16.0;
+pub const LARGE_CONTAINER_MAX_WIDTH: f32 = 34.0;
+pub const LARGE_CONTAINER_SHAPE: f32 = 8.0;
+pub const LARGE_HORIZONTAL_SPACE: f32 = 4.0;
+pub const ICON_ONLY_OFFSET: f32 = 6.0;
+pub const WITH_CONTENT_HORIZONTAL_OFFSET: f32 = 12.0;
+pub const WITH_CONTENT_VERTICAL_OFFSET: f32 = 14.0;
+pub const LABEL_TEXT: super::super::typography::TypeScale = super::super::typography::LABEL_SMALL;

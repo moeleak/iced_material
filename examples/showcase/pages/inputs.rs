@@ -12,7 +12,7 @@ pub(super) fn view(state: &Showcase) -> material::Element<'_, Message> {
         .on_action(Message::EditorAction);
 
     let select_options = ["Assist", "Suggestion", "Filter"];
-    let select = material::widget::pick_list::outlined(
+    let select = material::widget::select::outlined(
         select_options,
         state.select_choice,
         Message::SelectChanged,
@@ -20,21 +20,21 @@ pub(super) fn view(state: &Showcase) -> material::Element<'_, Message> {
     .placeholder("Choose a chip")
     .label("Chip type");
 
-    let combo_box = material::widget::combo_box::outlined_with_input(
-        &state.combo_options,
+    let combobox = material::widget::combobox::outlined_with_input(
+        &state.combobox_options,
         "Search a chip",
-        &state.combo_input,
-        state.combo_choice.as_ref(),
-        Message::ComboSelected,
+        &state.combobox_input,
+        state.combobox_choice.as_ref(),
+        Message::ComboboxSelected,
     )
     .label("Searchable chip")
-    .on_input(Message::ComboInputChanged);
+    .on_input(Message::ComboboxInputChanged);
 
     page::sections([
         page::section("Text fields", page::stack([input.into(), editor.into()])).into(),
         page::section(
             "Selection fields",
-            page::stack([select.into(), combo_box.into()]),
+            page::stack([select.into(), combobox.into()]),
         )
         .into(),
         page::section("Pickers", pickers(state)).into(),

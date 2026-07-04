@@ -7,7 +7,7 @@ use crate::{Theme, fonts};
 
 /// Creates an `iced` application with the bundled Material fonts preloaded.
 ///
-/// This is equivalent to [`iced::application`] followed by
+/// This is equivalent to [`iced::application()`] followed by
 /// [`with_material_fonts`].
 pub fn application<State, Message, Renderer>(
     boot: impl iced::application::BootFn<State, Message>,

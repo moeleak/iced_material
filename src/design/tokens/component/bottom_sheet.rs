@@ -1,0 +1,16 @@
+pub const CONTAINER_SHAPE_TOP: f32 = super::super::shape::CORNER_EXTRA_LARGE;
+pub const CONTAINER_SHAPE_BOTTOM: f32 = super::super::shape::CORNER_NONE;
+pub const HIDDEN_CONTAINER_SHAPE: f32 = super::super::shape::CORNER_NONE;
+pub const MODAL_CONTAINER_ELEVATION_LEVEL: u8 = 1;
+pub const STANDARD_CONTAINER_ELEVATION_LEVEL: u8 = 1;
+pub const DRAG_HANDLE_WIDTH: f32 = 32.0;
+pub const DRAG_HANDLE_HEIGHT: f32 = 4.0;
+pub const DRAG_HANDLE_VERTICAL_PADDING: f32 = 22.0;
+pub const CONTENT_PADDING: f32 = 24.0;
+pub const SHEET_PEEK_HEIGHT: f32 = 56.0;
+pub const SHEET_MAX_WIDTH: f32 = 640.0;
+pub const SCRIM_OPACITY: f32 = 0.32;
+pub const POSITIONAL_THRESHOLD: f32 = 56.0;
+pub const VELOCITY_THRESHOLD: f32 = 125.0;
+pub const ANIMATION_DURATION_MS: u16 = super::super::motion::DURATION_MEDIUM2_MS;
+pub const ANIMATION_EASING: super::super::motion::CubicBezier = super::super::motion::EASING_LEGACY;

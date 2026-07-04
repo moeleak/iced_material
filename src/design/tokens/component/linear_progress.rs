@@ -1,0 +1,24 @@
+pub const ACTIVE_INDICATOR_HEIGHT: f32 = 4.0;
+pub const ACTIVE_INDICATOR_SHAPE: f32 = super::super::shape::CORNER_NONE;
+pub const ACTIVE_WAVE_AMPLITUDE: f32 = 3.0;
+pub const ACTIVE_WAVE_WAVELENGTH: f32 = 40.0;
+pub const INDETERMINATE_ACTIVE_WAVE_WAVELENGTH: f32 = 20.0;
+pub const STOP_SIZE: f32 = 4.0;
+pub const STOP_TRAILING_SPACE: f32 = 0.0;
+pub const TRACK_ACTIVE_SPACE: f32 = 4.0;
+pub const TRACK_HEIGHT: f32 = 4.0;
+pub const TRACK_SHAPE: f32 = super::super::shape::CORNER_NONE;
+pub const TRACK_THICKNESS: f32 = 4.0;
+pub const WAVE_HEIGHT: f32 = 10.0;
+pub const DETERMINATE_TRANSITION_DURATION_MS: u16 = super::super::motion::DURATION_MEDIUM1_MS;
+pub const INDETERMINATE_DURATION_MS: u16 = 1750;
+pub const FIRST_LINE_HEAD_DURATION_MS: u16 = 1000;
+pub const FIRST_LINE_TAIL_DURATION_MS: u16 = 1000;
+pub const SECOND_LINE_HEAD_DURATION_MS: u16 = 850;
+pub const SECOND_LINE_TAIL_DURATION_MS: u16 = 850;
+pub const FIRST_LINE_HEAD_DELAY_MS: u16 = 0;
+pub const FIRST_LINE_TAIL_DELAY_MS: u16 = 250;
+pub const SECOND_LINE_HEAD_DELAY_MS: u16 = 650;
+pub const SECOND_LINE_TAIL_DELAY_MS: u16 = 900;
+pub const DETERMINATE_EASING: super::super::motion::CubicBezier =
+    super::super::motion::CubicBezier::new(0.4, 0.0, 0.6, 1.0);

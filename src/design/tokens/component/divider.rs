@@ -1,0 +1,3 @@
+pub const THICKNESS: f32 = 1.0;
+pub const LIST_ITEM_LEADING_SPACE: u16 = 16;
+pub const LIST_ITEM_TRAILING_SPACE: u16 = 16;

@@ -1,0 +1,11 @@
+pub const CONTAINER_HEIGHT: f32 = 80.0;
+pub const CONTAINER_ELEVATION_LEVEL: u8 = 2;
+pub const ACTIVE_INDICATOR_WIDTH: f32 = 64.0;
+pub const ACTIVE_INDICATOR_HEIGHT: f32 = 32.0;
+pub const ACTIVE_INDICATOR_SHAPE: f32 = super::super::shape::CORNER_FULL;
+pub const ICON_SIZE: f32 = 24.0;
+pub const LABEL_TEXT: super::super::typography::TypeScale = super::super::typography::LABEL_MEDIUM;
+pub const ITEM_HORIZONTAL_PADDING: f32 = 8.0;
+pub const INDICATOR_TO_LABEL_PADDING: f32 = 4.0;
+pub const INDICATOR_VERTICAL_OFFSET: f32 = 12.0;
+pub const ITEM_ANIMATION_DURATION_MS: u16 = super::super::motion::DURATION_SHORT2_MS;

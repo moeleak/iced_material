@@ -31,8 +31,8 @@ enum Message {
     TextChanged(String),
     EditorAction(material::widget::text_editor::Action),
     SelectChanged(&'static str),
-    ComboSelected(&'static str),
-    ComboInputChanged(String),
+    ComboboxSelected(&'static str),
+    ComboboxInputChanged(String),
     SearchChanged(String),
     DatePickerChanged(material::widget::picker::DatePickerAction),
     DateRangePickerChanged(material::widget::picker::DateRangePickerAction),
@@ -147,9 +147,9 @@ struct Showcase {
     note: String,
     editor_content: material::widget::text_editor::Content,
     select_choice: Option<&'static str>,
-    combo_options: material::widget::combo_box::State<&'static str>,
-    combo_choice: Option<&'static str>,
-    combo_input: String,
+    combobox_options: material::widget::combobox::State<&'static str>,
+    combobox_choice: Option<&'static str>,
+    combobox_input: String,
     search_query: String,
     date_picker: material::widget::picker::DatePickerState,
     date_range_picker: material::widget::picker::DateRangePickerState,
@@ -180,12 +180,12 @@ impl Default for Showcase {
                 "Material 3 multi-line text editor",
             ),
             select_choice: Some("Assist"),
-            combo_options: material::widget::combo_box::State::with_selection(
+            combobox_options: material::widget::combobox::State::with_selection(
                 vec!["Assist", "Suggestion", "Filter"],
                 Some(&"Suggestion"),
             ),
-            combo_choice: Some("Suggestion"),
-            combo_input: String::new(),
+            combobox_choice: Some("Suggestion"),
+            combobox_input: String::new(),
             search_query: String::new(),
             date_picker: material::widget::picker::DatePickerState::new(
                 material::widget::picker::Date::new(2026, 7, 4),
@@ -258,16 +258,16 @@ fn update(state: &mut Showcase, message: Message) -> Task<Message> {
             state.select_choice = Some(choice);
             Task::none()
         }
-        Message::ComboSelected(choice) => {
-            state.combo_choice = Some(choice);
-            state.combo_input.clear();
-            state.combo_options.set_selection(Some(&choice));
+        Message::ComboboxSelected(choice) => {
+            state.combobox_choice = Some(choice);
+            state.combobox_input.clear();
+            state.combobox_options.set_selection(Some(&choice));
             Task::none()
         }
-        Message::ComboInputChanged(input) => {
-            state.combo_options.set_input(input.clone());
-            state.combo_input = input;
-            state.combo_choice = None;
+        Message::ComboboxInputChanged(input) => {
+            state.combobox_options.set_input(input.clone());
+            state.combobox_input = input;
+            state.combobox_choice = None;
             Task::none()
         }
         Message::SearchChanged(query) => {
@@ -464,18 +464,18 @@ mod tests {
     use iced::Point;
 
     #[test]
-    fn combo_input_preserves_typed_query_and_clears_stale_selection() {
+    fn combobox_input_preserves_typed_query_and_clears_stale_selection() {
         let mut showcase = Showcase::default();
 
-        update(&mut showcase, Message::ComboInputChanged("xxx".into()));
+        update(&mut showcase, Message::ComboboxInputChanged("xxx".into()));
 
-        assert_eq!(showcase.combo_choice, None);
-        assert_eq!(showcase.combo_input, "xxx");
+        assert_eq!(showcase.combobox_choice, None);
+        assert_eq!(showcase.combobox_input, "xxx");
 
-        update(&mut showcase, Message::ComboSelected("Assist"));
+        update(&mut showcase, Message::ComboboxSelected("Assist"));
 
-        assert_eq!(showcase.combo_choice, Some("Assist"));
-        assert_eq!(showcase.combo_input, "");
+        assert_eq!(showcase.combobox_choice, Some("Assist"));
+        assert_eq!(showcase.combobox_input, "");
     }
 
     #[test]

@@ -1,0 +1,11 @@
+pub const CONTAINER_WIDTH: f32 = 40.0;
+pub const CONTAINER_HEIGHT: f32 = 40.0;
+pub const CONTAINER_SHAPE: f32 = super::super::shape::CORNER_FULL;
+pub const ICON_SIZE: f32 = 24.0;
+pub const STATE_LAYER_WIDTH: f32 = 40.0;
+pub const STATE_LAYER_HEIGHT: f32 = 40.0;
+pub const STATE_LAYER_SHAPE: f32 = super::super::shape::CORNER_FULL;
+pub const DISABLED_CONTAINER_OPACITY: f32 = 0.12;
+pub const DISABLED_ICON_OPACITY: f32 = 0.38;
+pub const OUTLINED_OUTLINE_WIDTH: f32 = 1.0;
+pub const OUTLINED_DISABLED_OUTLINE_OPACITY: f32 = 0.12;

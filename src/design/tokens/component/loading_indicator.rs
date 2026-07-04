@@ -1,0 +1,11 @@
+pub const CONTAINER_WIDTH: f32 = 48.0;
+pub const CONTAINER_HEIGHT: f32 = 48.0;
+pub const CONTAINER_SHAPE: f32 = super::super::shape::CORNER_FULL;
+pub const ACTIVE_SIZE: f32 = 38.0;
+pub const MORPH_INTERVAL_MS: u16 = 650;
+pub const GLOBAL_ROTATION_DURATION_MS: u16 = 4666;
+pub const INDETERMINATE_SHAPE_COUNT: usize = 7;
+pub const DETERMINATE_SHAPE_COUNT: usize = 2;
+pub const MORPH_SPRING_DAMPING_RATIO: f32 = 0.6;
+pub const MORPH_SPRING_STIFFNESS: f32 = 200.0;
+pub const ACTIVE_INDICATOR_SCALE: f32 = ACTIVE_SIZE / CONTAINER_WIDTH;

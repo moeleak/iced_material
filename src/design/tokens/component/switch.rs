@@ -1,0 +1,31 @@
+pub const TRACK_WIDTH: f32 = 52.0;
+pub const TRACK_HEIGHT: f32 = 32.0;
+pub const TRACK_SHAPE: f32 = super::super::shape::CORNER_FULL;
+pub const TRACK_OUTLINE_WIDTH: f32 = 2.0;
+pub const HANDLE_SHAPE: f32 = super::super::shape::CORNER_FULL;
+pub const SELECTED_HANDLE_SIZE: f32 = 24.0;
+pub const UNSELECTED_HANDLE_SIZE: f32 = 16.0;
+pub const WITH_ICON_HANDLE_SIZE: f32 = 24.0;
+pub const PRESSED_HANDLE_SIZE: f32 = 28.0;
+pub const SELECTED_ICON_SIZE: f32 = 16.0;
+pub const UNSELECTED_ICON_SIZE: f32 = 16.0;
+pub const STATE_LAYER_SIZE: f32 = 40.0;
+pub const LABEL_TEXT_SIZE: f32 = super::super::typography::BODY_LARGE.size;
+pub const LABEL_TEXT_LINE_HEIGHT: f32 = super::super::typography::BODY_LARGE.line_height;
+pub const LABEL_TEXT_WEIGHT: u16 = super::super::typography::BODY_LARGE.weight;
+pub const TRACK_COLOR_TRANSITION_DURATION_MS: u16 = 67;
+pub const HANDLE_COLOR_TRANSITION_DURATION_MS: u16 = 67;
+pub const HANDLE_SIZE_TRANSITION_DURATION_MS: u16 = super::super::motion::DURATION_MEDIUM1_MS;
+pub const PRESSED_HANDLE_SIZE_TRANSITION_DURATION_MS: u16 =
+    super::super::motion::DURATION_SHORT2_MS;
+pub const HANDLE_POSITION_TRANSITION_DURATION_MS: u16 = super::super::motion::DURATION_MEDIUM2_MS;
+pub const HANDLE_POSITION_TRANSITION_EASING: super::super::motion::CubicBezier =
+    super::super::motion::CubicBezier::new(0.175, 0.885, 0.32, 1.275);
+pub const ICON_FILL_TRANSITION_DURATION_MS: u16 = 67;
+pub const ICON_OPACITY_TRANSITION_DURATION_MS: u16 = 33;
+pub const ICON_TRANSFORM_TRANSITION_DURATION_MS: u16 = 167;
+pub const DISABLED_TRACK_OPACITY: f32 = 0.12;
+pub const DISABLED_SELECTED_HANDLE_OPACITY: f32 = 1.0;
+pub const DISABLED_UNSELECTED_HANDLE_OPACITY: f32 = 0.38;
+pub const DISABLED_SELECTED_ICON_OPACITY: f32 = 0.38;
+pub const DISABLED_UNSELECTED_ICON_OPACITY: f32 = 0.38;

@@ -1,0 +1,13 @@
+pub const CONTAINER_SHAPE: f32 = super::super::shape::CORNER_EXTRA_LARGE;
+pub const CONTAINER_ELEVATION_LEVEL: u8 = 3;
+pub const CONTENT_PADDING: f32 = 24.0;
+pub const TITLE_TOP_SPACE: f32 = 24.0;
+pub const TITLE_BOTTOM_SPACE: f32 = 20.0;
+pub const ACTIONS_BOTTOM_SPACE: f32 = 24.0;
+pub const ACTIONS_HORIZONTAL_SPACE: f32 = 8.0;
+pub const MIN_HEIGHT_FOR_TIME_PICKER: f32 = 300.0;
+pub const RICH_CONTENT_PADDING: f32 = 12.0;
+pub const RICH_CONTENT_TOP_SPACE: f32 = 12.0;
+pub const RICH_CONTENT_ACTIONS_SPACE: f32 = 12.0;
+pub const RICH_ACTIONS_BOTTOM_SPACE: f32 = 12.0;
+pub const TITLE_TEXT: super::super::typography::TypeScale = super::super::typography::LABEL_MEDIUM;

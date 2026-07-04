@@ -1031,19 +1031,19 @@ fn material_segmented_button_constructors_compile_to_elements() {
 }
 
 #[test]
-fn material_pick_list_constructor_compiles_to_element() {
+fn material_select_constructor_compiles_to_element() {
     let options = ["Assist", "Suggestion", "Filter"];
-    let _: TestElement<'_> = pick_list::outlined(options, Some("Assist"), |_| Message::Pressed)
+    let _: TestElement<'_> = select::outlined(options, Some("Assist"), |_| Message::Pressed)
         .placeholder("Choose")
         .label("Chip type")
         .into();
 }
 
 #[test]
-fn material_pick_list_defaults_to_fill_width() {
+fn material_select_defaults_to_fill_width() {
     let options = ["Assist", "Suggestion", "Filter"];
     let select: select::Select<'_, _, _, _, Message, iced_widget::Renderer> =
-        pick_list::outlined(options, Some("Assist"), |_| Message::Pressed);
+        select::outlined(options, Some("Assist"), |_| Message::Pressed);
 
     assert_eq!(
         Widget::<Message, Theme, iced_widget::Renderer>::size(&select).width,
@@ -1052,21 +1052,21 @@ fn material_pick_list_defaults_to_fill_width() {
 }
 
 #[test]
-fn material_combo_box_constructor_compiles_to_element() {
+fn material_combobox_constructor_compiles_to_element() {
     let selected = "Assist";
     let options =
-        combo_box::State::with_selection(vec!["Assist", "Suggestion", "Filter"], Some(&selected));
+        combobox::State::with_selection(vec!["Assist", "Suggestion", "Filter"], Some(&selected));
     let _: TestElement<'_> =
-        combo_box::outlined(&options, "Choose", Some(&selected), |_| Message::Pressed)
+        combobox::outlined(&options, "Choose", Some(&selected), |_| Message::Pressed)
             .label("Chip type")
             .into();
 }
 
 #[test]
-fn material_combo_box_with_input_constructor_compiles_to_element() {
-    let options = combo_box::State::new(vec!["Assist", "Suggestion", "Filter"]);
+fn material_combobox_with_input_constructor_compiles_to_element() {
+    let options = combobox::State::new(vec!["Assist", "Suggestion", "Filter"]);
     let _: TestElement<'_> =
-        combo_box::outlined_with_input(&options, "Choose", "xxx", None, |_| Message::Pressed)
+        combobox::outlined_with_input(&options, "Choose", "xxx", None, |_| Message::Pressed)
             .on_input(|_| Message::Pressed)
             .into();
 }

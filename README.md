@@ -66,14 +66,21 @@ fn view(app: &App) -> material::Element<'_, Message> {
 The crate provides Material-sized constructors and token-backed styles for:
 
 - Buttons, floating action buttons, icon buttons, and chips
-- Text input, text editor, select, and searchable combo box
+- Text input (`text_input`), text editor (`text_editor`), select, and searchable combobox
 - Date picker, date range picker, time picker, time input, and time scroll
 - Checkbox, switch, radio, slider, and progress indicator
-- Dividers, tooltips, badges, lists, cards, data tables, toolbars, and theme picker
+- Dividers, tooltips, badges, lists, cards, data_tables (`data_table`), toolbars, and theme picker (`theme_picker`)
 - Application, centered window, page surface, and adaptive navigation helpers
 - Material color schemes, typography tokens, shape tokens, elevation, and motion constants
 - Bundled Roboto and Material Symbols Rounded font helpers
 - Noto Sans CJK SC font family helpers for applications that provide CJK fonts
+
+## API Layout
+
+- `material::widget::*`: Material-sized widget constructors and custom widgets.
+- `material::style::*`: iced catalog style functions for `Theme`.
+- `material::text::*`: Material typography text constructors and text color styles.
+- `material::tokens::*`: Material component, typography, shape, elevation, and motion tokens.
 
 ## Features
 
