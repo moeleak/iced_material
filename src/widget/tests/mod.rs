@@ -107,22 +107,22 @@ fn keyboard_key_pressed(key: keyboard::Key, text: Option<&str>) -> Event {
 }
 
 #[test]
-fn text_editor_caret_refresh_tracks_text_entry_events() {
-    assert!(text_editor_caret_refresh_event(&keyboard_key_pressed(
+fn text_caret_refresh_tracks_text_entry_events() {
+    assert!(text_caret_refresh_event(&keyboard_key_pressed(
         keyboard::Key::Character("a".into()),
         Some("a"),
     )));
-    assert!(text_editor_caret_refresh_event(&Event::InputMethod(
+    assert!(text_caret_refresh_event(&Event::InputMethod(
         input_method::Event::Commit("a".into())
     )));
-    assert!(text_editor_caret_refresh_event(&Event::InputMethod(
+    assert!(text_caret_refresh_event(&Event::InputMethod(
         input_method::Event::Preedit("pinyin".into(), None)
     )));
 }
 
 #[test]
-fn text_editor_caret_refresh_ignores_unfocus_keys() {
-    assert!(!text_editor_caret_refresh_event(&keyboard_key_pressed(
+fn text_caret_refresh_ignores_unfocus_keys() {
+    assert!(!text_caret_refresh_event(&keyboard_key_pressed(
         keyboard::Key::Named(keyboard::key::Named::Escape),
         None,
     )));

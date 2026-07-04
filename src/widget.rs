@@ -414,6 +414,13 @@ fn update_mobile_text_input<'a, Message, Renderer>(
             );
         }
     }
+
+    refresh_text_input_caret(
+        tree.state
+            .downcast_mut::<iced_text_input::State<Renderer::Paragraph>>(),
+        event,
+        shell,
+    );
 }
 
 fn text_field_touch_matches_activation(
@@ -572,7 +579,7 @@ fn should_suppress_ime_caret() -> bool {
     ))
 }
 
-fn text_editor_caret_refresh_event(event: &Event) -> bool {
+fn text_caret_refresh_event(event: &Event) -> bool {
     match event {
         Event::Keyboard(iced_widget::core::keyboard::Event::KeyPressed { key, text, .. }) => {
             text.as_ref()
@@ -590,6 +597,37 @@ fn text_editor_caret_refresh_event(event: &Event) -> bool {
         Event::InputMethod(input_method::Event::Commit(content)) => !content.is_empty(),
         _ => false,
     }
+}
+
+fn refresh_text_input_caret<Message, P>(
+    state: &mut iced_text_input::State<P>,
+    event: &Event,
+    shell: &mut Shell<'_, Message>,
+) where
+    P: core_text::Paragraph,
+{
+    if !state.is_focused() || !text_caret_refresh_event(event) {
+        return;
+    }
+
+    let value = {
+        let text = <iced_text_input::State<P> as core_widget::operation::TextInput>::text(state);
+        iced_text_input::Value::new(text)
+    };
+    let cursor = state.cursor().state(&value);
+
+    core_widget::operation::Focusable::focus(state);
+
+    match cursor {
+        iced_text_input::cursor::State::Index(index) => {
+            state.move_cursor_to(index);
+        }
+        iced_text_input::cursor::State::Selection { start, end } => {
+            state.select_range(start, end);
+        }
+    }
+
+    shell.request_redraw();
 }
 
 fn mobile_text_input<'a, Message, Renderer>(
@@ -2771,7 +2809,7 @@ pub mod text_editor {
                 state.is_focused()
             };
 
-            if is_focused && text_editor_caret_refresh_event(event) {
+            if is_focused && text_caret_refresh_event(event) {
                 let state = tree.children[0]
                     .state
                     .downcast_mut::<iced_text_editor::State<core_text::highlighter::PlainText>>();
