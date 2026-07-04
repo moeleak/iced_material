@@ -19,7 +19,7 @@ cargo run --example quickstart
 Build and run the WebAssembly showcase locally:
 
 ```sh
-env -u NO_COLOR nix develop -c trunk build web/index.html --release --dist dist --public-url /
+trunk build web/index.html --release --dist dist --public-url /
 python3 -m http.server 4173 --directory dist
 ```
 
