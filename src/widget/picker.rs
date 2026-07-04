@@ -135,12 +135,7 @@ impl Date {
 
     /// Returns today's UTC date.
     pub fn today_utc() -> Self {
-        let days = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|duration| (duration.as_secs() / 86_400) as i64)
-            .unwrap_or(0);
-
-        Self::from_days_since_epoch(days)
+        Self::from_utc_millis(current_utc_millis())
     }
 
     /// Converts a UTC timestamp to the date at the start of that UTC day.
@@ -200,6 +195,19 @@ impl Date {
             self.year
         )
     }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn current_utc_millis() -> i64 {
+    js_sys::Date::now() as i64
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn current_utc_millis() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_millis() as i64)
+        .unwrap_or(0)
 }
 
 /// A year and month pair used by the date picker.

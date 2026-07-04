@@ -16,6 +16,17 @@ Run the 91-line animated quick start app:
 cargo run --example quickstart
 ```
 
+Build and run the WebAssembly showcase locally:
+
+```sh
+env -u NO_COLOR nix develop -c trunk build web/index.html --release --dist dist --public-url /
+python3 -m http.server 4173 --directory dist
+```
+
+Then open <http://127.0.0.1:4173/>. Serve `dist/` over HTTP instead of opening
+`dist/index.html` directly, so the browser loads the JavaScript module and WASM
+with the correct MIME types.
+
 ```rust
 use iced::Size;
 use iced_material as material;
