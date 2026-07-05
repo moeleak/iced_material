@@ -6,4 +6,5 @@ pub mod state;
 pub mod typography;
 
 #[cfg(test)]
+#[path = "../../tests/design/tokens/mod.rs"]
 mod tests;

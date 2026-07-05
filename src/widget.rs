@@ -1018,4 +1018,5 @@ pub mod checkbox;
 pub mod toggler;
 
 #[cfg(test)]
+#[path = "tests/widget.rs"]
 mod tests;
