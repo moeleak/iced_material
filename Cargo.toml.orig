@@ -65,6 +65,13 @@ name = "showcase_web"
 path = "web/showcase_web.rs"
 required-features = ["__showcase_web"]
 
+[profile.release]
+lto = "fat"
+opt-level = "z"
+codegen-units = 1
+strip = true
+panic = "abort"
+
 [lints.rust]
 missing_debug_implementations = "deny"
 unsafe_code = "deny"
