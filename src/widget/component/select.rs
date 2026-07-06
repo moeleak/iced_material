@@ -19,7 +19,9 @@ use iced_widget::core::{
 use iced_widget::overlay::menu;
 use iced_widget::pick_list::{self as iced_select, Handle, Icon, Status};
 
-use super::{absolute_line_height, menu_overlay};
+use super::{
+    absolute_line_height, draw_text_field_outline, menu_overlay, text_field_floating_label_notch,
+};
 use crate::style::{menu as menu_style, select as select_style};
 use crate::{Theme, tokens};
 
@@ -510,14 +512,17 @@ where
             .as_ref()
             .map(|_| state.label.min_width())
             .unwrap_or(0.0);
+        let label_x = bounds.x + tokens::component::text_field::LEADING_SPACE;
+        let label_notch = self.label.as_ref().and_then(|_| {
+            text_field_floating_label_notch(bounds, label_x, label_width, label_width, 1.0)
+        });
 
-        draw_select_outline(
+        draw_text_field_outline(
             renderer,
             bounds,
-            style.border,
             style.background,
-            label_width,
-            theme.colors().surface.container.high,
+            style.border,
+            label_notch,
         );
 
         let handle = match &self.handle {
@@ -616,6 +621,8 @@ where
             let label_line_height = text::LineHeight::Absolute(Pixels(
                 tokens::component::text_field::LABEL_TEXT_POPULATED_LINE_HEIGHT,
             ));
+            let label_height = f32::from(label_line_height.to_absolute(label_size));
+            let label_y = bounds.y;
 
             renderer.fill_text(
                 Text {
@@ -623,19 +630,13 @@ where
                     size: label_size,
                     line_height: label_line_height,
                     font,
-                    bounds: Size::new(
-                        label_width,
-                        f32::from(label_line_height.to_absolute(label_size)),
-                    ),
+                    bounds: Size::new(label_width, label_height),
                     align_x: text::Alignment::Default,
                     align_y: alignment::Vertical::Center,
                     shaping: self.text_shaping,
                     wrapping: text::Wrapping::None,
                 },
-                Point::new(
-                    bounds.x + tokens::component::text_field::LEADING_SPACE,
-                    bounds.y,
-                ),
+                Point::new(label_x, label_y),
                 select_label_color(theme, self.last_status.unwrap_or(Status::Active)),
                 *viewport,
             );
@@ -738,47 +739,6 @@ impl<P: text::Paragraph> State<P> {
             label: paragraph::Plain::default(),
         }
     }
-}
-
-fn draw_select_outline<Renderer>(
-    renderer: &mut Renderer,
-    bounds: Rectangle,
-    border: iced_widget::core::Border,
-    background: iced_widget::core::Background,
-    label_width: f32,
-    notch_background: Color,
-) where
-    Renderer: iced_widget::core::Renderer,
-{
-    renderer.fill_quad(
-        renderer::Quad {
-            bounds,
-            border,
-            ..renderer::Quad::default()
-        },
-        background,
-    );
-
-    if label_width <= 0.0 || border.width <= 0.0 {
-        return;
-    }
-
-    let notch_width = label_width + tokens::component::text_field::OUTLINE_LABEL_PADDING * 2.0;
-    let notch_x = bounds.x + tokens::component::text_field::LEADING_SPACE
-        - tokens::component::text_field::OUTLINE_LABEL_PADDING;
-
-    renderer.fill_quad(
-        renderer::Quad {
-            bounds: Rectangle {
-                x: notch_x,
-                y: bounds.y,
-                width: notch_width.min((bounds.x + bounds.width - notch_x).max(0.0)),
-                height: border.width.ceil() + 1.0,
-            },
-            ..renderer::Quad::default()
-        },
-        notch_background,
-    );
 }
 
 fn select_label_color(theme: &Theme, status: Status) -> Color {

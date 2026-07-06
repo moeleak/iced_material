@@ -1,7 +1,7 @@
 use iced_widget::core::text as core_text;
 use iced_widget::core::time::{Duration, Instant};
 use iced_widget::core::widget as core_widget;
-use iced_widget::core::{Background, Border, Color, Point, Rectangle, touch};
+use iced_widget::core::{Background, Border, Color, Point, Rectangle, renderer, touch};
 
 use crate::tokens;
 
@@ -42,6 +42,146 @@ pub(super) fn scaled_rect(bounds: Rectangle, width: f32, height: f32) -> Rectang
         y: bounds.center_y() - height / 2.0,
         width,
         height,
+    }
+}
+
+pub(super) fn text_field_floating_label_notch(
+    field_bounds: Rectangle,
+    label_x: f32,
+    label_width: f32,
+    floating_label_width: f32,
+    float_progress: f32,
+) -> Option<Rectangle> {
+    if label_width <= 0.0 && floating_label_width <= 0.0 {
+        return None;
+    }
+
+    let progress = float_progress.clamp(0.0, 1.0);
+
+    if progress <= 0.01 {
+        return None;
+    }
+
+    let current_label_width = lerp(label_width, floating_label_width, progress).max(0.0);
+    let full_width = current_label_width + tokens::component::text_field::OUTLINE_LABEL_PADDING;
+    let width = full_width * progress;
+    let x = label_x.clamp(field_bounds.x, field_bounds.x + field_bounds.width);
+    let right = (label_x + width).clamp(field_bounds.x, field_bounds.x + field_bounds.width);
+
+    Some(Rectangle {
+        x,
+        y: field_bounds.y,
+        width: (right - x).max(0.0),
+        height: 0.0,
+    })
+}
+
+pub(super) fn draw_text_field_outline<Renderer>(
+    renderer: &mut Renderer,
+    bounds: Rectangle,
+    background: Background,
+    border: Border,
+    floating_label_notch: Option<Rectangle>,
+) where
+    Renderer: iced_widget::core::Renderer,
+{
+    renderer.fill_quad(
+        renderer::Quad {
+            bounds,
+            border: Border {
+                color: Color::TRANSPARENT,
+                width: 0.0,
+                radius: border.radius,
+            },
+            ..renderer::Quad::default()
+        },
+        background,
+    );
+
+    if border.width <= 0.0 {
+        return;
+    }
+
+    let outline = renderer::Quad {
+        bounds,
+        border,
+        ..renderer::Quad::default()
+    };
+
+    draw_text_field_notched(
+        renderer,
+        bounds,
+        border.width,
+        floating_label_notch,
+        |renderer| {
+            renderer.fill_quad(outline, Color::TRANSPARENT);
+        },
+    );
+}
+
+pub(super) fn draw_text_field_notched<Renderer>(
+    renderer: &mut Renderer,
+    bounds: Rectangle,
+    outline_width: f32,
+    floating_label_notch: Option<Rectangle>,
+    mut draw: impl FnMut(&mut Renderer),
+) where
+    Renderer: iced_widget::core::Renderer,
+{
+    let Some(notch) = floating_label_notch.filter(|notch| notch.width > 0.0) else {
+        draw(renderer);
+        return;
+    };
+
+    let left = bounds.x;
+    let right = bounds.x + bounds.width;
+    let top = bounds.y;
+    let bottom = bounds.y + bounds.height;
+    let notch_start = notch.x.clamp(left, right);
+    let notch_end = (notch.x + notch.width).clamp(left, right);
+
+    if notch_end <= notch_start {
+        draw(renderer);
+        return;
+    }
+
+    let top_clear_height = (outline_width.ceil() + 1.0).min(bounds.height);
+    let lower_y = (top + top_clear_height).min(bottom);
+
+    if notch_start > left {
+        renderer.with_layer(
+            Rectangle {
+                x: left,
+                y: top,
+                width: notch_start - left,
+                height: top_clear_height,
+            },
+            |renderer| draw(renderer),
+        );
+    }
+
+    if notch_end < right {
+        renderer.with_layer(
+            Rectangle {
+                x: notch_end,
+                y: top,
+                width: right - notch_end,
+                height: top_clear_height,
+            },
+            |renderer| draw(renderer),
+        );
+    }
+
+    if lower_y < bottom {
+        renderer.with_layer(
+            Rectangle {
+                x: left,
+                y: lower_y,
+                width: bounds.width,
+                height: bottom - lower_y,
+            },
+            |renderer| draw(renderer),
+        );
     }
 }
 

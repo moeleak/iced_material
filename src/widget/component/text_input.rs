@@ -79,63 +79,6 @@ fn status_style(
     }
 }
 
-fn draw_outline<Renderer>(
-    renderer: &mut Renderer,
-    bounds: Rectangle,
-    color: Color,
-    width: f32,
-    label_width: f32,
-    float_progress: f32,
-    notch_background: Color,
-) where
-    Renderer: iced_widget::core::Renderer,
-{
-    if width <= 0.0 {
-        return;
-    }
-
-    let radius = tokens::component::text_field::CONTAINER_SHAPE;
-
-    renderer.fill_quad(
-        renderer::Quad {
-            bounds,
-            border: Border {
-                color,
-                width,
-                radius: radius.into(),
-            },
-            ..renderer::Quad::default()
-        },
-        Color::TRANSPARENT,
-    );
-
-    if float_progress <= 0.01 {
-        return;
-    }
-
-    let left = bounds.x;
-    let right = bounds.x + bounds.width;
-    let top = bounds.y;
-    let notch_center = left + tokens::component::text_field::LEADING_SPACE + label_width / 2.0;
-    let notch_width = (label_width + tokens::component::text_field::OUTLINE_LABEL_PADDING * 2.0)
-        * float_progress.clamp(0.0, 1.0);
-    let notch_start = (notch_center - notch_width / 2.0).clamp(left, right);
-    let notch_end = (notch_center + notch_width / 2.0).clamp(left, right);
-
-    renderer.fill_quad(
-        renderer::Quad {
-            bounds: Rectangle {
-                x: notch_start,
-                y: top,
-                width: notch_end - notch_start,
-                height: width.ceil() + 1.0,
-            },
-            ..renderer::Quad::default()
-        },
-        notch_background,
-    );
-}
-
 /// A Material 3 outlined text field with an animated floating label.
 pub struct TextInput<'a, Message, Renderer = iced_widget::Renderer>
 where
@@ -613,15 +556,32 @@ where
         let label_line_height = tokens::component::text_field::LABEL_TEXT_LINE_HEIGHT;
         let floating_label_line_height =
             tokens::component::text_field::LABEL_TEXT_POPULATED_LINE_HEIGHT;
-
-        draw_outline(
-            renderer,
+        let floating_label_y = -floating_label_line_height / 2.0;
+        let label_y = bounds.y
+            + lerp(
+                tokens::component::text_field::TOP_SPACE,
+                floating_label_y,
+                progress,
+            );
+        let label_x = bounds.x + tokens::component::text_field::LEADING_SPACE;
+        let label_notch = text_field_floating_label_notch(
             bounds,
-            outline_color,
-            outline_width,
+            label_x,
+            label_width,
             floating_label_width,
             progress,
-            alpha_color(theme.colors().surface.container.high, self.content_alpha),
+        );
+
+        draw_text_field_outline(
+            renderer,
+            bounds,
+            Background::Color(Color::TRANSPARENT),
+            Border {
+                color: outline_color,
+                width: outline_width,
+                radius: tokens::component::text_field::CONTAINER_SHAPE.into(),
+            },
+            label_notch,
         );
 
         let input_layout = layout.children().next().unwrap();
@@ -672,15 +632,6 @@ where
         if self.label_mode == LabelMode::Placeholder && self.is_populated {
             return;
         }
-
-        let floating_label_y = -floating_label_line_height / 2.0;
-        let label_y = bounds.y
-            + lerp(
-                tokens::component::text_field::TOP_SPACE,
-                floating_label_y,
-                progress,
-            );
-        let label_x = bounds.x + tokens::component::text_field::LEADING_SPACE;
 
         if progress < 0.99 {
             core_widget::text::draw(

@@ -18,8 +18,9 @@ use iced_widget::text_input::{self, Icon, TextInput};
 
 use super::menu_overlay;
 use super::{
-    MobileTextInputState, absolute_line_height, mobile_text_input_activation,
-    register_mobile_text_region, select, sync_mobile_keyboard, update_mobile_text_input,
+    MobileTextInputState, absolute_line_height, draw_text_field_notched,
+    mobile_text_input_activation, register_mobile_text_region, select, sync_mobile_keyboard,
+    text_field_floating_label_notch, update_mobile_text_input,
 };
 use crate::style::{menu as menu_style, text_input as text_input_style};
 use crate::{Theme, tokens};
@@ -978,36 +979,52 @@ where
         } else {
             Some(&self.selection)
         };
-
-        self.text_input.draw(
-            &tree.children[0],
-            renderer,
-            theme,
-            layout,
-            cursor,
-            selection,
-            viewport,
-        );
-
-        if let Some(label) = &self.label {
+        let bounds = layout.bounds();
+        let is_hovered = cursor.is_over(bounds);
+        let label_x = bounds.x + tokens::component::text_field::LEADING_SPACE;
+        let label_width = if self.label.is_some() {
             let state = tree
                 .state
                 .downcast_ref::<MenuState<T, Renderer::Paragraph>>();
-            let bounds = layout.bounds();
-            let is_hovered = cursor.is_over(bounds);
-            let label_width = state.label.min_width();
+
+            state.label.min_width()
+        } else {
+            0.0
+        };
+        let label_notch = self.label.as_ref().and_then(|_| {
+            text_field_floating_label_notch(bounds, label_x, label_width, label_width, 1.0)
+        });
+        let outline_clip_width = if is_focused {
+            tokens::component::text_field::FOCUS_OUTLINE_WIDTH
+        } else {
+            tokens::component::text_field::OUTLINE_WIDTH
+        };
+
+        draw_text_field_notched(
+            renderer,
+            bounds,
+            outline_clip_width,
+            label_notch,
+            |renderer| {
+                self.text_input.draw(
+                    &tree.children[0],
+                    renderer,
+                    theme,
+                    layout,
+                    cursor,
+                    selection,
+                    viewport,
+                );
+            },
+        );
+
+        if let Some(label) = &self.label {
             let label_size = Pixels(tokens::component::text_field::LABEL_TEXT_POPULATED_SIZE);
             let label_line_height = LineHeight::Absolute(Pixels(
                 tokens::component::text_field::LABEL_TEXT_POPULATED_LINE_HEIGHT,
             ));
-
-            draw_combobox_label_notch(
-                renderer,
-                bounds,
-                label_width,
-                combobox_label_notch_height(is_focused),
-                theme.colors().surface.container.high,
-            );
+            let label_height = f32::from(label_line_height.to_absolute(label_size));
+            let label_y = bounds.y;
 
             renderer.fill_text(
                 core_text::Text {
@@ -1015,19 +1032,13 @@ where
                     size: label_size,
                     line_height: label_line_height,
                     font: self.font.unwrap_or_else(|| renderer.default_font()),
-                    bounds: Size::new(
-                        label_width,
-                        f32::from(label_line_height.to_absolute(label_size)),
-                    ),
+                    bounds: Size::new(label_width, label_height),
                     align_x: text::Alignment::Default,
                     align_y: iced_widget::core::alignment::Vertical::Center,
                     shaping: self.text_shaping,
                     wrapping: text::Wrapping::None,
                 },
-                Point::new(
-                    bounds.x + tokens::component::text_field::LEADING_SPACE,
-                    bounds.y,
-                ),
+                Point::new(label_x, label_y),
                 combobox_label_color(theme, is_focused, is_hovered),
                 *viewport,
             );
@@ -1134,47 +1145,6 @@ where
     fn from(combobox: ComboboxCore<'a, T, Message, Renderer>) -> Self {
         Self::new(combobox)
     }
-}
-
-fn draw_combobox_label_notch<Renderer>(
-    renderer: &mut Renderer,
-    bounds: Rectangle,
-    label_width: f32,
-    notch_height: f32,
-    notch_background: Color,
-) where
-    Renderer: iced_widget::core::Renderer,
-{
-    if label_width <= 0.0 || notch_height <= 0.0 {
-        return;
-    }
-
-    let notch_width = label_width + tokens::component::text_field::OUTLINE_LABEL_PADDING * 2.0;
-    let notch_x = bounds.x + tokens::component::text_field::LEADING_SPACE
-        - tokens::component::text_field::OUTLINE_LABEL_PADDING;
-
-    renderer.fill_quad(
-        renderer::Quad {
-            bounds: Rectangle {
-                x: notch_x,
-                y: bounds.y,
-                width: notch_width.min((bounds.x + bounds.width - notch_x).max(0.0)),
-                height: notch_height,
-            },
-            ..renderer::Quad::default()
-        },
-        notch_background,
-    );
-}
-
-fn combobox_label_notch_height(is_focused: bool) -> f32 {
-    let outline_width = if is_focused {
-        tokens::component::text_field::FOCUS_OUTLINE_WIDTH
-    } else {
-        tokens::component::text_field::OUTLINE_WIDTH
-    };
-
-    outline_width.ceil() + 1.0
 }
 
 fn combobox_label_color(theme: &Theme, is_focused: bool, is_hovered: bool) -> Color {

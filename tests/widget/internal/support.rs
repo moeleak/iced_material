@@ -9,6 +9,13 @@ fn assert_close(actual: f32, expected: f32) {
     );
 }
 
+fn assert_rectangle_close(actual: Rectangle, expected: Rectangle) {
+    assert_close(actual.x, expected.x);
+    assert_close(actual.y, expected.y);
+    assert_close(actual.width, expected.width);
+    assert_close(actual.height, expected.height);
+}
+
 #[test]
 fn animated_scalar_retargets_from_last_advanced_value() {
     let start = Instant::now();
@@ -28,6 +35,84 @@ fn animated_scalar_retargets_from_last_advanced_value() {
 
     assert!(scalar.advance(start + duration_ms(130)));
     assert_close(scalar.value, 0.25);
+}
+
+#[test]
+fn text_field_floating_label_notch_uses_label_width_with_padding() {
+    let field = Rectangle {
+        x: 10.0,
+        y: 20.0,
+        width: 160.0,
+        height: 56.0,
+    };
+
+    let notch = text_field_floating_label_notch(field, 26.0, 80.0, 80.0, 1.0).unwrap();
+
+    assert_rectangle_close(
+        notch,
+        Rectangle {
+            x: 26.0,
+            y: 20.0,
+            width: 84.0,
+            height: 0.0,
+        },
+    );
+}
+
+#[test]
+fn text_field_floating_label_notch_expands_from_label_start() {
+    let field = Rectangle {
+        x: 10.0,
+        y: 20.0,
+        width: 160.0,
+        height: 56.0,
+    };
+
+    let notch = text_field_floating_label_notch(field, 26.0, 80.0, 80.0, 0.5).unwrap();
+
+    assert_rectangle_close(
+        notch,
+        Rectangle {
+            x: 26.0,
+            y: 20.0,
+            width: 42.0,
+            height: 0.0,
+        },
+    );
+}
+
+#[test]
+fn text_field_floating_label_notch_follows_interpolated_text_width() {
+    let field = Rectangle {
+        x: 10.0,
+        y: 20.0,
+        width: 200.0,
+        height: 56.0,
+    };
+
+    let notch = text_field_floating_label_notch(field, 26.0, 120.0, 80.0, 0.5).unwrap();
+
+    assert_rectangle_close(
+        notch,
+        Rectangle {
+            x: 26.0,
+            y: 20.0,
+            width: 52.0,
+            height: 0.0,
+        },
+    );
+}
+
+#[test]
+fn text_field_floating_label_notch_stays_hidden_before_float() {
+    let field = Rectangle {
+        x: 10.0,
+        y: 20.0,
+        width: 160.0,
+        height: 56.0,
+    };
+
+    assert!(text_field_floating_label_notch(field, 26.0, 80.0, 80.0, 0.0).is_none());
 }
 
 #[test]

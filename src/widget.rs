@@ -84,7 +84,8 @@ pub mod viewport;
 
 use support::{
     AnimatedScalar, SelectionState, TextFieldState, TextFieldTouchActivation, alpha_border,
-    alpha_color, bool_value, duration_ms, lerp, scaled_rect, solid_color,
+    alpha_color, bool_value, draw_text_field_notched, draw_text_field_outline, duration_ms, lerp,
+    scaled_rect, solid_color, text_field_floating_label_notch,
 };
 
 const TEXT_FIELD_TOUCH_SLOP: f32 = 8.0;
