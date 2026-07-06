@@ -209,7 +209,7 @@ enum AnimationSpec {
 }
 
 impl AnimatedScalar {
-    pub(super) fn new(value: f32) -> Self {
+    pub(super) const fn new(value: f32) -> Self {
         Self {
             value,
             velocity: 0.0,
@@ -341,7 +341,7 @@ impl AnimatedScalar {
         }
     }
 
-    pub(super) fn is_animating(&self) -> bool {
+    pub(super) const fn is_animating(&self) -> bool {
         self.started_at.is_some()
     }
 }

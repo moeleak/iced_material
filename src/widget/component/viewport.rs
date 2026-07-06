@@ -5,7 +5,7 @@ use std::fmt;
 use iced_widget::core::widget::{self, Tree, tree};
 use iced_widget::core::{
     Clipboard, Element, Event, Layout, Length, Point, Rectangle, Shell, Size, Vector, Widget,
-    layout, mouse, overlay, renderer,
+    alignment, layout, mouse, overlay, renderer,
 };
 
 use crate::Theme;
@@ -21,6 +21,7 @@ pub struct Viewport<'a, Message, Renderer = iced_widget::Renderer> {
     height: Length,
     layout_width: Option<f32>,
     layout_height: Option<f32>,
+    align_y: alignment::Vertical,
 }
 
 impl<'a, Message, Renderer> Viewport<'a, Message, Renderer>
@@ -38,6 +39,7 @@ where
             height: size.height,
             layout_width: None,
             layout_height: None,
+            align_y: alignment::Vertical::Top,
         }
     }
 
@@ -68,6 +70,11 @@ where
 
     pub fn layout_height(mut self, layout_height: f32) -> Self {
         self.layout_height = Some(layout_height);
+        self
+    }
+
+    pub fn align_y(mut self, alignment: alignment::Vertical) -> Self {
+        self.align_y = alignment;
         self
     }
 }
@@ -144,7 +151,14 @@ where
             .content
             .as_widget_mut()
             .layout(tree, renderer, &content_limits)
-            .move_to(Point::ORIGIN);
+            .move_to(Point::new(
+                0.0,
+                match self.align_y {
+                    alignment::Vertical::Top => 0.0,
+                    alignment::Vertical::Center => (size.height - content_size.height) / 2.0,
+                    alignment::Vertical::Bottom => size.height - content_size.height,
+                },
+            ));
 
         layout::Node::with_children(size, vec![content])
     }

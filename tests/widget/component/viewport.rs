@@ -8,3 +8,12 @@ fn fixed_height_viewport_separates_visible_and_layout_height() {
     assert_eq!(viewport.height, Length::Fixed(40.0));
     assert_eq!(viewport.layout_height, Some(120.0));
 }
+
+#[test]
+fn viewport_can_align_larger_content_to_bottom() {
+    let viewport: Viewport<'_, (), iced_widget::Renderer> =
+        Viewport::fixed_height(iced_widget::Space::new(), 40.0, 120.0)
+            .align_y(alignment::Vertical::Bottom);
+
+    assert_eq!(viewport.align_y, alignment::Vertical::Bottom);
+}

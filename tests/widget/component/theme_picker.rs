@@ -14,6 +14,26 @@ fn state_toggles_open_closed() {
 }
 
 #[test]
+fn state_toggle_animates_picker_panel_reveal() {
+    let start = Instant::now();
+    let mut state = State::new();
+
+    assert_eq!(state.reveal(), 0.0);
+    state.toggle_at(start);
+
+    assert!(state.is_open());
+    assert!(state.is_animating());
+    assert_eq!(state.reveal(), 0.0);
+
+    assert!(state.advance(start + duration_ms(PICKER_PANEL_TRANSITION_DURATION_MS / 2)));
+    assert!(state.reveal() > 0.0);
+
+    state.close_at(start + duration_ms(PICKER_PANEL_TRANSITION_DURATION_MS));
+    assert!(!state.is_open());
+    assert!(state.is_animating());
+}
+
+#[test]
 fn bottom_margin_accounts_for_adaptive_navigation_clearance() {
     assert_eq!(
         bottom_margin_for_navigation_layout(navigation::AdaptiveLayout::NavigationBar),
@@ -23,6 +43,29 @@ fn bottom_margin_accounts_for_adaptive_navigation_clearance() {
         bottom_margin_for_navigation_layout(navigation::AdaptiveLayout::NavigationRail),
         FLOATING_MARGIN
     );
+}
+
+#[test]
+fn floating_panel_padding_keeps_reveal_above_independent_fab() {
+    let padding = floating_padding(FLOATING_MARGIN, FLOATING_MARGIN + PALETTE_BUTTON_SIZE);
+
+    assert_eq!(padding.right, FLOATING_MARGIN);
+    assert_eq!(padding.bottom, FLOATING_MARGIN + PALETTE_BUTTON_SIZE);
+}
+
+#[test]
+fn controller_toggle_picker_starts_panel_animation() {
+    let mut controller = ThemeController::new(MaterialColor::Purple, true);
+
+    controller.update(
+        ThemeAction::TogglePicker,
+        Size::new(1080.0, 980.0),
+        FLOATING_MARGIN,
+        Instant::now(),
+    );
+
+    assert!(controller.is_picker_open());
+    assert!(controller.is_animating());
 }
 
 #[test]
@@ -128,14 +171,6 @@ fn selected_swatch_uses_stronger_outline() {
 }
 
 #[test]
-fn palette_button_uses_rounded_square_without_circular_toolbar_base() {
-    let style = palette_button_style(&Theme::Dark, Status::Active, false);
-
-    assert_eq!(style.border.radius.top_left, PALETTE_BUTTON_SHAPE);
-    assert_ne!(style.border.radius.top_left, tokens::shape::CORNER_FULL);
-}
-
-#[test]
 fn swatch_centers_track_picker_layout() {
     let viewport = Size::new(1080.0, 980.0);
     let bottom_margin = FLOATING_MARGIN;
@@ -149,6 +184,20 @@ fn swatch_centers_track_picker_layout() {
         SWATCH_TARGET_SIZE + PICKER_PANEL_SPACING
     );
     assert!(purple.x < palette_center(viewport, bottom_margin).x);
+}
+
+#[test]
+fn picker_panel_reveal_height_clamps_to_slot_height() {
+    assert_eq!(picker_panel_reveal_height(-1.0), 0.0);
+    assert_eq!(picker_panel_reveal_height(0.0), 0.0);
+    assert_eq!(
+        picker_panel_reveal_height(1.0),
+        picker_panel_height() + PICKER_PANEL_SPACING
+    );
+    assert_eq!(
+        picker_panel_reveal_height(2.0),
+        picker_panel_height() + PICKER_PANEL_SPACING
+    );
 }
 
 #[test]

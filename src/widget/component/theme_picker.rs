@@ -11,11 +11,12 @@ use iced_widget::graphics::geometry;
 use iced_widget::renderer::wgpu::primitive;
 use iced_widget::{Column, Container, Row, Space, Stack, text};
 
-use super::navigation;
-use super::{absolute_line_height, button::Button};
+use super::button::Button;
+use super::support::{AnimatedScalar, bool_value, duration_ms};
+use super::{navigation, viewport};
 use crate::animation::{ThemeRevealTransition, max_radius_from_origin};
 use crate::utils::{HOVERED_LAYER_OPACITY, PRESSED_LAYER_OPACITY, mix, shadow_from_level};
-use crate::{ColorQuartet, ColorScheme, Surface, SurfaceContainer, Theme, fonts, tokens};
+use crate::{ColorQuartet, ColorScheme, Surface, SurfaceContainer, Theme, tokens};
 
 pub const FLOATING_MARGIN: f32 = 24.0;
 
@@ -31,8 +32,7 @@ const SWATCH_OUTLINE_WIDTH: f32 = 1.0;
 const SWATCH_COLUMNS: usize = 4;
 const SWATCH_ROWS: usize = 2;
 const PALETTE_BUTTON_SIZE: f32 = 56.0;
-const PALETTE_BUTTON_SHAPE: f32 = tokens::shape::CORNER_LARGE;
-const PALETTE_BUTTON_ELEVATION_LEVEL: u8 = 3;
+const PICKER_PANEL_TRANSITION_DURATION_MS: u16 = tokens::motion::DURATION_SHORT4_MS;
 const THEME_REVEAL_CENTER_ALPHA: f32 = 0.24;
 const THEME_REVEAL_START_FILL_ALPHA: f32 = 0.30;
 const THEME_REVEAL_EDGE_ALPHA: f32 = 0.54;
@@ -54,32 +54,84 @@ pub fn bottom_margin_for_navigation_layout(layout: navigation::AdaptiveLayout) -
         }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy)]
 pub struct State {
     is_open: bool,
+    panel_reveal: AnimatedScalar,
 }
 
 impl State {
     pub const fn new() -> Self {
-        Self { is_open: false }
+        Self {
+            is_open: false,
+            panel_reveal: AnimatedScalar::new(0.0),
+        }
     }
 
     pub const fn is_open(self) -> bool {
         self.is_open
     }
 
+    pub const fn is_animating(self) -> bool {
+        self.panel_reveal.is_animating()
+    }
+
+    pub fn advance(&mut self, now: Instant) -> bool {
+        self.panel_reveal.advance(now)
+    }
+
     pub fn toggle(&mut self) {
-        self.is_open = !self.is_open;
+        self.toggle_at(Instant::now());
     }
 
     pub fn open(&mut self) {
-        self.is_open = true;
+        self.open_at(Instant::now());
     }
 
     pub fn close(&mut self) {
-        self.is_open = false;
+        self.close_at(Instant::now());
+    }
+
+    fn reveal(self) -> f32 {
+        self.panel_reveal.value.clamp(0.0, 1.0)
+    }
+
+    fn toggle_at(&mut self, now: Instant) {
+        self.set_open_at(!self.is_open, now);
+    }
+
+    fn open_at(&mut self, now: Instant) {
+        self.set_open_at(true, now);
+    }
+
+    fn close_at(&mut self, now: Instant) {
+        self.set_open_at(false, now);
+    }
+
+    fn set_open_at(&mut self, is_open: bool, now: Instant) {
+        self.is_open = is_open;
+        self.panel_reveal.set_target(
+            bool_value(is_open),
+            now,
+            duration_ms(PICKER_PANEL_TRANSITION_DURATION_MS),
+            tokens::motion::EASING_EMPHASIZED_DECELERATE,
+        );
     }
 }
+
+impl Default for State {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl PartialEq for State {
+    fn eq(&self, other: &Self) -> bool {
+        self.is_open == other.is_open
+    }
+}
+
+impl Eq for State {}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ThemeAction {
@@ -137,7 +189,7 @@ impl ThemeController {
     }
 
     pub const fn is_animating(&self) -> bool {
-        self.transition.is_some()
+        self.transition.is_some() || self.picker.is_animating()
     }
 
     pub fn update(
@@ -148,12 +200,12 @@ impl ThemeController {
         now: Instant,
     ) {
         match action {
-            ThemeAction::TogglePicker => self.picker.toggle(),
+            ThemeAction::TogglePicker => self.picker.toggle_at(now),
             ThemeAction::SelectColor(color) => {
                 let origin = swatch_center(viewport, bottom_margin, color);
 
                 self.selected = color;
-                self.picker.close();
+                self.picker.close_at(now);
                 self.animate_to(color.color_scheme(self.dark_mode), origin, now);
             }
             ThemeAction::SetDarkMode { dark_mode, origin } => {
@@ -164,8 +216,9 @@ impl ThemeController {
     }
 
     pub fn advance(&mut self, now: Instant) -> bool {
+        let picker_advanced = self.picker.advance(now);
         let Some(transition) = self.transition else {
-            return false;
+            return picker_advanced;
         };
 
         self.visible_scheme = transition.value_at(now);
@@ -537,26 +590,41 @@ where
         + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
-    Container::new(floating_picker(state, selected, on_toggle, on_select))
+    Stack::with_children([
+        floating_panel_layer(state, selected, bottom_margin, on_select),
+        floating_palette_layer(bottom_margin, on_toggle),
+    ])
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .into()
+}
+
+fn floating_panel_layer<'a, Message, Renderer>(
+    state: &State,
+    selected: MaterialColor,
+    bottom_margin: f32,
+    on_select: impl Fn(MaterialColor) -> Message + 'a,
+) -> Element<'a, Message, Theme, Renderer>
+where
+    Message: Clone + 'a,
+    Renderer: iced_widget::core::Renderer + geometry::Renderer + primitive::Renderer + 'a,
+{
+    Container::new(picker_panel_slot(selected, on_select, state.reveal()))
         .width(Length::Fill)
         .height(Length::Fill)
-        .padding(Padding {
-            top: 0.0,
-            right: FLOATING_MARGIN,
-            bottom: bottom_margin,
-            left: 0.0,
-        })
+        .padding(floating_padding(
+            FLOATING_MARGIN,
+            bottom_margin + PALETTE_BUTTON_SIZE,
+        ))
         .align_x(alignment::Horizontal::Right)
         .align_y(alignment::Vertical::Bottom)
         .into()
 }
 
-fn floating_picker<'a, Message, Renderer>(
-    state: &State,
-    selected: MaterialColor,
+fn floating_palette_layer<'a, Message, Renderer>(
+    bottom_margin: f32,
     on_toggle: Message,
-    on_select: impl Fn(MaterialColor) -> Message + 'a,
-) -> Column<'a, Message, Theme, Renderer>
+) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
     Renderer: iced_widget::core::Renderer
@@ -566,15 +634,43 @@ where
         + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
-    let mut content = Column::new()
-        .spacing(PICKER_PANEL_SPACING)
-        .align_x(alignment::Horizontal::Right);
+    Container::new(palette_button(on_toggle))
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .padding(floating_padding(FLOATING_MARGIN, bottom_margin))
+        .align_x(alignment::Horizontal::Right)
+        .align_y(alignment::Vertical::Bottom)
+        .into()
+}
 
-    if state.is_open() {
-        content = content.push(picker_panel(selected, on_select));
+fn floating_padding(right: f32, bottom: f32) -> Padding {
+    Padding {
+        top: 0.0,
+        right,
+        bottom,
+        left: 0.0,
     }
+}
 
-    content.push(palette_button(state.is_open(), on_toggle))
+fn picker_panel_slot<'a, Message, Renderer>(
+    selected: MaterialColor,
+    on_select: impl Fn(MaterialColor) -> Message + 'a,
+    reveal: f32,
+) -> Element<'a, Message, Theme, Renderer>
+where
+    Message: Clone + 'a,
+    Renderer: iced_widget::core::Renderer + geometry::Renderer + primitive::Renderer + 'a,
+{
+    let visible_height = picker_panel_reveal_height(reveal);
+    let layout_height = picker_panel_slot_height();
+    let content = Column::new()
+        .push(picker_panel(selected, on_select))
+        .push(Space::new().height(Length::Fixed(PICKER_PANEL_SPACING)));
+
+    viewport::Viewport::fixed_height(content, visible_height, layout_height)
+        .align_y(alignment::Vertical::Bottom)
+        .width(Length::Fixed(picker_panel_width()))
+        .into()
 }
 
 fn picker_panel<'a, Message, Renderer>(
@@ -602,29 +698,13 @@ where
         .style(picker_panel_style)
 }
 
-fn palette_button<'a, Message, Renderer>(
-    is_open: bool,
-    on_press: Message,
-) -> Button<'a, Message, Renderer>
+fn palette_button<'a, Message, Renderer>(on_press: Message) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
     Renderer: iced_widget::core::Renderer + core_text::Renderer + geometry::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
-    Button::new(
-        Container::new(
-            fonts::icon("palette", tokens::component::toolbar::ACTION_ICON_SIZE).line_height(
-                absolute_line_height(tokens::component::toolbar::ACTION_ICON_SIZE),
-            ),
-        )
-        .center_x(Length::Fixed(PALETTE_BUTTON_SIZE))
-        .center_y(Length::Fixed(PALETTE_BUTTON_SIZE)),
-    )
-    .width(Length::Fixed(PALETTE_BUTTON_SIZE))
-    .height(Length::Fixed(PALETTE_BUTTON_SIZE))
-    .padding(Padding::ZERO)
-    .on_press(on_press)
-    .style(move |theme, status| palette_button_style(theme, status, is_open))
+    super::button::surface_fab("palette").on_press(on_press)
 }
 
 fn swatch_button<'a, Message, Renderer>(
@@ -659,33 +739,6 @@ fn picker_panel_style(theme: &Theme) -> iced_widget::container::Style {
         text_color: Some(colors.surface.text),
         border: border::rounded(PICKER_PANEL_SHAPE),
         shadow: shadow_from_level(PICKER_PANEL_ELEVATION_LEVEL, colors.shadow),
-        snap: cfg!(feature = "crisp"),
-    }
-}
-
-fn palette_button_style(theme: &Theme, status: Status, is_open: bool) -> Style {
-    let colors = theme.colors();
-    let container = if is_open {
-        colors.primary.container
-    } else {
-        colors.surface.container.high
-    };
-    let foreground = if is_open {
-        colors.primary.container_text
-    } else {
-        colors.primary.color
-    };
-    let background = match status {
-        Status::Active | Status::Disabled => container,
-        Status::Hovered => mix(container, foreground, HOVERED_LAYER_OPACITY),
-        Status::Pressed => mix(container, foreground, PRESSED_LAYER_OPACITY),
-    };
-
-    Style {
-        background: Some(Background::Color(background)),
-        text_color: foreground,
-        border: border::rounded(PALETTE_BUTTON_SHAPE),
-        shadow: shadow_from_level(PALETTE_BUTTON_ELEVATION_LEVEL, colors.shadow),
         snap: cfg!(feature = "crisp"),
     }
 }
@@ -896,6 +949,14 @@ fn picker_panel_height() -> f32 {
     PICKER_PANEL_PADDING * 2.0
         + SWATCH_ROWS as f32 * SWATCH_TARGET_SIZE
         + (SWATCH_ROWS - 1) as f32 * PICKER_PANEL_SPACING
+}
+
+fn picker_panel_slot_height() -> f32 {
+    picker_panel_height() + PICKER_PANEL_SPACING
+}
+
+fn picker_panel_reveal_height(progress: f32) -> f32 {
+    picker_panel_slot_height() * progress.clamp(0.0, 1.0)
 }
 
 fn tint_quartet(base: ColorQuartet, primary: ColorQuartet, amount: f32) -> ColorQuartet {
