@@ -905,7 +905,7 @@ fn time_picker_state_animates_period_toggle() {
 }
 
 #[test]
-fn time_picker_drag_angle_snaps_to_visible_tick_and_release_keeps_target() {
+fn time_picker_drag_angle_uses_minute_precision_and_release_keeps_target() {
     let start = Instant::now();
     let mut state = TimePickerState::new(12, 0, false);
 
@@ -917,16 +917,16 @@ fn time_picker_drag_angle_snaps_to_visible_tick_and_release_keeps_target() {
 
     let drag_start = start + duration_ms(tokens::motion::DURATION_MEDIUM1_MS + 16);
     let from = state.animation.clock_angle();
-    let raw_angle = minute_angle(17);
+    let raw_angle = minute_angle(17) + TAU / 60.0 * 0.35;
     let drag_angle = nearest_angle(from, unpack_angle(pack_angle(raw_angle)));
-    let target = nearest_angle(drag_angle, minute_angle(15));
+    let target = nearest_angle(drag_angle, minute_angle(17));
 
     state.update_at(
-        TimePickerAction::DragMinuteAngle(15, pack_angle(raw_angle)),
+        TimePickerAction::DragMinuteAngle(17, pack_angle(raw_angle)),
         drag_start,
     );
 
-    assert_eq!(state.minute(), 15);
+    assert_eq!(state.minute(), 17);
     assert!((state.animation.clock_angle() - drag_angle).abs() < 0.0001);
     assert!(!state.animation.clock_angle.is_animating());
 
@@ -1669,7 +1669,7 @@ fn clock_face_touch_drag_works_without_cursor() {
 }
 
 #[test]
-fn clock_face_minute_tap_and_drag_snap_to_visible_ticks() {
+fn clock_face_minute_tap_and_drag_use_minute_precision() {
     let face = ClockFace {
         hour: 12,
         minute: 0,
@@ -1699,15 +1699,15 @@ fn clock_face_minute_tap_and_drag_snap_to_visible_ticks() {
 
     assert_eq!(
         face.action_at(minute_17, size),
-        TimePickerAction::SelectMinute(15)
+        TimePickerAction::SelectMinute(17)
     );
     assert_eq!(
         face.drag_action_at(minute_17, size),
-        TimePickerAction::DragMinuteAngle(15, pack_angle(minute_angle(17)))
+        TimePickerAction::DragMinuteAngle(17, pack_angle(minute_angle(17)))
     );
     assert_eq!(
         face.drag_action_at(minute_8, size),
-        TimePickerAction::DragMinuteAngle(10, pack_angle(minute_angle(8)))
+        TimePickerAction::DragMinuteAngle(8, pack_angle(minute_angle(8)))
     );
 }
 
@@ -1739,7 +1739,7 @@ fn clock_face_overlay_label_follows_selector_geometry() {
 }
 
 #[test]
-fn clock_face_overlay_label_uses_current_snapped_value_only() {
+fn clock_face_overlay_label_uses_exact_visible_minute_only() {
     let face = ClockFace {
         hour: 12,
         minute: 15,
@@ -1765,7 +1765,14 @@ fn clock_face_overlay_label_uses_current_snapped_value_only() {
     assert!(face.label_intersects_selector(center, radius, label_radius, minute_angle(15), scale));
     assert!(!face.label_matches_selected_value(TimePickerSelectionMode::Minute, 10));
     assert!(face.label_matches_selected_value(TimePickerSelectionMode::Minute, 15));
-    assert_eq!(visible_minute(17), 15);
+    let off_tick_face = ClockFace {
+        minute: 17,
+        selector_angle: minute_angle(17),
+        ..face
+    };
+
+    assert!(!off_tick_face.label_matches_selected_value(TimePickerSelectionMode::Minute, 15));
+    assert!(!off_tick_face.label_matches_selected_value(TimePickerSelectionMode::Minute, 20));
 }
 
 #[test]

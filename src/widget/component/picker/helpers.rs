@@ -465,10 +465,6 @@ fn selected_24_hour_label_value(hour: u8) -> u8 {
     if hour == 12 { 0 } else { hour.min(23) }
 }
 
-fn visible_minute(minute: u8) -> u8 {
-    (((u16::from(minute.min(59)) + 2) / 5 * 5) % 60) as u8
-}
-
 fn nearest_angle(current: f32, target: f32) -> f32 {
     let delta = (target - current + std::f32::consts::PI).rem_euclid(TAU) - std::f32::consts::PI;
 

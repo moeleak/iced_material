@@ -281,8 +281,7 @@ where
         let angle = dy.atan2(dx);
 
         if self.selection == TimePickerSelectionMode::Minute {
-            let snapped_angle = (angle / (TAU / 60.0) / 5.0).round() * 5.0 * (TAU / 60.0);
-            let minute = angle_to_minute(snapped_angle);
+            let minute = angle_to_minute(angle);
             if dragging {
                 TimePickerAction::DragMinuteAngle(minute, pack_angle(angle))
             } else {
@@ -579,7 +578,7 @@ where
                     value == hour_for_display(self.hour, false)
                 }
             }
-            TimePickerSelectionMode::Minute => value == visible_minute(self.minute),
+            TimePickerSelectionMode::Minute => value == self.minute,
         }
     }
 
