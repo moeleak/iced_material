@@ -252,5 +252,5 @@ pub fn outlined_card(theme: &Theme) -> Style {
 }
 
 #[cfg(test)]
-#[path = "../../tests/design/style/container.rs"]
+#[path = "../../../tests/design/style/container.rs"]
 mod tests;

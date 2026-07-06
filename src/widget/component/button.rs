@@ -2,21 +2,21 @@
 
 use super::*;
 use iced_widget::button::{Catalog, Status, Style, StyleFn};
-use iced_widget::canvas;
 use iced_widget::core::overlay;
 use iced_widget::graphics::geometry;
+use iced_widget::renderer::wgpu::primitive;
 
-use crate::utils::{PRESSED_LAYER_OPACITY, state_layer};
+use super::ripple::{PressRippleState, RippleConfig, RippleStart, RippleStyle, draw_ripples};
+use super::support::{AnimatedScalar, duration_ms};
+use crate::utils::state_layer;
 
-const RIPPLE_ENTER_DURATION_MS: u16 = 225;
-const RIPPLE_ORIGIN_DURATION_MS: u16 = 225;
-const RIPPLE_OPACITY_ENTER_DURATION_MS: u16 = 75;
-const RIPPLE_OPACITY_EXIT_DURATION_MS: u16 = 150;
-const RIPPLE_OPACITY_HOLD_DURATION_MS: u16 = RIPPLE_OPACITY_ENTER_DURATION_MS + 150;
-const RIPPLE_START_RADIUS_FACTOR: f32 = 0.3;
-const RIPPLE_CLIP_MIN_SAMPLES: usize = 24;
-const RIPPLE_CLIP_MAX_SAMPLES: usize = 96;
-const MAX_RIPPLES: usize = 10;
+#[cfg(test)]
+use super::ripple::{
+    PressRipple as Ripple, RIPPLE_CLIP_MAX_SAMPLES, RIPPLE_CLIP_MIN_SAMPLES, clamped_ripple_origin,
+    get_ripple_start_radius, ripple_clip_sample_count, ripple_noise_phases, ripple_target_radius,
+    rounded_rect_span_at_y, unbounded_ripple_target_radius,
+};
+
 const TOUCH_CLICK_SLOP: f32 = 8.0;
 
 /// A Material 3 button with Android-style bounded press ripples.
@@ -138,9 +138,10 @@ where
 #[derive(Debug, Clone)]
 struct ButtonState {
     is_pressed: bool,
+    is_hovered: bool,
+    state_layer_opacity: AnimatedScalar,
     touch_press_position: Option<Point>,
-    active_ripple: Option<Ripple>,
-    exiting_ripples: Vec<Ripple>,
+    ripples: PressRippleState,
     last_status: Option<Status>,
     now: Option<Instant>,
 }
@@ -149,9 +150,10 @@ impl Default for ButtonState {
     fn default() -> Self {
         Self {
             is_pressed: false,
+            is_hovered: false,
+            state_layer_opacity: AnimatedScalar::new(0.0),
             touch_press_position: None,
-            active_ripple: None,
-            exiting_ripples: Vec::new(),
+            ripples: PressRippleState::default(),
             last_status: None,
             now: None,
         }
@@ -160,13 +162,13 @@ impl Default for ButtonState {
 
 impl ButtonState {
     fn press(&mut self, origin: Point, now: Instant) {
-        if let Some(mut ripple) = self.active_ripple.take() {
-            ripple.exit(now);
-            self.push_exiting(ripple);
-        }
-
         self.is_pressed = true;
-        self.active_ripple = Some(Ripple::new(origin, now));
+        self.ripples.press(
+            origin,
+            now,
+            RippleStart::Additive,
+            RippleStyle::material_patterned(),
+        );
         self.now = Some(now);
     }
 
@@ -174,10 +176,7 @@ impl ButtonState {
         self.is_pressed = false;
         self.touch_press_position = None;
 
-        if let Some(mut ripple) = self.active_ripple.take() {
-            ripple.exit(now);
-            self.push_exiting(ripple);
-        }
+        self.ripples.release(now);
 
         self.now = Some(now);
     }
@@ -186,135 +185,55 @@ impl ButtonState {
         self.release(now);
     }
 
-    fn push_exiting(&mut self, ripple: Ripple) {
-        if self.exiting_ripples.len() >= MAX_RIPPLES {
-            let _ = self.exiting_ripples.remove(0);
+    fn sync_hover(&mut self, is_hovered: bool, now: Instant) -> bool {
+        if self.is_hovered == is_hovered {
+            return false;
         }
 
-        self.exiting_ripples.push(ripple);
+        self.is_hovered = is_hovered;
+        self.animate_state_layer(now);
+
+        true
+    }
+
+    fn animate_state_layer(&mut self, now: Instant) {
+        self.state_layer_opacity.set_target(
+            button_hover_state_layer_target(self.is_hovered),
+            now,
+            duration_ms(tokens::state::STATE_LAYER_TRANSITION_DURATION_MS),
+            tokens::motion::EASING_LINEAR,
+        );
+    }
+
+    fn advance(&mut self, now: Instant) -> bool {
+        self.now = Some(now);
+        self.prune(now);
+
+        self.state_layer_opacity.advance(now) || self.has_visible_ripples(now)
+    }
+
+    fn state_layer_opacity(&self) -> f32 {
+        self.state_layer_opacity.value
     }
 
     fn prune(&mut self, now: Instant) {
-        self.exiting_ripples
-            .retain(|ripple| !ripple.has_finished_exit(now));
+        self.ripples.prune(now);
     }
 
     fn has_visible_ripples(&self, now: Instant) -> bool {
-        self.ripple_opacity(now) > 0.0
+        self.ripples.has_visible_ripples(now)
     }
 
+    #[cfg(test)]
     fn ripple_opacity(&self, now: Instant) -> f32 {
-        let active = self.active_ripple.map_or(0.0, |ripple| ripple.opacity(now));
-        let exiting = self
-            .exiting_ripples
-            .iter()
-            .map(|ripple| ripple.opacity(now))
-            .fold(0.0, f32::max);
-
-        active.max(exiting)
+        self.ripples.ripple_opacity(now)
     }
-}
-
-#[derive(Debug, Clone, Copy)]
-struct Ripple {
-    origin: Point,
-    started_at: Instant,
-    exit_started_at: Option<Instant>,
-    exit_delay: iced_widget::core::time::Duration,
-}
-
-impl Ripple {
-    fn new(origin: Point, started_at: Instant) -> Self {
-        Self {
-            origin,
-            started_at,
-            exit_started_at: None,
-            exit_delay: iced_widget::core::time::Duration::ZERO,
-        }
-    }
-
-    fn exit(&mut self, now: Instant) {
-        let hold = duration_ms(RIPPLE_OPACITY_HOLD_DURATION_MS);
-        let elapsed = now.duration_since(self.started_at);
-
-        self.exit_started_at = Some(now);
-        self.exit_delay = hold.saturating_sub(elapsed);
-    }
-
-    fn circle(self, size: Size, now: Instant) -> RippleCircle {
-        let target_radius = ripple_target_radius(size);
-        let start_radius = size.width.max(size.height) * RIPPLE_START_RADIUS_FACTOR;
-        let clamped_origin = clamped_ripple_origin(self.origin, size, target_radius, start_radius);
-        let radius_progress = timed_progress(
-            self.started_at,
-            now,
-            duration_ms(RIPPLE_ENTER_DURATION_MS),
-            tokens::motion::EASING_LEGACY,
-        );
-        let origin_progress = timed_progress(
-            self.started_at,
-            now,
-            duration_ms(RIPPLE_ORIGIN_DURATION_MS),
-            tokens::motion::EASING_LEGACY,
-        );
-        let center = Point::new(size.width / 2.0, size.height / 2.0);
-
-        RippleCircle {
-            center: Point::new(
-                lerp(clamped_origin.x, center.x, origin_progress),
-                lerp(clamped_origin.y, center.y, origin_progress),
-            ),
-            radius: lerp(start_radius, target_radius, radius_progress),
-            target_radius,
-        }
-    }
-
-    fn opacity(self, now: Instant) -> f32 {
-        let enter = timed_progress(
-            self.started_at,
-            now,
-            duration_ms(RIPPLE_OPACITY_ENTER_DURATION_MS),
-            tokens::motion::EASING_LINEAR,
-        );
-
-        let exit = self
-            .exit_started_at
-            .map(|exit_started_at| {
-                let elapsed = now.duration_since(exit_started_at);
-
-                if elapsed <= self.exit_delay {
-                    1.0
-                } else {
-                    let fade = elapsed - self.exit_delay;
-                    1.0 - (fade.as_secs_f32()
-                        / duration_ms(RIPPLE_OPACITY_EXIT_DURATION_MS).as_secs_f32())
-                    .clamp(0.0, 1.0)
-                }
-            })
-            .unwrap_or(1.0);
-
-        enter * exit
-    }
-
-    fn has_finished_exit(self, now: Instant) -> bool {
-        self.exit_started_at.is_some_and(|exit_started_at| {
-            now.duration_since(exit_started_at)
-                >= self.exit_delay + duration_ms(RIPPLE_OPACITY_EXIT_DURATION_MS)
-        })
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-struct RippleCircle {
-    center: Point,
-    radius: f32,
-    target_radius: f32,
 }
 
 impl<Message, Renderer> Widget<Message, Theme, Renderer> for Button<'_, Message, Renderer>
 where
     Message: Clone,
-    Renderer: geometry::Renderer,
+    Renderer: geometry::Renderer + primitive::Renderer,
 {
     fn tag(&self) -> tree::Tag {
         tree::Tag::of::<ButtonState>()
@@ -403,6 +322,12 @@ where
         };
         let now_or_current = || now.unwrap_or_else(Instant::now);
         let state = tree.state.downcast_mut::<ButtonState>();
+        let is_touch_event = matches!(event, Event::Touch(_));
+        let is_hovered = self.on_press.is_some() && !is_touch_event && cursor.is_over(bounds);
+
+        if state.sync_hover(is_hovered, now_or_current()) {
+            shell.request_redraw();
+        }
 
         match event {
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
@@ -452,16 +377,14 @@ where
             button_status(self.on_press.is_some(), state.is_pressed, bounds, cursor);
 
         if let Some(now) = now {
-            state.now = Some(now);
-            state.prune(now);
-
-            if state.has_visible_ripples(now) {
+            if state.advance(now) {
                 shell.request_redraw();
             }
 
             self.status = Some(current_status);
             state.last_status = Some(current_status);
         } else if self.status.is_some_and(|status| status != current_status)
+            || state.state_layer_opacity.is_animating()
             || state.has_visible_ripples(state.now.unwrap_or_else(Instant::now))
         {
             shell.request_redraw();
@@ -485,11 +408,9 @@ where
         }
 
         let state = tree.state.downcast_ref::<ButtonState>();
-        let status = self.status.or(state.last_status).unwrap_or_else(|| {
-            button_status(self.on_press.is_some(), state.is_pressed, bounds, cursor)
-        });
+        let status = button_status(self.on_press.is_some(), state.is_pressed, bounds, cursor);
         let now = state.now.unwrap_or_else(Instant::now);
-        let style = button_draw_style(theme, &self.class, status, state.ripple_opacity(now));
+        let style = button_draw_style(theme, &self.class, status);
         let content_layout = layout.children().next().unwrap();
 
         if style.background.is_some() || style.border.width > 0.0 || style.shadow.color.a > 0.0 {
@@ -505,14 +426,6 @@ where
                     .unwrap_or(Background::Color(Color::TRANSPARENT)),
             );
         }
-
-        draw_ripples(
-            renderer,
-            bounds,
-            state,
-            style.text_color,
-            style.border.radius,
-        );
 
         let viewport = if self.clip {
             bounds.intersection(viewport).unwrap_or(*viewport)
@@ -530,6 +443,17 @@ where
             content_layout,
             cursor,
             &viewport,
+        );
+
+        draw_button_state_layer(renderer, bounds, &style, state.state_layer_opacity());
+
+        draw_ripples(
+            renderer,
+            bounds,
+            &state.ripples,
+            style.text_color,
+            RippleConfig::bounded(style.border.radius),
+            now,
         );
     }
 
@@ -570,10 +494,18 @@ impl<'a, Message, Renderer> From<Button<'a, Message, Renderer>>
     for Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + 'a,
 {
     fn from(button: Button<'a, Message, Renderer>) -> Self {
         Element::new(button)
+    }
+}
+
+fn button_hover_state_layer_target(is_hovered: bool) -> f32 {
+    if is_hovered {
+        tokens::state::HOVER_STATE_LAYER_OPACITY
+    } else {
+        0.0
     }
 }
 
@@ -600,54 +532,38 @@ fn button_draw_style(
     theme: &Theme,
     class: &<Theme as Catalog>::Class<'_>,
     status: Status,
-    ripple_opacity: f32,
 ) -> Style {
-    let mut style = theme.style(class, status);
-    let active_background = theme.style(class, Status::Active).background;
-
-    match status {
-        Status::Pressed => {
-            style.background = active_background;
-        }
-        Status::Hovered if ripple_opacity > 0.0 => {
-            style.background = interpolate_background(
-                active_background,
-                style.background,
-                hover_state_layer_progress(ripple_opacity),
-            );
-        }
-        Status::Active | Status::Hovered | Status::Disabled => {}
+    if matches!(status, Status::Pressed | Status::Hovered) {
+        return theme.style(class, Status::Active);
     }
 
-    style
+    theme.style(class, status)
 }
 
-fn hover_state_layer_progress(ripple_opacity: f32) -> f32 {
-    1.0 - ripple_opacity.clamp(0.0, 1.0)
-}
-
-fn interpolate_background(
-    from: Option<Background>,
-    to: Option<Background>,
-    to_progress: f32,
-) -> Option<Background> {
-    let to_progress = to_progress.clamp(0.0, 1.0);
-
-    if to_progress <= 0.0 {
-        return from;
-    } else if to_progress >= 1.0 {
-        return to;
+fn draw_button_state_layer<Renderer>(
+    renderer: &mut Renderer,
+    bounds: Rectangle,
+    style: &Style,
+    opacity: f32,
+) where
+    Renderer: geometry::Renderer,
+{
+    if opacity <= 0.0 {
+        return;
     }
 
-    match (from, to) {
-        (Some(Background::Color(from)), Some(Background::Color(to))) => {
-            Some(Background::Color(mix(from, to, to_progress)))
-        }
-        (None, Some(to)) => Some(to.scale_alpha(to_progress)),
-        (Some(from), None) => Some(from.scale_alpha(1.0 - to_progress)),
-        (None, None) => None,
-        (_, to) => to,
-    }
+    renderer.fill_quad(
+        renderer::Quad {
+            bounds,
+            border: Border {
+                radius: style.border.radius,
+                ..Border::default()
+            },
+            snap: style.snap,
+            ..renderer::Quad::default()
+        },
+        state_layer(style.text_color, opacity),
+    );
 }
 
 fn press_origin(event: &Event, bounds: Rectangle, cursor: mouse::Cursor) -> Option<Point> {
@@ -725,281 +641,8 @@ fn relative_position(position: Point, bounds: Rectangle) -> Option<Point> {
         .then(|| position - iced_widget::core::Vector::new(bounds.x, bounds.y))
 }
 
-fn draw_ripples<Renderer>(
-    renderer: &mut Renderer,
-    bounds: Rectangle,
-    state: &ButtonState,
-    color: Color,
-    clip_radius: border::Radius,
-) where
-    Renderer: geometry::Renderer,
-{
-    let now = state.now.unwrap_or_else(Instant::now);
-
-    if !state.has_visible_ripples(now) {
-        return;
-    }
-
-    let mut frame = canvas::Frame::new(renderer, bounds.size());
-    let ripple_color = state_layer(color, PRESSED_LAYER_OPACITY);
-
-    if let Some(ripple) = state.active_ripple {
-        fill_ripple(
-            &mut frame,
-            ripple,
-            bounds.size(),
-            ripple_color,
-            clip_radius,
-            now,
-        );
-    }
-
-    for ripple in &state.exiting_ripples {
-        fill_ripple(
-            &mut frame,
-            *ripple,
-            bounds.size(),
-            ripple_color,
-            clip_radius,
-            now,
-        );
-    }
-
-    let geometry = frame.into_geometry();
-
-    renderer.with_layer(bounds, |renderer| {
-        renderer.with_translation(
-            iced_widget::core::Vector::new(bounds.x, bounds.y),
-            |renderer| renderer.draw_geometry(geometry),
-        );
-    });
-}
-
-fn fill_ripple<Renderer>(
-    frame: &mut canvas::Frame<Renderer>,
-    ripple: Ripple,
-    size: Size,
-    mut color: Color,
-    clip_radius: border::Radius,
-    now: Instant,
-) where
-    Renderer: geometry::Renderer,
-{
-    let opacity = ripple.opacity(now);
-
-    if opacity <= 0.0 {
-        return;
-    }
-
-    let circle = ripple.circle(size, now);
-
-    if circle.radius <= 0.0 {
-        return;
-    }
-
-    color.a *= opacity;
-
-    let path = bounded_ripple_path(size, clip_radius, circle);
-
-    frame.fill(&path, color);
-}
-
-fn bounded_ripple_path(
-    size: Size,
-    clip_radius: border::Radius,
-    circle: RippleCircle,
-) -> canvas::Path {
-    if circle.radius >= circle.target_radius - 0.5 {
-        return canvas::Path::rounded_rectangle(Point::ORIGIN, size, clip_radius);
-    }
-
-    clipped_circle_path(size, clip_radius, circle)
-        .unwrap_or_else(|| canvas::Path::circle(circle.center, circle.radius))
-}
-
-fn clipped_circle_path(
-    size: Size,
-    clip_radius: border::Radius,
-    circle: RippleCircle,
-) -> Option<canvas::Path> {
-    let top = (circle.center.y - circle.radius).max(0.0);
-    let bottom = (circle.center.y + circle.radius).min(size.height);
-
-    if bottom <= top {
-        return None;
-    }
-
-    let sample_count = ripple_clip_sample_count(circle.radius);
-    let step = (bottom - top) / (sample_count.saturating_sub(1) as f32);
-    let mut left_edge = Vec::with_capacity(sample_count);
-    let mut right_edge = Vec::with_capacity(sample_count);
-
-    for index in 0..sample_count {
-        let y = if index + 1 == sample_count {
-            bottom
-        } else {
-            top + step * index as f32
-        };
-
-        let Some((circle_left, circle_right)) = circle_span_at_y(circle, y) else {
-            continue;
-        };
-        let Some((clip_left, clip_right)) = rounded_rect_span_at_y(size, clip_radius, y) else {
-            continue;
-        };
-
-        let left = circle_left.max(clip_left);
-        let right = circle_right.min(clip_right);
-
-        if left <= right {
-            left_edge.push(Point::new(left, y));
-            right_edge.push(Point::new(right, y));
-        }
-    }
-
-    if left_edge.len() < 2 || right_edge.len() < 2 {
-        return None;
-    }
-
-    Some(canvas::Path::new(|path| {
-        path.move_to(left_edge[0]);
-
-        for point in left_edge.iter().skip(1) {
-            path.line_to(*point);
-        }
-
-        for point in right_edge.iter().rev() {
-            path.line_to(*point);
-        }
-
-        path.close();
-    }))
-}
-
-fn ripple_clip_sample_count(radius: f32) -> usize {
-    ((radius * std::f32::consts::TAU).ceil() as usize)
-        .clamp(RIPPLE_CLIP_MIN_SAMPLES, RIPPLE_CLIP_MAX_SAMPLES)
-}
-
-fn circle_span_at_y(circle: RippleCircle, y: f32) -> Option<(f32, f32)> {
-    let dy = y - circle.center.y;
-    let distance_to_edge_squared = circle.radius * circle.radius - dy * dy;
-
-    if distance_to_edge_squared < 0.0 {
-        return None;
-    }
-
-    let dx = distance_to_edge_squared.sqrt();
-
-    Some((circle.center.x - dx, circle.center.x + dx))
-}
-
-fn rounded_rect_span_at_y(size: Size, radius: border::Radius, y: f32) -> Option<(f32, f32)> {
-    if y < 0.0 || y > size.height {
-        return None;
-    }
-
-    let [top_left, top_right, bottom_right, bottom_left] = normalized_corner_radii(size, radius);
-    let mut left: f32 = 0.0;
-    let mut right = size.width;
-
-    if top_left > 0.0 && y < top_left {
-        left = left.max(corner_left_bound(top_left, y, top_left));
-    }
-
-    if bottom_left > 0.0 && y > size.height - bottom_left {
-        left = left.max(corner_left_bound(bottom_left, y, size.height - bottom_left));
-    }
-
-    if top_right > 0.0 && y < top_right {
-        right = right.min(corner_right_bound(size.width, top_right, y, top_right));
-    }
-
-    if bottom_right > 0.0 && y > size.height - bottom_right {
-        right = right.min(corner_right_bound(
-            size.width,
-            bottom_right,
-            y,
-            size.height - bottom_right,
-        ));
-    }
-
-    (left <= right).then_some((left, right))
-}
-
-fn normalized_corner_radii(size: Size, radius: border::Radius) -> [f32; 4] {
-    let max_radius = size.width.min(size.height) / 2.0;
-    let [top_left, top_right, bottom_right, bottom_left] = radius.into();
-
-    [
-        top_left.min(max_radius),
-        top_right.min(max_radius),
-        bottom_right.min(max_radius),
-        bottom_left.min(max_radius),
-    ]
-}
-
-fn corner_left_bound(radius: f32, y: f32, center_y: f32) -> f32 {
-    radius - circle_axis_delta(radius, y - center_y)
-}
-
-fn corner_right_bound(width: f32, radius: f32, y: f32, center_y: f32) -> f32 {
-    width - radius + circle_axis_delta(radius, y - center_y)
-}
-
-fn circle_axis_delta(radius: f32, offset: f32) -> f32 {
-    (radius * radius - offset * offset).max(0.0).sqrt()
-}
-
-fn timed_progress(
-    started_at: Instant,
-    now: Instant,
-    duration: iced_widget::core::time::Duration,
-    easing: tokens::motion::CubicBezier,
-) -> f32 {
-    if duration.is_zero() {
-        return 1.0;
-    }
-
-    let progress =
-        (now.duration_since(started_at).as_secs_f32() / duration.as_secs_f32()).clamp(0.0, 1.0);
-
-    easing.transform(progress)
-}
-
-fn ripple_target_radius(size: Size) -> f32 {
-    let half_width = size.width / 2.0;
-    let half_height = size.height / 2.0;
-
-    (half_width * half_width + half_height * half_height).sqrt()
-}
-
-fn clamped_ripple_origin(
-    origin: Point,
-    size: Size,
-    target_radius: f32,
-    start_radius: f32,
-) -> Point {
-    let center = Point::new(size.width / 2.0, size.height / 2.0);
-    let dx = origin.x - center.x;
-    let dy = origin.y - center.y;
-    let radius = (target_radius - start_radius).max(0.0);
-    let distance_squared = dx * dx + dy * dy;
-
-    if radius > 0.0 && distance_squared > radius * radius {
-        let angle = dy.atan2(dx);
-
-        Point::new(
-            center.x + angle.cos() * radius,
-            center.y + angle.sin() * radius,
-        )
-    } else {
-        origin
-    }
-}
-
 #[cfg(test)]
-#[path = "../../tests/widget/component/button.rs"]
+#[path = "../../../tests/widget/component/button.rs"]
 mod tests;
 
 fn standard<'a, Message, Renderer>(
@@ -1193,7 +836,7 @@ pub fn filled_action<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
 {
     filled(label).on_press(on_press).into()
 }
@@ -1206,7 +849,7 @@ pub fn maybe_action<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + 'a,
 {
     button.on_press_maybe(enabled.then_some(on_press)).into()
 }
@@ -1219,7 +862,7 @@ pub fn enabled_actions<'a, Message, Renderer>(
 ) -> Vec<Element<'a, Message, Theme, Renderer>>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + 'a,
 {
     buttons
         .into_iter()
@@ -1253,7 +896,7 @@ pub fn outlined_action<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
 {
     outlined(label).on_press(on_press).into()
 }
@@ -1274,7 +917,7 @@ pub fn text_action<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
 {
     text(label).on_press(on_press).into()
 }
@@ -1340,7 +983,7 @@ pub fn primary_fab_action<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     primary_fab(icon_content).on_press(on_press).into()

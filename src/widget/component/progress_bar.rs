@@ -2511,5 +2511,5 @@ const DISTANCE_EPSILON: f32 = 1e-4;
 const ANGLE_EPSILON: f32 = 1e-6;
 
 #[cfg(test)]
-#[path = "../../tests/widget/component/progress_bar.rs"]
+#[path = "../../../tests/widget/component/progress_bar.rs"]
 mod tests;

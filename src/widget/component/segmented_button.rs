@@ -6,6 +6,7 @@ use iced_widget::core::text as core_text;
 use iced_widget::core::time::Instant;
 use iced_widget::core::{Background, Border, Color, Element, Length, Padding, alignment};
 use iced_widget::graphics::geometry;
+use iced_widget::renderer::wgpu::primitive;
 use iced_widget::text;
 use iced_widget::{Container, Row, Text};
 
@@ -200,7 +201,7 @@ pub fn animated_selectable_label_action<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     animated_selectable_label(label, selected_progress, position)
@@ -216,7 +217,7 @@ pub fn animated_selectable_label_actions<'a, Message, Renderer, Label>(
 where
     Label: text::IntoFragment<'a>,
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     let segments: Vec<_> = segments.into_iter().collect();
@@ -442,5 +443,5 @@ fn state_background(container: Option<Color>, layer: Color, opacity: f32) -> Col
 }
 
 #[cfg(test)]
-#[path = "../../tests/widget/component/segmented_button.rs"]
+#[path = "../../../tests/widget/component/segmented_button.rs"]
 mod tests;

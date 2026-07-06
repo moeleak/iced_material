@@ -15,5 +15,5 @@ impl Catalog for Theme {
 }
 
 #[cfg(test)]
-#[path = "../../tests/design/style/combobox.rs"]
+#[path = "../../../tests/design/style/combobox.rs"]
 mod tests;

@@ -9,6 +9,7 @@ use iced_widget::core::{
     Transformation, Vector, Widget, alignment, border, layout, mouse, overlay, renderer,
 };
 use iced_widget::graphics::geometry;
+use iced_widget::renderer::wgpu::primitive;
 use iced_widget::text;
 use iced_widget::{Column, Container, Row, Space, Stack, Text, opaque};
 
@@ -297,7 +298,7 @@ pub fn action<'a, Message, Renderer>(
 ) -> super::button::Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
 {
     super::button::text(label)
 }
@@ -309,7 +310,7 @@ pub fn action_button<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
 {
     action(label).on_press(on_press).into()
 }
@@ -321,7 +322,7 @@ pub fn action_alpha<'a, Message, Renderer>(
 ) -> super::button::Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
 {
     action(label).style(move |theme, status| action_style_alpha(theme, status, alpha))
 }
@@ -334,7 +335,7 @@ pub fn action_button_alpha<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
 {
     action_alpha(label, alpha).on_press(on_press).into()
 }
@@ -910,5 +911,5 @@ fn android_decelerate(progress: f32, factor: f32) -> f32 {
 }
 
 #[cfg(test)]
-#[path = "../../tests/widget/component/dialog.rs"]
+#[path = "../../../tests/widget/component/dialog.rs"]
 mod tests;

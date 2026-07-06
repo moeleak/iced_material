@@ -1,6 +1,5 @@
 //! Material 3 navigation bar, rail, drawer, and adaptive layout helpers.
 
-use iced_widget::canvas;
 use iced_widget::core::layout;
 use iced_widget::core::mouse;
 use iced_widget::core::overlay;
@@ -15,26 +14,20 @@ use iced_widget::core::{
     Shell, Size, Vector, Widget, alignment, border, window,
 };
 use iced_widget::graphics::geometry;
+use iced_widget::renderer::wgpu::primitive;
 use iced_widget::text::{self, LineHeight};
 use iced_widget::{Column, Container, Row, Space, Stack, Text};
 
 use super::badge as badge_widget;
 use super::button::Button;
+use super::ripple::{PressRippleState, RippleConfig, RippleStart, RippleStyle, draw_ripples};
 use super::support::{AnimatedScalar, alpha_color, duration_ms, lerp};
 use crate::style::button as button_style;
-use crate::utils::{
-    HOVERED_LAYER_OPACITY, PRESSED_LAYER_OPACITY, mix, shadow_from_level, state_layer,
-};
+use crate::utils::{HOVERED_LAYER_OPACITY, mix, shadow_from_level, state_layer};
 use crate::{Theme, fonts, tokens};
 
-const RIPPLE_ENTER_DURATION_MS: u16 = 225;
-const RIPPLE_ORIGIN_DURATION_MS: u16 = 225;
-const RIPPLE_OPACITY_ENTER_DURATION_MS: u16 = 75;
-const RIPPLE_OPACITY_EXIT_DURATION_MS: u16 = 150;
-const RIPPLE_OPACITY_HOLD_DURATION_MS: u16 = RIPPLE_OPACITY_ENTER_DURATION_MS + 150;
-const RIPPLE_START_RADIUS_FACTOR: f32 = 0.3;
-const RIPPLE_CLIP_MIN_SAMPLES: usize = 24;
-const RIPPLE_CLIP_MAX_SAMPLES: usize = 96;
+#[cfg(test)]
+use super::ripple::{ripple_target_radius, rounded_rect_span_at_y};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AdaptiveLayout {
@@ -566,7 +559,7 @@ impl<'a, Id> Suite<'a, Id> {
     where
         Id: Copy + Eq + 'a,
         Message: Clone + 'a,
-        Renderer: geometry::Renderer + core_text::Renderer + 'a,
+        Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
         Font: Into<Renderer::Font>,
         F: Fn(Id) -> Message + Clone + 'a,
     {
@@ -616,7 +609,7 @@ impl<'a, Id, Message> SuiteWithMenu<'a, Id, Message> {
     where
         Id: Copy + Eq + 'a,
         Message: Clone + 'a,
-        Renderer: geometry::Renderer + core_text::Renderer + 'a,
+        Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
         Font: Into<Renderer::Font>,
         F: Fn(Id) -> Message + Clone + 'a,
     {
@@ -643,7 +636,7 @@ pub fn navigation_suite<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -666,7 +659,7 @@ pub fn navigation_suite_for_layout<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -701,7 +694,7 @@ pub fn navigation_suite_with_menu<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -728,7 +721,7 @@ pub fn navigation_suite_for_layout_with_menu<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -770,7 +763,7 @@ pub fn navigation_bar<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -814,7 +807,7 @@ pub fn navigation_rail<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -829,7 +822,7 @@ pub fn navigation_rail_fitting_content<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -847,7 +840,7 @@ pub fn navigation_rail_with_header<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -863,7 +856,7 @@ pub fn navigation_rail_with_header_fitting_content<'a, Id, Message, Renderer, F>
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -881,7 +874,7 @@ pub fn navigation_rail_with_menu<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -902,7 +895,7 @@ pub fn navigation_rail_with_menu_fitting_content<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -921,7 +914,7 @@ pub fn navigation_rail_expanded_with_menu<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -945,7 +938,7 @@ pub fn navigation_rail_expanded_with_menu_fitting_content<'a, Id, Message, Rende
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -967,7 +960,7 @@ pub fn navigation_rail_expanded_with_menu_at_width<'a, Id, Message, Renderer, F>
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -1018,7 +1011,7 @@ fn navigation_rail_with_optional_header<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -1065,7 +1058,7 @@ pub fn navigation_drawer<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -1088,7 +1081,7 @@ pub fn navigation_drawer_at_width<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -1112,7 +1105,7 @@ pub fn navigation_drawer_with_menu<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -1137,7 +1130,7 @@ pub fn navigation_drawer_with_menu_at_width<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -1162,7 +1155,7 @@ fn navigation_drawer_with_optional_header<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -1237,7 +1230,7 @@ fn navigation_bar_item<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -1297,7 +1290,7 @@ fn navigation_rail_item<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -1357,7 +1350,7 @@ fn navigation_rail_header<'a, Message, Renderer>(
 ) -> Container<'a, Message, Theme, Renderer>
 where
     Message: 'a,
-    Renderer: geometry::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + 'a,
 {
     Container::new(header)
         .width(Length::Fixed(
@@ -1375,7 +1368,7 @@ where
 fn navigation_menu_button<'a, Message, Renderer>(on_press: Message) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
 {
     let icon = fonts::icon("menu", tokens::component::icon_button::ICON_SIZE)
@@ -1410,7 +1403,7 @@ fn navigation_rail_expanded_header<'a, Message, Renderer>(
 ) -> Container<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
 {
     let headline_scale = tokens::component::navigation_drawer::HEADLINE_TEXT;
@@ -1452,7 +1445,7 @@ fn navigation_rail_expanded_item<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -1568,7 +1561,7 @@ fn navigation_drawer_menu_header<'a, Message, Renderer>(
 ) -> Container<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
 {
     let headline_scale = tokens::component::navigation_drawer::HEADLINE_TEXT;
@@ -1604,7 +1597,7 @@ fn navigation_drawer_item<'a, Id, Message, Renderer, F>(
 where
     Id: Copy + Eq + 'a,
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
@@ -1692,7 +1685,7 @@ fn indicator_icon_stack<'a, Message, Renderer>(
 ) -> Stack<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
 {
     Stack::new()
@@ -1730,7 +1723,7 @@ fn navigation_press_surface<'a, Message, Renderer>(
 ) -> NavigationPressSurface<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + 'a,
 {
     NavigationPressSurface {
         content: content.into(),
@@ -1742,7 +1735,7 @@ where
 
 struct NavigationPressSurface<'a, Message, Renderer>
 where
-    Renderer: geometry::Renderer,
+    Renderer: geometry::Renderer + primitive::Renderer,
 {
     content: Element<'a, Message, Theme, Renderer>,
     on_press: Message,
@@ -1796,8 +1789,7 @@ struct NavigationPressSurfaceState {
     is_hovered: bool,
     is_pressed: bool,
     state_layer_opacity: AnimatedScalar,
-    active_ripple: Option<NavigationRipple>,
-    exiting_ripples: Vec<NavigationRipple>,
+    ripples: PressRippleState,
     now: Option<Instant>,
 }
 
@@ -1807,8 +1799,7 @@ impl Default for NavigationPressSurfaceState {
             is_hovered: false,
             is_pressed: false,
             state_layer_opacity: AnimatedScalar::new(0.0),
-            active_ripple: None,
-            exiting_ripples: Vec::new(),
+            ripples: PressRippleState::default(),
             now: None,
         }
     }
@@ -1835,8 +1826,12 @@ impl NavigationPressSurfaceState {
 
     fn press(&mut self, origin: Point, now: Instant) {
         self.is_pressed = true;
-        self.exiting_ripples.clear();
-        self.active_ripple = Some(NavigationRipple::new(origin, now));
+        self.ripples.press(
+            origin,
+            now,
+            RippleStart::Replace,
+            RippleStyle::material_patterned(),
+        );
         self.now = Some(now);
         self.animate_to_interaction_target(now);
     }
@@ -1850,10 +1845,7 @@ impl NavigationPressSurfaceState {
         self.is_hovered = is_hovered;
 
         if keep_ripple {
-            if let Some(mut ripple) = self.active_ripple.take() {
-                ripple.exit(now);
-                self.replace_exiting(ripple);
-            }
+            self.ripples.release_replacing(now);
         } else {
             self.clear_ripples();
         }
@@ -1891,133 +1883,24 @@ impl NavigationPressSurfaceState {
         );
     }
 
-    fn replace_exiting(&mut self, ripple: NavigationRipple) {
-        self.exiting_ripples.clear();
-        self.exiting_ripples.push(ripple);
-    }
-
     fn clear_ripples(&mut self) {
-        self.active_ripple = None;
-        self.exiting_ripples.clear();
+        self.ripples.clear();
     }
 
     fn prune(&mut self, now: Instant) {
-        self.exiting_ripples
-            .retain(|ripple| !ripple.has_finished_exit(now));
+        self.ripples.prune(now);
     }
 
     fn has_visible_ripples(&self, now: Instant) -> bool {
-        self.active_ripple
-            .is_some_and(|ripple| ripple.opacity(now) > 0.0)
-            || self
-                .exiting_ripples
-                .iter()
-                .any(|ripple| ripple.opacity(now) > 0.0)
+        self.ripples.has_visible_ripples(now)
     }
-}
-
-#[derive(Debug, Clone, Copy)]
-struct NavigationRipple {
-    origin: Point,
-    started_at: Instant,
-    exit_started_at: Option<Instant>,
-    exit_delay: iced_widget::core::time::Duration,
-}
-
-impl NavigationRipple {
-    fn new(origin: Point, started_at: Instant) -> Self {
-        Self {
-            origin,
-            started_at,
-            exit_started_at: None,
-            exit_delay: iced_widget::core::time::Duration::ZERO,
-        }
-    }
-
-    fn exit(&mut self, now: Instant) {
-        let hold = duration_ms(RIPPLE_OPACITY_HOLD_DURATION_MS);
-        let elapsed = now.duration_since(self.started_at);
-
-        self.exit_started_at = Some(now);
-        self.exit_delay = hold.saturating_sub(elapsed);
-    }
-
-    fn circle(self, size: Size, now: Instant) -> NavigationRippleCircle {
-        let target_radius = navigation_ripple_target_radius(size);
-        let start_radius = size.width.max(size.height) * RIPPLE_START_RADIUS_FACTOR;
-        let clamped_origin =
-            navigation_clamped_ripple_origin(self.origin, size, target_radius, start_radius);
-        let radius_progress = navigation_timed_progress(
-            self.started_at,
-            now,
-            duration_ms(RIPPLE_ENTER_DURATION_MS),
-            tokens::motion::EASING_LEGACY,
-        );
-        let origin_progress = navigation_timed_progress(
-            self.started_at,
-            now,
-            duration_ms(RIPPLE_ORIGIN_DURATION_MS),
-            tokens::motion::EASING_LEGACY,
-        );
-        let center = Point::new(size.width / 2.0, size.height / 2.0);
-
-        NavigationRippleCircle {
-            center: Point::new(
-                lerp(clamped_origin.x, center.x, origin_progress),
-                lerp(clamped_origin.y, center.y, origin_progress),
-            ),
-            radius: lerp(start_radius, target_radius, radius_progress),
-            target_radius,
-        }
-    }
-
-    fn opacity(self, now: Instant) -> f32 {
-        let enter = navigation_timed_progress(
-            self.started_at,
-            now,
-            duration_ms(RIPPLE_OPACITY_ENTER_DURATION_MS),
-            tokens::motion::EASING_LINEAR,
-        );
-
-        let exit = self
-            .exit_started_at
-            .map(|exit_started_at| {
-                let elapsed = now.duration_since(exit_started_at);
-
-                if elapsed <= self.exit_delay {
-                    1.0
-                } else {
-                    let fade = elapsed - self.exit_delay;
-                    1.0 - (fade.as_secs_f32()
-                        / duration_ms(RIPPLE_OPACITY_EXIT_DURATION_MS).as_secs_f32())
-                    .clamp(0.0, 1.0)
-                }
-            })
-            .unwrap_or(1.0);
-
-        enter * exit
-    }
-
-    fn has_finished_exit(self, now: Instant) -> bool {
-        self.exit_started_at.is_some_and(|exit_started_at| {
-            now.duration_since(exit_started_at)
-                >= self.exit_delay + duration_ms(RIPPLE_OPACITY_EXIT_DURATION_MS)
-        })
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-struct NavigationRippleCircle {
-    center: Point,
-    radius: f32,
-    target_radius: f32,
 }
 
 impl<Message, Renderer> Widget<Message, Theme, Renderer>
     for NavigationPressSurface<'_, Message, Renderer>
 where
     Message: Clone,
-    Renderer: geometry::Renderer,
+    Renderer: geometry::Renderer + primitive::Renderer,
 {
     fn tag(&self) -> tree::Tag {
         tree::Tag::of::<NavigationPressSurfaceState>()
@@ -2204,6 +2087,7 @@ where
 
         let state = tree.state.downcast_ref::<NavigationPressSurfaceState>();
         let indicator_bounds = self.indicator.bounds(layout.bounds());
+        let now = state.now.unwrap_or_else(Instant::now);
         let opacity = state.opacity();
         let layer_color = navigation_state_layer_color(theme, self.layer);
 
@@ -2219,7 +2103,14 @@ where
             );
         }
 
-        draw_navigation_ripples(renderer, indicator_bounds, state, layer_color);
+        draw_ripples(
+            renderer,
+            indicator_bounds,
+            &state.ripples,
+            layer_color,
+            RippleConfig::bounded(border::radius(tokens::shape::CORNER_FULL)),
+            now,
+        );
     }
 
     fn overlay<'b>(
@@ -2244,7 +2135,7 @@ impl<'a, Message, Renderer> From<NavigationPressSurface<'a, Message, Renderer>>
     for Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + 'a,
 {
     fn from(surface: NavigationPressSurface<'a, Message, Renderer>) -> Self {
         Element::new(surface)
@@ -2310,290 +2201,6 @@ fn navigation_event_position(event: &Event) -> Option<Point> {
     }
 }
 
-fn draw_navigation_ripples<Renderer>(
-    renderer: &mut Renderer,
-    bounds: Rectangle,
-    state: &NavigationPressSurfaceState,
-    color: Color,
-) where
-    Renderer: geometry::Renderer,
-{
-    let now = state.now.unwrap_or_else(Instant::now);
-
-    if !state.has_visible_ripples(now) {
-        return;
-    }
-
-    let mut frame = canvas::Frame::new(renderer, bounds.size());
-    let ripple_color = state_layer(color, PRESSED_LAYER_OPACITY);
-    let clip_radius = border::radius(tokens::shape::CORNER_FULL);
-
-    if let Some(ripple) = state.active_ripple {
-        fill_navigation_ripple(
-            &mut frame,
-            ripple,
-            bounds.size(),
-            ripple_color,
-            clip_radius,
-            now,
-        );
-    }
-
-    for ripple in &state.exiting_ripples {
-        fill_navigation_ripple(
-            &mut frame,
-            *ripple,
-            bounds.size(),
-            ripple_color,
-            clip_radius,
-            now,
-        );
-    }
-
-    let geometry = frame.into_geometry();
-
-    renderer.with_layer(bounds, |renderer| {
-        renderer.with_translation(Vector::new(bounds.x, bounds.y), |renderer| {
-            renderer.draw_geometry(geometry);
-        });
-    });
-}
-
-fn fill_navigation_ripple<Renderer>(
-    frame: &mut canvas::Frame<Renderer>,
-    ripple: NavigationRipple,
-    size: Size,
-    mut color: Color,
-    clip_radius: border::Radius,
-    now: Instant,
-) where
-    Renderer: geometry::Renderer,
-{
-    let opacity = ripple.opacity(now);
-
-    if opacity <= 0.0 {
-        return;
-    }
-
-    let circle = ripple.circle(size, now);
-
-    if circle.radius <= 0.0 {
-        return;
-    }
-
-    color.a *= opacity;
-
-    let path = navigation_bounded_ripple_path(size, clip_radius, circle);
-
-    frame.fill(&path, color);
-}
-
-fn navigation_bounded_ripple_path(
-    size: Size,
-    clip_radius: border::Radius,
-    circle: NavigationRippleCircle,
-) -> canvas::Path {
-    if circle.radius >= circle.target_radius - 0.5 {
-        return canvas::Path::rounded_rectangle(Point::ORIGIN, size, clip_radius);
-    }
-
-    navigation_clipped_circle_path(size, clip_radius, circle)
-        .unwrap_or_else(|| canvas::Path::circle(circle.center, circle.radius))
-}
-
-fn navigation_clipped_circle_path(
-    size: Size,
-    clip_radius: border::Radius,
-    circle: NavigationRippleCircle,
-) -> Option<canvas::Path> {
-    let top = (circle.center.y - circle.radius).max(0.0);
-    let bottom = (circle.center.y + circle.radius).min(size.height);
-
-    if bottom <= top {
-        return None;
-    }
-
-    let sample_count = navigation_ripple_clip_sample_count(circle.radius);
-    let step = (bottom - top) / (sample_count.saturating_sub(1) as f32);
-    let mut left_edge = Vec::with_capacity(sample_count);
-    let mut right_edge = Vec::with_capacity(sample_count);
-
-    for index in 0..sample_count {
-        let y = if index + 1 == sample_count {
-            bottom
-        } else {
-            top + step * index as f32
-        };
-
-        let Some((circle_left, circle_right)) = navigation_circle_span_at_y(circle, y) else {
-            continue;
-        };
-        let Some((clip_left, clip_right)) = navigation_rounded_rect_span_at_y(size, clip_radius, y)
-        else {
-            continue;
-        };
-
-        let left = circle_left.max(clip_left);
-        let right = circle_right.min(clip_right);
-
-        if left <= right {
-            left_edge.push(Point::new(left, y));
-            right_edge.push(Point::new(right, y));
-        }
-    }
-
-    if left_edge.len() < 2 || right_edge.len() < 2 {
-        return None;
-    }
-
-    Some(canvas::Path::new(|path| {
-        path.move_to(left_edge[0]);
-
-        for point in left_edge.iter().skip(1) {
-            path.line_to(*point);
-        }
-
-        for point in right_edge.iter().rev() {
-            path.line_to(*point);
-        }
-
-        path.close();
-    }))
-}
-
-fn navigation_ripple_clip_sample_count(radius: f32) -> usize {
-    ((radius * std::f32::consts::TAU).ceil() as usize)
-        .clamp(RIPPLE_CLIP_MIN_SAMPLES, RIPPLE_CLIP_MAX_SAMPLES)
-}
-
-fn navigation_circle_span_at_y(circle: NavigationRippleCircle, y: f32) -> Option<(f32, f32)> {
-    let dy = y - circle.center.y;
-    let distance_to_edge_squared = circle.radius * circle.radius - dy * dy;
-
-    if distance_to_edge_squared < 0.0 {
-        return None;
-    }
-
-    let dx = distance_to_edge_squared.sqrt();
-
-    Some((circle.center.x - dx, circle.center.x + dx))
-}
-
-fn navigation_rounded_rect_span_at_y(
-    size: Size,
-    radius: border::Radius,
-    y: f32,
-) -> Option<(f32, f32)> {
-    if y < 0.0 || y > size.height {
-        return None;
-    }
-
-    let [top_left, top_right, bottom_right, bottom_left] =
-        navigation_normalized_corner_radii(size, radius);
-    let mut left: f32 = 0.0;
-    let mut right = size.width;
-
-    if top_left > 0.0 && y < top_left {
-        left = left.max(navigation_corner_left_bound(top_left, y, top_left));
-    }
-
-    if bottom_left > 0.0 && y > size.height - bottom_left {
-        left = left.max(navigation_corner_left_bound(
-            bottom_left,
-            y,
-            size.height - bottom_left,
-        ));
-    }
-
-    if top_right > 0.0 && y < top_right {
-        right = right.min(navigation_corner_right_bound(
-            size.width, top_right, y, top_right,
-        ));
-    }
-
-    if bottom_right > 0.0 && y > size.height - bottom_right {
-        right = right.min(navigation_corner_right_bound(
-            size.width,
-            bottom_right,
-            y,
-            size.height - bottom_right,
-        ));
-    }
-
-    (left <= right).then_some((left, right))
-}
-
-fn navigation_normalized_corner_radii(size: Size, radius: border::Radius) -> [f32; 4] {
-    let max_radius = size.width.min(size.height) / 2.0;
-    let [top_left, top_right, bottom_right, bottom_left] = radius.into();
-
-    [
-        top_left.min(max_radius),
-        top_right.min(max_radius),
-        bottom_right.min(max_radius),
-        bottom_left.min(max_radius),
-    ]
-}
-
-fn navigation_corner_left_bound(radius: f32, y: f32, center_y: f32) -> f32 {
-    radius - navigation_circle_axis_delta(radius, y - center_y)
-}
-
-fn navigation_corner_right_bound(width: f32, radius: f32, y: f32, center_y: f32) -> f32 {
-    width - radius + navigation_circle_axis_delta(radius, y - center_y)
-}
-
-fn navigation_circle_axis_delta(radius: f32, offset: f32) -> f32 {
-    (radius * radius - offset * offset).max(0.0).sqrt()
-}
-
-fn navigation_timed_progress(
-    started_at: Instant,
-    now: Instant,
-    duration: iced_widget::core::time::Duration,
-    easing: tokens::motion::CubicBezier,
-) -> f32 {
-    if duration.is_zero() {
-        return 1.0;
-    }
-
-    let progress =
-        (now.duration_since(started_at).as_secs_f32() / duration.as_secs_f32()).clamp(0.0, 1.0);
-
-    easing.transform(progress)
-}
-
-fn navigation_ripple_target_radius(size: Size) -> f32 {
-    let half_width = size.width / 2.0;
-    let half_height = size.height / 2.0;
-
-    (half_width * half_width + half_height * half_height).sqrt()
-}
-
-fn navigation_clamped_ripple_origin(
-    origin: Point,
-    size: Size,
-    target_radius: f32,
-    start_radius: f32,
-) -> Point {
-    let center = Point::new(size.width / 2.0, size.height / 2.0);
-    let dx = origin.x - center.x;
-    let dy = origin.y - center.y;
-    let radius = (target_radius - start_radius).max(0.0);
-    let distance_squared = dx * dx + dy * dy;
-
-    if radius > 0.0 && distance_squared > radius * radius {
-        let angle = dy.atan2(dx);
-
-        Point::new(
-            center.x + angle.cos() * radius,
-            center.y + angle.sin() * radius,
-        )
-    } else {
-        origin
-    }
-}
-
 fn indicator_layer<'a, Message, Renderer>(
     target_width: f32,
     height: f32,
@@ -2602,7 +2209,7 @@ fn indicator_layer<'a, Message, Renderer>(
 ) -> Container<'a, Message, Theme, Renderer>
 where
     Message: 'a,
-    Renderer: geometry::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + 'a,
 {
     let indicator = Container::new(Space::new())
         .width(Length::Fixed(animated_indicator_width(
@@ -2848,7 +2455,7 @@ fn navigation_rail_expanded_icon_layer<'a, Message, Renderer>(
 ) -> Container<'a, Message, Theme, Renderer>
 where
     Message: 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
 {
     let icon = destination_icon_anchor::<Message, Renderer>(
@@ -2875,7 +2482,7 @@ fn navigation_rail_expanded_collapsed_label<'a, Message, Renderer>(
 ) -> Container<'a, Message, Theme, Renderer>
 where
     Message: 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
 {
     let alpha = alpha.clamp(0.0, 1.0);
@@ -2903,7 +2510,7 @@ fn destination_icon_anchor<'a, Message, Renderer>(
 ) -> Container<'a, Message, Theme, Renderer>
 where
     Message: 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
 {
     let icon: Element<'a, Message, Theme, Renderer> =
@@ -2927,7 +2534,7 @@ where
 fn destination_badge<'a, Message, Renderer>(badge: Badge) -> Element<'a, Message, Theme, Renderer>
 where
     Message: 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
 {
     match badge {
@@ -2942,7 +2549,7 @@ fn destination_badge_with_alpha<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
 {
     let alpha = alpha.clamp(0.0, 1.0);
@@ -2983,7 +2590,7 @@ fn destination_icon<'a, Message, Renderer>(
 ) -> Stack<'a, Message, Theme, Renderer>
 where
     Message: 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
 {
     let outline = fonts::icon(icon, size)
@@ -3145,5 +2752,5 @@ fn navigation_state_layer_color(theme: &Theme, layer: NavigationStateLayer) -> C
 }
 
 #[cfg(test)]
-#[path = "../../tests/widget/component/navigation.rs"]
+#[path = "../../../tests/widget/component/navigation.rs"]
 mod tests;

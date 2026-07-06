@@ -8,24 +8,40 @@ fn assert_close(actual: f32, expected: f32) {
 }
 
 #[test]
-fn ripple_radius_matches_android_auto_radius_for_non_round_bounds() {
+fn bounded_ripple_radius_matches_compose_extra_radius_for_non_round_bounds() {
     let radius = ripple_target_radius(Size::new(100.0, 40.0));
 
-    assert_close(radius, (50.0_f32 * 50.0 + 20.0 * 20.0).sqrt());
+    assert_close(
+        radius,
+        (50.0_f32 * 50.0 + 20.0 * 20.0).sqrt() + tokens::state::RIPPLE_BOUNDED_EXTRA_RADIUS,
+    );
 }
 
 #[test]
-fn ripple_radius_uses_android_auto_radius_for_round_bounds() {
+fn bounded_ripple_radius_uses_compose_extra_radius_for_round_bounds() {
     let radius = ripple_target_radius(Size::new(40.0, 40.0));
 
-    assert_close(radius, (20.0_f32 * 20.0 + 20.0 * 20.0).sqrt());
+    assert_close(
+        radius,
+        (20.0_f32 * 20.0 + 20.0 * 20.0).sqrt() + tokens::state::RIPPLE_BOUNDED_EXTRA_RADIUS,
+    );
 }
 
 #[test]
-fn partial_round_bounds_use_android_auto_radius() {
+fn partial_round_bounds_use_compose_bounded_radius() {
     let radius = ripple_target_radius(Size::new(80.0, 40.0));
 
-    assert_close(radius, (40.0_f32 * 40.0 + 20.0 * 20.0).sqrt());
+    assert_close(
+        radius,
+        (40.0_f32 * 40.0 + 20.0 * 20.0).sqrt() + tokens::state::RIPPLE_BOUNDED_EXTRA_RADIUS,
+    );
+}
+
+#[test]
+fn unbounded_ripple_radius_fits_within_bounds() {
+    let radius = unbounded_ripple_target_radius(Size::new(100.0, 40.0));
+
+    assert_close(radius, (50.0_f32 * 50.0 + 20.0 * 20.0).sqrt());
 }
 
 #[test]
@@ -80,6 +96,16 @@ fn ripple_clip_sampling_is_bounded_for_runtime_cost() {
 }
 
 #[test]
+fn patterned_noise_phase_matches_aosp_shader_units() {
+    let start = Instant::now();
+    let ripple = Ripple::new(Point::new(20.0, 20.0), start);
+    let (sparkle_phase, turbulence_phase) = ripple_noise_phases(ripple, start + duration_ms(214));
+
+    assert_close(turbulence_phase, 1.0);
+    assert_close(sparkle_phase, 0.001);
+}
+
+#[test]
 fn short_press_ripple_holds_before_fade_out() {
     let start = Instant::now();
     let mut ripple = Ripple::new(Point::new(20.0, 20.0), start);
@@ -101,13 +127,13 @@ fn pressing_again_moves_existing_active_ripple_to_exiting() {
     state.press(Point::new(10.0, 10.0), start);
     state.press(Point::new(20.0, 20.0), start + duration_ms(20));
 
-    assert!(state.active_ripple.is_some());
-    assert_eq!(state.exiting_ripples.len(), 1);
+    assert!(state.ripples.has_active_ripple());
+    assert_eq!(state.ripples.exiting_ripple_count(), 1);
     assert!(state.has_visible_ripples(start + duration_ms(75)));
 }
 
 #[test]
-fn ripple_opacity_tracks_max_visible_alpha() {
+fn patterned_ripple_opacity_tracks_aosp_progress() {
     let start = Instant::now();
     let release = start + duration_ms(50);
     let mut state = ButtonState::default();
@@ -115,46 +141,151 @@ fn ripple_opacity_tracks_max_visible_alpha() {
     state.press(Point::new(10.0, 10.0), start);
     state.release(release);
 
-    assert_close(state.ripple_opacity(release + duration_ms(25)), 1.0);
-    assert_close(state.ripple_opacity(release + duration_ms(250)), 0.5);
-    assert_close(state.ripple_opacity(release + duration_ms(325)), 0.0);
+    let early_release_opacity = state.ripple_opacity(release + duration_ms(25));
+    let completed_enter_opacity = state.ripple_opacity(release + duration_ms(400));
+
+    assert!(early_release_opacity > 0.0);
+    assert!(completed_enter_opacity > early_release_opacity);
+    assert!(state.ripple_opacity(release + duration_ms(590)) < 0.5);
+    assert_close(state.ripple_opacity(release + duration_ms(826)), 0.0);
 }
 
 #[test]
-fn ripple_fade_reveals_hover_state_layer_background() {
+fn button_draw_style_uses_active_surface_for_hover_state_layer() {
+    let theme = Theme::Light;
+    let class: StyleFn<'_, Theme> = Box::new(crate::style::button::fab_primary);
+    let active = button_draw_style(&theme, &class, Status::Active);
+    let styled_hover = theme.style(&class, Status::Hovered);
+    let drawn_hover = button_draw_style(&theme, &class, Status::Hovered);
+
+    assert_ne!(styled_hover, active);
+    assert_eq!(drawn_hover, active);
+}
+
+#[test]
+fn button_hover_state_layer_animates_with_compose_default_tween() {
+    let start = Instant::now();
+    let mut state = ButtonState::default();
+
+    assert!(state.sync_hover(true, start));
+    assert_close(state.state_layer_opacity(), 0.0);
+
+    assert!(state.advance(start + duration_ms(7)));
+    assert_close(
+        state.state_layer_opacity(),
+        tokens::state::HOVER_STATE_LAYER_OPACITY * (7.0 / 15.0),
+    );
+
+    assert!(!state.advance(start + duration_ms(tokens::state::STATE_LAYER_TRANSITION_DURATION_MS)));
+    assert_close(
+        state.state_layer_opacity(),
+        tokens::state::HOVER_STATE_LAYER_OPACITY,
+    );
+}
+
+#[test]
+fn button_hover_state_layer_keeps_animating_while_ripple_is_visible() {
+    let start = Instant::now();
+    let mut state = ButtonState::default();
+
+    state.press(Point::new(10.0, 10.0), start);
+    state.release(start + duration_ms(1));
+    assert!(state.sync_hover(true, start));
+
+    assert!(state.advance(start + duration_ms(7)));
+    assert!(state.has_visible_ripples(start + duration_ms(7)));
+    assert!(state.state_layer_opacity() > 0.0);
+    assert!(state.state_layer_opacity() < tokens::state::HOVER_STATE_LAYER_OPACITY);
+}
+
+#[test]
+fn button_hover_state_layer_reverses_smoothly_when_pointer_leaves_mid_enter() {
+    let start = Instant::now();
+    let exit = start + duration_ms(7);
+    let mut state = ButtonState::default();
+
+    assert!(state.sync_hover(true, start));
+    assert!(state.advance(exit));
+    assert!(state.sync_hover(false, exit));
+
+    let interrupted_opacity = tokens::state::HOVER_STATE_LAYER_OPACITY * (7.0 / 15.0);
+    assert_close(state.state_layer_opacity(), interrupted_opacity);
+    assert_eq!(state.state_layer_opacity.to, 0.0);
+
+    assert!(state.advance(exit + duration_ms(7)));
+    assert_close(
+        state.state_layer_opacity(),
+        interrupted_opacity * (1.0 - 7.0 / 15.0),
+    );
+}
+
+#[test]
+fn button_hover_state_layer_retargets_smoothly_when_pointer_reenters_mid_exit() {
+    let start = Instant::now();
+    let exit = start + duration_ms(8);
+    let reenter = start + duration_ms(24);
+    let mut state = ButtonState::default();
+
+    assert!(state.sync_hover(true, start));
+    assert!(state.advance(start + duration_ms(7)));
+
+    let last_drawn_opacity = state.state_layer_opacity();
+    assert!(state.sync_hover(false, exit));
+    assert_close(state.state_layer_opacity(), last_drawn_opacity);
+
+    assert!(state.sync_hover(true, reenter));
+    assert_close(state.state_layer_opacity(), last_drawn_opacity);
+    assert_eq!(
+        state.state_layer_opacity.to,
+        tokens::state::HOVER_STATE_LAYER_OPACITY
+    );
+}
+
+#[test]
+fn button_draw_style_uses_ripple_for_pressed_state_layer() {
     let theme = Theme::Light;
     let class: StyleFn<'_, Theme> = Box::new(crate::style::button::text);
-    let active = button_draw_style(&theme, &class, Status::Active, 0.0);
-    let hovered = button_draw_style(&theme, &class, Status::Hovered, 0.0);
-    let covered = button_draw_style(&theme, &class, Status::Hovered, 1.0);
-    let fading = button_draw_style(&theme, &class, Status::Hovered, 0.5);
+    let active = button_draw_style(&theme, &class, Status::Active);
+    let pressed = button_draw_style(&theme, &class, Status::Pressed);
 
-    assert!(hovered.background.is_some());
-    assert_eq!(covered.background, active.background);
-
-    let Some(Background::Color(hovered_color)) = hovered.background else {
-        panic!("expected hovered color background");
-    };
-    let Some(Background::Color(fading_color)) = fading.background else {
-        panic!("expected fading color background");
-    };
-
-    assert!(fading_color.a > 0.0);
-    assert!(fading_color.a < hovered_color.a);
+    assert_eq!(pressed, active);
 }
 
 #[test]
-fn hover_state_layer_progress_inverts_ripple_opacity() {
-    assert_close(hover_state_layer_progress(1.0), 0.0);
-    assert_close(hover_state_layer_progress(0.25), 0.75);
-    assert_close(hover_state_layer_progress(0.0), 1.0);
+fn button_draw_style_removes_pressed_elevation_when_ripple_is_active() {
+    let theme = Theme::Light;
+    let class: StyleFn<'_, Theme> = Box::new(crate::style::button::fab_primary);
+    let active = button_draw_style(&theme, &class, Status::Active);
+    let pressed = button_draw_style(&theme, &class, Status::Pressed);
+
+    assert_eq!(pressed, active);
+}
+
+#[test]
+fn button_draw_style_does_not_reuse_hover_state_layer_during_press() {
+    let theme = Theme::Light;
+    let class: StyleFn<'_, Theme> = Box::new(crate::style::button::text);
+    let bounds = Rectangle::new(Point::ORIGIN, Size::new(96.0, 40.0));
+    let status = button_status(
+        true,
+        true,
+        bounds,
+        mouse::Cursor::Available(Point::new(20.0, 20.0)),
+    );
+    let active = button_draw_style(&theme, &class, Status::Active);
+    let hovered = theme.style(&class, Status::Hovered);
+    let pressed = button_draw_style(&theme, &class, status);
+
+    assert_eq!(status, Status::Pressed);
+    assert_eq!(pressed, active);
+    assert_ne!(pressed, hovered);
 }
 
 #[test]
 fn ripple_origin_clamps_to_android_foreground_radius() {
     let size = Size::new(100.0, 40.0);
     let target_radius = ripple_target_radius(size);
-    let start_radius = size.width.max(size.height) * RIPPLE_START_RADIUS_FACTOR;
+    let start_radius = get_ripple_start_radius(size);
     let clamped =
         clamped_ripple_origin(Point::new(500.0, 500.0), size, target_radius, start_radius);
     let center = Point::new(50.0, 20.0);

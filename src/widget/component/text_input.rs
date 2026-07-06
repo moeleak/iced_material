@@ -765,5 +765,5 @@ where
 }
 
 #[cfg(test)]
-#[path = "../../tests/widget/component/text_input.rs"]
+#[path = "../../../tests/widget/component/text_input.rs"]
 mod tests;

@@ -620,7 +620,7 @@ fn navigation_press_surface_uses_material_state_opacity_on_pill_only() {
 }
 
 #[test]
-fn navigation_press_surface_click_does_not_animate_hover_layer() {
+fn navigation_press_surface_click_keeps_hover_layer_independent_from_ripple() {
     let start = Instant::now();
     let mut state = NavigationPressSurfaceState::default();
 
@@ -656,11 +656,25 @@ fn navigation_press_surface_keeps_release_ripple_visible() {
     assert!(still_animating);
     assert!(state.has_visible_ripples(start + Duration::from_millis(50)));
 
-    let finished = state.advance(start + duration_ms(RIPPLE_OPACITY_HOLD_DURATION_MS + 151));
+    let finished = state.advance(
+        start
+            + duration_ms(
+                tokens::state::RIPPLE_PATTERN_ENTER_DURATION_MS
+                    + tokens::state::RIPPLE_PATTERN_EXIT_DURATION_MS,
+            )
+            + Duration::from_millis(1),
+    );
 
     assert!(!finished);
     assert_eq!(state.opacity(), HOVERED_LAYER_OPACITY);
-    assert!(!state.has_visible_ripples(start + duration_ms(RIPPLE_OPACITY_HOLD_DURATION_MS + 151)));
+    assert!(!state.has_visible_ripples(
+        start
+            + duration_ms(
+                tokens::state::RIPPLE_PATTERN_ENTER_DURATION_MS
+                    + tokens::state::RIPPLE_PATTERN_EXIT_DURATION_MS,
+            )
+            + Duration::from_millis(1)
+    ));
 }
 
 #[test]
@@ -700,7 +714,7 @@ fn navigation_press_surface_discards_ripple_released_outside_item() {
     state.release(false, start + duration_ms(20));
 
     assert!(!state.has_visible_ripples(start + duration_ms(75)));
-    assert_eq!(state.exiting_ripples.len(), 0);
+    assert_eq!(state.ripples.exiting_ripple_count(), 0);
 }
 
 #[test]
@@ -713,15 +727,21 @@ fn navigation_press_surface_replaces_fast_repeated_ripples() {
     state.release(true, start + duration_ms(20));
     state.press(Point::new(44.0, 16.0), start + duration_ms(40));
 
-    assert!(state.active_ripple.is_some());
-    assert_eq!(state.exiting_ripples.len(), 0);
+    assert!(state.ripples.has_active_ripple());
+    assert_eq!(state.ripples.exiting_ripple_count(), 0);
 }
 
 #[test]
-fn navigation_ripple_matches_android_auto_radius_for_indicator_bounds() {
-    let radius = navigation_ripple_target_radius(Size::new(64.0, 32.0));
+fn navigation_ripple_matches_compose_bounded_radius_for_indicator_bounds() {
+    let radius = ripple_target_radius(Size::new(64.0, 32.0));
 
-    assert!((radius - (32.0_f32 * 32.0 + 16.0 * 16.0).sqrt()).abs() < 0.001);
+    assert!(
+        (radius
+            - ((32.0_f32 * 32.0 + 16.0 * 16.0).sqrt()
+                + tokens::state::RIPPLE_BOUNDED_EXTRA_RADIUS))
+            .abs()
+            < 0.001
+    );
 }
 
 #[test]
@@ -876,11 +896,11 @@ fn navigation_rounded_rect_span_clips_full_round_indicator() {
     let size = Size::new(64.0, 32.0);
     let radius = border::radius(tokens::shape::CORNER_FULL);
 
-    let top = navigation_rounded_rect_span_at_y(size, radius, 0.0).unwrap();
+    let top = rounded_rect_span_at_y(size, radius, 0.0).unwrap();
     assert_close(top.0, 16.0);
     assert_close(top.1, 48.0);
 
-    let middle = navigation_rounded_rect_span_at_y(size, radius, 16.0).unwrap();
+    let middle = rounded_rect_span_at_y(size, radius, 16.0).unwrap();
     assert_close(middle.0, 0.0);
     assert_close(middle.1, 64.0);
 }

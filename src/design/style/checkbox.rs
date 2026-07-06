@@ -128,5 +128,5 @@ pub fn error(theme: &Theme, status: Status) -> Style {
 }
 
 #[cfg(test)]
-#[path = "../../tests/design/style/checkbox.rs"]
+#[path = "../../../tests/design/style/checkbox.rs"]
 mod tests;

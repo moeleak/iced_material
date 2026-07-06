@@ -688,5 +688,5 @@ fn alpha_menu_style(
 }
 
 #[cfg(test)]
-#[path = "../../tests/widget/internal/menu_overlay.rs"]
+#[path = "../../../tests/widget/internal/menu_overlay.rs"]
 mod tests;

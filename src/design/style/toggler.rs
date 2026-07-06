@@ -119,5 +119,5 @@ pub fn default(theme: &Theme, status: Status) -> Style {
 }
 
 #[cfg(test)]
-#[path = "../../tests/design/style/toggler.rs"]
+#[path = "../../../tests/design/style/toggler.rs"]
 mod tests;

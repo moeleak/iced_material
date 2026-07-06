@@ -151,5 +151,5 @@ fn distance(a: Point, b: Point) -> f32 {
 }
 
 #[cfg(test)]
-#[path = "tests/animation.rs"]
+#[path = "../tests/animation.rs"]
 mod tests;

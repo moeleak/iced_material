@@ -9,6 +9,7 @@ use iced_widget::core::{
     alignment, border, layout, mouse, renderer,
 };
 use iced_widget::graphics::geometry;
+use iced_widget::renderer::wgpu::primitive;
 use iced_widget::text;
 use iced_widget::{Column, Container, Row, Space, Text};
 
@@ -165,7 +166,7 @@ where
     Icon: text::IntoFragment<'a>,
     Label: text::IntoFragment<'a>,
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     let tabs: Vec<_> = tabs
@@ -192,7 +193,7 @@ pub fn animated_secondary_label_bar<'a, Message, Renderer, Label>(
 where
     Label: text::IntoFragment<'a>,
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
 {
     let tabs: Vec<_> = tabs
         .into_iter()
@@ -292,7 +293,7 @@ pub fn primary_icon_label_action_for_animated_bar<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     primary_icon_label_for_animated_bar(icon_name, label, active)
@@ -372,7 +373,7 @@ pub fn secondary_label_action_for_animated_bar<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
 {
     secondary_label_for_animated_bar(label, active)
         .on_press(on_press)
@@ -834,5 +835,5 @@ fn moving_indicator_width(variant: Variant, tab_width: f32) -> f32 {
 }
 
 #[cfg(test)]
-#[path = "../../tests/widget/component/tabs.rs"]
+#[path = "../../../tests/widget/component/tabs.rs"]
 mod tests;

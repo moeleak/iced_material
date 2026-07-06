@@ -289,5 +289,5 @@ where
 }
 
 #[cfg(test)]
-#[path = "../../tests/widget/component/viewport.rs"]
+#[path = "../../../tests/widget/component/viewport.rs"]
 mod tests;

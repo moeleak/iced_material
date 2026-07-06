@@ -172,5 +172,5 @@ where
 }
 
 #[cfg(test)]
-#[path = "../tests/design/fonts.rs"]
+#[path = "../../tests/design/fonts.rs"]
 mod tests;

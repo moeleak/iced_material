@@ -29,5 +29,5 @@ pub fn disabled_item(theme: &Theme) -> Style {
 }
 
 #[cfg(test)]
-#[path = "../../tests/design/style/list.rs"]
+#[path = "../../../tests/design/style/list.rs"]
 mod tests;

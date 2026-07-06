@@ -60,5 +60,5 @@ pub fn default(theme: &Theme, status: Status) -> Style {
 }
 
 #[cfg(test)]
-#[path = "../../tests/design/style/select.rs"]
+#[path = "../../../tests/design/style/select.rs"]
 mod tests;

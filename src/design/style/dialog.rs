@@ -48,5 +48,5 @@ pub fn default(theme: &Theme) -> Style {
 }
 
 #[cfg(test)]
-#[path = "../../tests/design/style/dialog.rs"]
+#[path = "../../../tests/design/style/dialog.rs"]
 mod tests;

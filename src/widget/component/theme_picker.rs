@@ -8,6 +8,7 @@ use iced_widget::core::{
 };
 use iced_widget::core::{svg as core_svg, text as core_text};
 use iced_widget::graphics::geometry;
+use iced_widget::renderer::wgpu::primitive;
 use iced_widget::{Column, Container, Row, Space, Stack, text};
 
 use super::navigation;
@@ -199,7 +200,11 @@ impl ThemeController {
     ) -> Element<'a, Message, Theme, Renderer>
     where
         Message: Clone + 'a,
-        Renderer: iced_widget::core::Renderer + core_text::Renderer + geometry::Renderer + 'a,
+        Renderer: iced_widget::core::Renderer
+            + core_text::Renderer
+            + geometry::Renderer
+            + primitive::Renderer
+            + 'a,
         iced_widget::core::Font: Into<Renderer::Font>,
     {
         floating_over(
@@ -462,7 +467,11 @@ pub fn floating_over<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + geometry::Renderer + 'a,
+    Renderer: iced_widget::core::Renderer
+        + core_text::Renderer
+        + geometry::Renderer
+        + primitive::Renderer
+        + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     Stack::with_children([
@@ -521,7 +530,11 @@ pub fn floating_layer<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + geometry::Renderer + 'a,
+    Renderer: iced_widget::core::Renderer
+        + core_text::Renderer
+        + geometry::Renderer
+        + primitive::Renderer
+        + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     Container::new(floating_picker(state, selected, on_toggle, on_select))
@@ -546,7 +559,11 @@ fn floating_picker<'a, Message, Renderer>(
 ) -> Column<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + geometry::Renderer + 'a,
+    Renderer: iced_widget::core::Renderer
+        + core_text::Renderer
+        + geometry::Renderer
+        + primitive::Renderer
+        + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     let mut content = Column::new()
@@ -566,7 +583,7 @@ fn picker_panel<'a, Message, Renderer>(
 ) -> Container<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::core::Renderer + geometry::Renderer + 'a,
+    Renderer: iced_widget::core::Renderer + geometry::Renderer + primitive::Renderer + 'a,
 {
     let mut rows = Column::new().spacing(PICKER_PANEL_SPACING);
 
@@ -917,5 +934,5 @@ const fn rgb(r: u8, g: u8, b: u8) -> Color {
 }
 
 #[cfg(test)]
-#[path = "../../tests/widget/component/theme_picker.rs"]
+#[path = "../../../tests/widget/component/theme_picker.rs"]
 mod tests;

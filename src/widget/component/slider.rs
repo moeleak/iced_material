@@ -502,5 +502,5 @@ struct State {
 }
 
 #[cfg(test)]
-#[path = "../../tests/widget/component/slider.rs"]
+#[path = "../../../tests/widget/component/slider.rs"]
 mod tests;

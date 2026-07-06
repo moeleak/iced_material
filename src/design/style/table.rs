@@ -25,5 +25,5 @@ pub fn default(theme: &Theme) -> Style {
 }
 
 #[cfg(test)]
-#[path = "../../tests/design/style/table.rs"]
+#[path = "../../../tests/design/style/table.rs"]
 mod tests;

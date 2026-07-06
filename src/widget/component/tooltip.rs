@@ -3,6 +3,7 @@
 use super::*;
 
 use iced_widget::core::Transformation;
+use iced_widget::renderer::wgpu::primitive;
 
 pub use iced_tooltip::Position;
 
@@ -92,7 +93,8 @@ pub fn rich_action<'a, Message, Renderer>(
 ) -> button::Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::graphics::geometry::Renderer + core_text::Renderer + 'a,
+    Renderer:
+        iced_widget::graphics::geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
 {
     button::text(label)
 }
@@ -103,7 +105,8 @@ pub fn rich_action_button<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: iced_widget::graphics::geometry::Renderer + core_text::Renderer + 'a,
+    Renderer:
+        iced_widget::graphics::geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
 {
     rich_action(label).on_press(on_press).into()
 }
@@ -1077,5 +1080,5 @@ fn plain_tooltip_inner_max_width() -> f32 {
 }
 
 #[cfg(test)]
-#[path = "../../tests/widget/component/tooltip.rs"]
+#[path = "../../../tests/widget/component/tooltip.rs"]
 mod tests;

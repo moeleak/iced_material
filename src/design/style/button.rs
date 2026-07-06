@@ -5,8 +5,7 @@ use crate::Theme;
 use crate::tokens;
 use crate::tokens::component::button::ElevationLevels;
 use crate::utils::{
-    HOVERED_LAYER_OPACITY, PRESSED_LAYER_OPACITY, disabled_container, disabled_text, mix,
-    shadow_from_level, state_layer,
+    HOVERED_LAYER_OPACITY, disabled_container, disabled_text, mix, shadow_from_level, state_layer,
 };
 
 impl Catalog for Theme {
@@ -82,15 +81,7 @@ fn styled_with_elevations_and_shape(
 
     match status {
         Status::Active => active,
-        Status::Pressed => Style {
-            background: Some(Background::Color(mix(
-                background,
-                foreground,
-                PRESSED_LAYER_OPACITY,
-            ))),
-            shadow: shadow_from_level(elevations.pressed, shadow_color),
-            ..active
-        },
+        Status::Pressed => active,
         Status::Hovered => Style {
             background: Some(Background::Color(mix(
                 background,
@@ -217,8 +208,8 @@ pub fn text(theme: &Theme, status: Status) -> Style {
     );
 
     match status {
-        Status::Hovered | Status::Pressed => style,
-        Status::Active | Status::Disabled => Style {
+        Status::Hovered => style,
+        Status::Active | Status::Pressed | Status::Disabled => Style {
             background: None,
             ..style
         },
@@ -430,14 +421,7 @@ pub fn icon(theme: &Theme, status: Status) -> Style {
             ))),
             ..active
         },
-        Status::Pressed => Style {
-            background: Some(Background::Color(mix(
-                Color::TRANSPARENT,
-                surface.text_variant,
-                PRESSED_LAYER_OPACITY,
-            ))),
-            ..active
-        },
+        Status::Pressed => active,
         Status::Disabled => Style {
             text_color: Color {
                 a: tokens::component::icon_button::DISABLED_ICON_OPACITY,
@@ -502,15 +486,7 @@ pub fn outlined_icon(theme: &Theme, status: Status) -> Style {
             ))),
             ..active
         },
-        Status::Pressed => Style {
-            background: Some(Background::Color(mix(
-                Color::TRANSPARENT,
-                surface.text,
-                PRESSED_LAYER_OPACITY,
-            ))),
-            text_color: surface.text,
-            ..active
-        },
+        Status::Pressed => active,
         Status::Disabled => Style {
             text_color: Color {
                 a: tokens::component::icon_button::DISABLED_ICON_OPACITY,
@@ -536,7 +512,6 @@ struct ChipSpec {
     disabled_background: Option<Color>,
     disabled_outline: Option<Color>,
     hover_layer: Color,
-    pressed_layer: Color,
     elevations: ElevationLevels,
     shadow_color: Color,
 }
@@ -571,15 +546,7 @@ fn chip_style(spec: ChipSpec, status: Status) -> Style {
             shadow: shadow_from_level(spec.elevations.hovered, spec.shadow_color),
             ..active
         },
-        Status::Pressed => Style {
-            background: Some(Background::Color(chip_state_background(
-                spec.background,
-                spec.pressed_layer,
-                PRESSED_LAYER_OPACITY,
-            ))),
-            shadow: shadow_from_level(spec.elevations.pressed, spec.shadow_color),
-            ..active
-        },
+        Status::Pressed => active,
         Status::Disabled => Style {
             background: spec.disabled_background.map(Background::Color),
             text_color: Color {
@@ -603,12 +570,7 @@ fn chip_state_background(background: Option<Color>, layer: Color, opacity: f32) 
     )
 }
 
-fn outlined_chip_spec(
-    foreground: Color,
-    outline: Color,
-    disabled_color: Color,
-    pressed_layer: Color,
-) -> ChipSpec {
+fn outlined_chip_spec(foreground: Color, outline: Color, disabled_color: Color) -> ChipSpec {
     ChipSpec {
         background: None,
         foreground,
@@ -619,7 +581,6 @@ fn outlined_chip_spec(
             ..disabled_color
         }),
         hover_layer: foreground,
-        pressed_layer,
         elevations: tokens::component::chip::FLAT_ELEVATION,
         shadow_color: Color::TRANSPARENT,
     }
@@ -641,7 +602,6 @@ fn elevated_chip_spec(
         }),
         disabled_outline: None,
         hover_layer: foreground,
-        pressed_layer: foreground,
         elevations: tokens::component::chip::ELEVATED_ELEVATION,
         shadow_color,
     }
@@ -654,7 +614,6 @@ pub fn assist_chip(theme: &Theme, status: Status) -> Style {
         outlined_chip_spec(
             colors.surface.text,
             colors.outline.color,
-            colors.surface.text,
             colors.surface.text,
         ),
         status,
@@ -683,7 +642,6 @@ pub fn suggestion_chip(theme: &Theme, status: Status) -> Style {
             colors.surface.text_variant,
             colors.outline.color,
             colors.surface.text,
-            colors.surface.text_variant,
         ),
         status,
     )
@@ -711,7 +669,6 @@ pub fn filter_chip(theme: &Theme, status: Status) -> Style {
             colors.surface.text_variant,
             colors.outline.color,
             colors.surface.text,
-            colors.secondary.container_text,
         ),
         status,
     )
@@ -731,7 +688,6 @@ pub fn selected_filter_chip(theme: &Theme, status: Status) -> Style {
             }),
             disabled_outline: None,
             hover_layer: colors.secondary.container_text,
-            pressed_layer: colors.surface.text_variant,
             elevations: tokens::component::chip::SELECTED_FLAT_ELEVATION,
             shadow_color: colors.shadow,
         },
@@ -747,7 +703,6 @@ pub fn input_chip(theme: &Theme, status: Status) -> Style {
             colors.surface.text_variant,
             colors.outline.color,
             colors.surface.text,
-            colors.surface.text_variant,
         ),
         status,
     )
@@ -767,7 +722,6 @@ pub fn selected_input_chip(theme: &Theme, status: Status) -> Style {
             }),
             disabled_outline: None,
             hover_layer: colors.secondary.container_text,
-            pressed_layer: colors.secondary.container_text,
             elevations: tokens::component::chip::FLAT_ELEVATION,
             shadow_color: Color::TRANSPARENT,
         },
@@ -776,5 +730,5 @@ pub fn selected_input_chip(theme: &Theme, status: Status) -> Style {
 }
 
 #[cfg(test)]
-#[path = "../../tests/design/style/button.rs"]
+#[path = "../../../tests/design/style/button.rs"]
 mod tests;

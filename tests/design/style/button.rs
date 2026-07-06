@@ -15,6 +15,7 @@ fn filled_button_uses_m3_elevation_tokens() {
     let pressed = filled(&theme, Status::Pressed);
     assert_eq!(pressed.shadow.offset.y, 0.0);
     assert_eq!(pressed.shadow.blur_radius, 0.0);
+    assert_eq!(pressed, active);
 }
 
 #[test]
@@ -32,6 +33,7 @@ fn elevated_button_uses_m3_elevation_tokens() {
     let pressed = elevated(&theme, Status::Pressed);
     assert_eq!(pressed.shadow.offset.y, 1.0);
     assert_eq!(pressed.shadow.blur_radius, 3.0);
+    assert_eq!(pressed, active);
 }
 
 #[test]
@@ -75,6 +77,7 @@ fn fab_primary_uses_m3_container_shape_and_elevation_tokens() {
     let pressed = fab_primary(&theme, Status::Pressed);
     assert_eq!(pressed.shadow.offset.y, 4.0);
     assert_eq!(pressed.shadow.blur_radius, 8.0);
+    assert_eq!(pressed, active);
 }
 
 #[test]
@@ -166,6 +169,9 @@ fn standard_icon_button_uses_m3_state_layer_tokens() {
         )))
     );
 
+    let pressed = icon(&theme, Status::Pressed);
+    assert_eq!(pressed, active);
+
     let disabled = icon(&theme, Status::Disabled);
     assert_eq!(
         disabled.text_color.a,
@@ -196,6 +202,9 @@ fn filled_icon_buttons_use_m3_container_tokens() {
         Some(Background::Color(colors.secondary.container))
     );
     assert_eq!(tonal.text_color, colors.secondary.container_text);
+
+    let tonal_pressed = filled_tonal_icon(&theme, Status::Pressed);
+    assert_eq!(tonal_pressed, tonal);
 }
 
 #[test]
@@ -212,6 +221,7 @@ fn chip_helpers_use_m3_chip_tokens() {
         assist.border.radius.top_left,
         tokens::component::chip::CONTAINER_SHAPE
     );
+    assert_eq!(assist_chip(&theme, Status::Pressed), assist);
 
     let elevated = elevated_assist_chip(&theme, Status::Active);
     assert_eq!(
@@ -259,6 +269,7 @@ fn selectable_chip_helpers_use_m3_selected_and_unselected_tokens() {
         selected.border.width,
         tokens::component::chip::SELECTED_OUTLINE_WIDTH
     );
+    assert_eq!(selected_filter_chip(&theme, Status::Pressed), selected);
 
     let hovered = selected_filter_chip(&theme, Status::Hovered);
     assert_eq!(hovered.shadow.offset.y, 1.0);
@@ -276,7 +287,7 @@ fn selectable_chip_helpers_use_m3_selected_and_unselected_tokens() {
 }
 
 #[test]
-fn outlined_icon_button_uses_m3_outline_and_pressed_icon_tokens() {
+fn outlined_icon_button_uses_m3_outline_tokens_without_pressed_overlay() {
     let theme = Theme::Light;
     let colors = theme.colors();
 
@@ -289,7 +300,7 @@ fn outlined_icon_button_uses_m3_outline_and_pressed_icon_tokens() {
     assert_eq!(active.text_color, colors.surface.text_variant);
 
     let pressed = outlined_icon(&theme, Status::Pressed);
-    assert_eq!(pressed.text_color, colors.surface.text);
+    assert_eq!(pressed, active);
 
     let disabled = outlined_icon(&theme, Status::Disabled);
     assert_eq!(

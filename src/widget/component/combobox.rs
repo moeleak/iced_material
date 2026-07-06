@@ -1239,5 +1239,5 @@ where
 }
 
 #[cfg(test)]
-#[path = "../../tests/widget/component/combobox.rs"]
+#[path = "../../../tests/widget/component/combobox.rs"]
 mod tests;

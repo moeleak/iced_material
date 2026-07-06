@@ -607,5 +607,5 @@ fn side_scrim_style(theme: &Theme) -> iced_widget::container::Style {
 }
 
 #[cfg(test)]
-#[path = "../../tests/widget/component/sheet.rs"]
+#[path = "../../../tests/widget/component/sheet.rs"]
 mod tests;

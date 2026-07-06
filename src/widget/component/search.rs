@@ -225,5 +225,5 @@ fn view_container_style(theme: &Theme, shape: f32) -> iced_widget::container::St
 }
 
 #[cfg(test)]
-#[path = "../../tests/widget/component/search.rs"]
+#[path = "../../../tests/widget/component/search.rs"]
 mod tests;

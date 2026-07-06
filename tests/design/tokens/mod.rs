@@ -6,6 +6,30 @@ fn m3_state_tokens_match_google_values() {
     assert_eq!(state::FOCUS_STATE_LAYER_OPACITY, 0.10);
     assert_eq!(state::PRESSED_STATE_LAYER_OPACITY, 0.10);
     assert_eq!(state::DRAGGED_STATE_LAYER_OPACITY, 0.16);
+    assert_eq!(state::STATE_LAYER_TRANSITION_DURATION_MS, 15);
+    assert_eq!(state::RIPPLE_BOUNDED_EXTRA_RADIUS, 10.0);
+    assert_eq!(state::RIPPLE_START_RADIUS_FACTOR, 0.3);
+    assert_eq!(state::RIPPLE_RADIUS_DURATION_MS, 225);
+    assert_eq!(state::RIPPLE_ORIGIN_DURATION_MS, 225);
+    assert_eq!(state::RIPPLE_FADE_IN_DURATION_MS, 75);
+    assert_eq!(state::RIPPLE_FADE_OUT_DURATION_MS, 150);
+    assert_eq!(state::RIPPLE_OPACITY_HOLD_DURATION_MS, 225);
+    assert_eq!(state::RIPPLE_MAX_RIPPLES, 10);
+    assert_eq!(state::RIPPLE_PATTERN_ENTER_DURATION_MS, 450);
+    assert_eq!(state::RIPPLE_PATTERN_EXIT_DURATION_MS, 375);
+    assert_eq!(state::RIPPLE_PATTERN_BACKGROUND_OPACITY_DURATION_MS, 80);
+    assert_eq!(state::RIPPLE_PATTERN_NOISE_ANIMATION_DURATION_MS, 7000);
+    assert_eq!(state::RIPPLE_PATTERN_RADIUS_SCALE, 2.3);
+    assert_eq!(state::RIPPLE_PATTERN_FADE_IN_END, 0.13);
+    assert_eq!(state::RIPPLE_PATTERN_FADE_OUT_START, 0.4);
+    assert_eq!(state::RIPPLE_PATTERN_FADE_OUT_NOISE_END, 0.5);
+    assert_eq!(state::RIPPLE_PATTERN_SOFT_CIRCLE_BLUR, 1.0);
+    assert_eq!(state::RIPPLE_PATTERN_SOFT_RING_THICKNESS, 0.05);
+    assert_eq!(state::RIPPLE_PATTERN_NOISE_DENSITY_SCALE, 2.1);
+    assert_eq!(
+        state::RIPPLE_PATTERN_DEFAULT_EFFECT_ALPHA,
+        0x8d as f32 / 255.0
+    );
 }
 
 #[test]

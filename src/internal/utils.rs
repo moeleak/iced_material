@@ -151,5 +151,5 @@ pub fn mix(color1: Color, color2: Color, p2: f32) -> Color {
 }
 
 #[cfg(test)]
-#[path = "../tests/internal/utils.rs"]
+#[path = "../../tests/internal/utils.rs"]
 mod tests;

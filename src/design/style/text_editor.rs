@@ -73,5 +73,5 @@ pub fn default(theme: &Theme, status: Status) -> Style {
 }
 
 #[cfg(test)]
-#[path = "../../tests/design/style/text_editor.rs"]
+#[path = "../../../tests/design/style/text_editor.rs"]
 mod tests;

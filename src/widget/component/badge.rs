@@ -319,5 +319,5 @@ fn badged_box_badge_position(
 }
 
 #[cfg(test)]
-#[path = "../../tests/widget/component/badge.rs"]
+#[path = "../../../tests/widget/component/badge.rs"]
 mod tests;

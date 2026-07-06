@@ -869,5 +869,5 @@ pub(crate) fn prefer_down_when_menu_fits(
 }
 
 #[cfg(test)]
-#[path = "../../tests/widget/component/select.rs"]
+#[path = "../../../tests/widget/component/select.rs"]
 mod tests;

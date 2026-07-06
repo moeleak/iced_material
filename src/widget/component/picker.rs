@@ -17,6 +17,7 @@ use iced_widget::core::{
     renderer, touch, window,
 };
 use iced_widget::graphics::geometry;
+use iced_widget::renderer::wgpu::primitive;
 use iced_widget::text::{self, LineHeight};
 use iced_widget::{Column, Container, Row, Scrollable, Space, Stack, Text};
 
@@ -1990,7 +1991,7 @@ pub fn date_picker<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     date_picker_with_mode_toggle(state, on_action, true)
@@ -2004,7 +2005,7 @@ pub fn date_picker_with_mode_toggle<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     Container::new(date_picker_body(state, on_action, show_mode_toggle))
@@ -2025,7 +2026,7 @@ pub fn date_range_picker<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     date_range_picker_with_mode_toggle(state, on_action, true)
@@ -2039,7 +2040,7 @@ pub fn date_range_picker_with_mode_toggle<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     Container::new(date_range_picker_body(
@@ -2066,7 +2067,7 @@ pub fn date_picker_dialog<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     date_picker_dialog_with_mode_toggle(state, on_action, true, actions)
@@ -2081,7 +2082,7 @@ pub fn date_picker_dialog_with_mode_toggle<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     date_picker_dialog_surface(
@@ -2098,7 +2099,7 @@ pub fn date_range_picker_dialog<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     date_range_picker_dialog_with_mode_toggle(state, on_action, true, actions)
@@ -2113,7 +2114,7 @@ pub fn date_range_picker_dialog_with_mode_toggle<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     date_picker_dialog_surface(
@@ -2151,7 +2152,7 @@ pub fn time_picker<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'static + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'static + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     time_picker_with_layout(state, on_action, TimePickerLayout::Vertical)
@@ -2165,7 +2166,7 @@ pub fn time_picker_with_layout<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'static + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'static + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     Container::new(time_picker_body(state, on_action, layout))
@@ -2184,7 +2185,7 @@ pub fn time_picker_dialog<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'static + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'static + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     let content = match display_mode {
@@ -2252,7 +2253,7 @@ pub fn rich_time_picker_dialog<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'static + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'static + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     let content = match display_mode {
@@ -2311,7 +2312,7 @@ fn date_picker_body<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     let picker_alpha = state.animation.display.mode_alpha(DateDisplayMode::Picker);
@@ -2338,7 +2339,7 @@ fn date_range_picker_body<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     let picker_alpha = state.animation.display.mode_alpha(DateDisplayMode::Picker);
@@ -2487,7 +2488,7 @@ fn time_picker_body<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'static + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'static + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     let clock = clock_face(state, on_action.clone());
@@ -2521,7 +2522,7 @@ fn time_input_body<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     let hour = time_input_field(state, on_action.clone(), TimePickerSelectionMode::Hour);
@@ -2586,7 +2587,7 @@ fn time_picker_display_mode_toggle<'a, Message, Renderer>(
 ) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     super::button::icon_button(display_mode.toggle_icon()).on_press(on_press)
@@ -2599,7 +2600,7 @@ fn date_header<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     let title = match state.display_mode {
@@ -2680,7 +2681,7 @@ fn date_range_header<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     let title = match state.display_mode {
@@ -2772,7 +2773,7 @@ fn date_picker_content<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     let year_picker_progress = state.animation.year_picker_progress();
@@ -2810,7 +2811,7 @@ fn date_range_picker_content<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     let year_picker_progress = state.animation.year_picker_progress();
@@ -2861,7 +2862,7 @@ fn date_input_content<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     let input = text_input::outlined("MM/DD/YYYY", state.input_value())
@@ -2893,7 +2894,7 @@ fn date_range_input_content<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     let start = text_input::outlined("Start date", state.start_input_value())
@@ -2975,7 +2976,7 @@ fn month_navigation<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     let month = state.displayed_month;
@@ -3105,7 +3106,7 @@ fn animated_month_grid<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     if !state.animation.month.is_animating() {
@@ -3138,7 +3139,7 @@ fn month_grid_for_month<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     let first = month.start_date();
@@ -3215,7 +3216,7 @@ fn year_grid<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     let current_year = Date::today_utc().year;
@@ -3302,7 +3303,7 @@ fn range_months_list<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     let months = range_rendered_months(state);
@@ -3559,7 +3560,7 @@ fn range_month_grid_for_month<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     let first = month.start_date();
@@ -3667,7 +3668,7 @@ fn range_year_grid<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     let current_year = Date::today_utc().year;
@@ -3738,7 +3739,7 @@ fn day_button<'a, Message, Renderer>(
 ) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     let label = Canvas::new(DayCell {
@@ -3960,7 +3961,7 @@ fn year_button<'a, Message, Renderer>(
 ) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     let scale = tokens::component::date_picker::YEAR_LABEL_TEXT;
@@ -4004,7 +4005,7 @@ fn time_input_field<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     let selected = state.selection == selection;
@@ -4061,7 +4062,7 @@ fn time_input_selector<'a, Message, Renderer>(
 ) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     let scale = tokens::component::time_input::TIME_FIELD_LABEL_TEXT;
@@ -4141,7 +4142,7 @@ fn clock_display<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     let hour = time_selector(
@@ -4243,7 +4244,7 @@ fn time_selector<'a, Message, Renderer>(
 ) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     let scale = tokens::component::time_picker::TIME_SELECTOR_LABEL_TEXT;
@@ -4278,7 +4279,7 @@ fn period_toggle<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     let width = if vertical {
@@ -4304,7 +4305,7 @@ fn period_toggle_sized<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     let (button_width, button_height) = period_toggle_item_size(vertical, width, height);
@@ -4438,7 +4439,7 @@ fn period_button<'a, Message, Renderer>(
 ) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     let scale = tokens::component::time_picker::PERIOD_SELECTOR_LABEL_TEXT;
@@ -4467,5 +4468,5 @@ include!("picker/style.rs");
 include!("picker/helpers.rs");
 
 #[cfg(test)]
-#[path = "../../tests/widget/component/picker.rs"]
+#[path = "../../../tests/widget/component/picker.rs"]
 mod tests;

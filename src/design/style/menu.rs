@@ -52,5 +52,5 @@ pub fn outlined_select(theme: &Theme) -> Style {
 }
 
 #[cfg(test)]
-#[path = "../../tests/design/style/menu.rs"]
+#[path = "../../../tests/design/style/menu.rs"]
 mod tests;

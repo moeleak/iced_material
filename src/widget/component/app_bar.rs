@@ -3,6 +3,7 @@
 use iced_widget::core::text as core_text;
 use iced_widget::core::{Background, Element, Length, Padding, alignment, border};
 use iced_widget::graphics::geometry;
+use iced_widget::renderer::wgpu::primitive;
 use iced_widget::text;
 use iced_widget::{Column, Container, Row, Space, Text};
 
@@ -51,7 +52,7 @@ pub fn icon_action<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     icon_button(icon_name).on_press(on_press).into()
@@ -64,7 +65,7 @@ pub fn icon_actions<'a, Message, Renderer, Icon>(
 where
     Icon: text::IntoFragment<'a>,
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     actions
@@ -389,5 +390,5 @@ fn bottom_style(theme: &Theme) -> iced_widget::container::Style {
 }
 
 #[cfg(test)]
-#[path = "../../tests/widget/component/app_bar.rs"]
+#[path = "../../../tests/widget/component/app_bar.rs"]
 mod tests;

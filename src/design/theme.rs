@@ -422,7 +422,7 @@ fn interpolate_component(from: f32, to: f32, amount: f32) -> f32 {
 }
 
 #[cfg(test)]
-#[path = "../tests/design/theme.rs"]
+#[path = "../../tests/design/theme.rs"]
 mod color_scheme_tests;
 
 #[derive(Debug, Clone, Copy, PartialEq)]

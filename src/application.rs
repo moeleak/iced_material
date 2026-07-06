@@ -54,5 +54,5 @@ pub fn window_settings(size: Size, min_size: Option<Size>) -> iced_window::Setti
 }
 
 #[cfg(test)]
-#[path = "tests/application.rs"]
+#[path = "../tests/application.rs"]
 mod tests;

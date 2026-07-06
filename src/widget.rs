@@ -59,6 +59,8 @@ pub mod page;
 pub mod picker;
 #[path = "widget/component/progress_bar.rs"]
 pub mod progress_bar;
+#[path = "widget/internal/ripple.rs"]
+mod ripple;
 #[path = "widget/component/search.rs"]
 pub mod search;
 #[path = "widget/component/segmented_button.rs"]
@@ -1018,5 +1020,5 @@ pub mod checkbox;
 pub mod toggler;
 
 #[cfg(test)]
-#[path = "tests/widget.rs"]
+#[path = "../tests/widget.rs"]
 mod tests;

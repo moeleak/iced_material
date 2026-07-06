@@ -37,5 +37,5 @@ pub fn full_width(theme: &Theme) -> Style {
 }
 
 #[cfg(test)]
-#[path = "../../tests/design/style/rule.rs"]
+#[path = "../../../tests/design/style/rule.rs"]
 mod tests;

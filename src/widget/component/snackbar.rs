@@ -9,6 +9,7 @@ use iced_widget::core::{
     Shell, Size, Vector, Widget, alignment, border, layout, mouse, overlay, renderer,
 };
 use iced_widget::graphics::geometry;
+use iced_widget::renderer::wgpu::primitive;
 use iced_widget::text;
 use iced_widget::{Container, Row, Stack, Text};
 
@@ -287,7 +288,7 @@ pub fn action<'a, Message, Renderer>(
 ) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
 {
     let label_text = tokens::component::snackbar::ACTION_LABEL_TEXT;
 
@@ -318,7 +319,7 @@ pub fn action_button<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
 {
     action(label).on_press(on_press).into()
 }
@@ -330,7 +331,7 @@ pub fn action_alpha<'a, Message, Renderer>(
 ) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
 {
     action(label).style(move |theme, status| action_style_alpha(theme, status, content_alpha))
 }
@@ -343,7 +344,7 @@ pub fn action_button_alpha<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
 {
     action_alpha(label, content_alpha).on_press(on_press).into()
 }
@@ -386,7 +387,7 @@ pub fn icon_action_button<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
     icon_action(icon_name).on_press(on_press).into()
@@ -422,7 +423,7 @@ pub fn host_single_line_with_action<'a, Message, Renderer>(
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
 {
     if !transition.is_active() {
         return content.into();
@@ -779,5 +780,5 @@ fn icon_action_style(theme: &Theme, status: Status) -> Style {
 }
 
 #[cfg(test)]
-#[path = "../../tests/widget/component/snackbar.rs"]
+#[path = "../../../tests/widget/component/snackbar.rs"]
 mod tests;

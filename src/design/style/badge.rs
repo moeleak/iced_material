@@ -15,5 +15,5 @@ pub fn default(theme: &Theme) -> Style {
 }
 
 #[cfg(test)]
-#[path = "../../tests/design/style/badge.rs"]
+#[path = "../../../tests/design/style/badge.rs"]
 mod tests;

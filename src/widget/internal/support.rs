@@ -611,5 +611,5 @@ impl TextFieldTouchActivation {
 }
 
 #[cfg(test)]
-#[path = "../../tests/widget/internal/support.rs"]
+#[path = "../../../tests/widget/internal/support.rs"]
 mod tests;

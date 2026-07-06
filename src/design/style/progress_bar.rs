@@ -25,5 +25,5 @@ pub fn default(theme: &Theme) -> Style {
 }
 
 #[cfg(test)]
-#[path = "../../tests/design/style/progress_bar.rs"]
+#[path = "../../../tests/design/style/progress_bar.rs"]
 mod tests;

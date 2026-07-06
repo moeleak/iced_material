@@ -33,5 +33,5 @@ pub fn rich(theme: &Theme) -> Style {
 }
 
 #[cfg(test)]
-#[path = "../../tests/design/style/tooltip.rs"]
+#[path = "../../../tests/design/style/tooltip.rs"]
 mod tests;
