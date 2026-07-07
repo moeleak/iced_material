@@ -1,5 +1,8 @@
 //! Material 3 navigation bar, rail, drawer, and adaptive layout helpers.
 
+use std::f32::consts::PI;
+
+use iced_widget::canvas::{self, Canvas, LineCap, Path, Stroke};
 use iced_widget::core::layout;
 use iced_widget::core::mouse;
 use iced_widget::core::overlay;
@@ -28,6 +31,17 @@ use crate::{Theme, fonts, tokens};
 
 #[cfg(test)]
 use super::ripple::{ripple_target_radius, rounded_rect_span_at_y};
+
+const NAVIGATION_MENU_ICON_VIEWPORT_SIZE: f32 = 24.0;
+const NAVIGATION_MENU_ICON_START_X: f32 = 5.0;
+const NAVIGATION_MENU_ICON_END_X: f32 = 19.0;
+const NAVIGATION_MENU_ICON_CENTER_X: f32 = 12.0;
+const NAVIGATION_MENU_ICON_TOP_Y: f32 = 7.0;
+const NAVIGATION_MENU_ICON_CENTER_Y: f32 = 12.0;
+const NAVIGATION_MENU_ICON_BOTTOM_Y: f32 = 17.0;
+const NAVIGATION_MENU_ICON_ARROW_TOP_Y: f32 = 5.0;
+const NAVIGATION_MENU_ICON_ARROW_BOTTOM_Y: f32 = 19.0;
+const NAVIGATION_MENU_ICON_STROKE_WIDTH: f32 = 2.4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AdaptiveLayout {
@@ -725,6 +739,7 @@ where
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
+    let menu_progress = state.menu_progress();
     let content = content.into();
     let selection = state.selection();
 
@@ -745,10 +760,16 @@ where
                     selection,
                     on_select,
                     on_menu,
-                    navigation_rail_expanded_width_for_progress(state.menu_progress()),
+                    navigation_rail_expanded_width_for_progress(menu_progress),
                 )
             } else {
-                navigation_rail_with_menu(destinations, selection, on_select, on_menu)
+                navigation_rail_with_menu_at_progress(
+                    destinations,
+                    selection,
+                    on_select,
+                    on_menu,
+                    menu_progress,
+                )
             })
             .push(content)
             .into(),
@@ -882,7 +903,29 @@ where
         destinations,
         selection,
         on_select,
-        navigation_menu_button(on_menu),
+        navigation_menu_button(on_menu, 0.0),
+    )
+}
+
+fn navigation_rail_with_menu_at_progress<'a, Id, Message, Renderer, F>(
+    destinations: &'a [Destination<Id>],
+    selection: Selection<Id>,
+    on_select: F,
+    on_menu: Message,
+    menu_progress: f32,
+) -> Container<'a, Message, Theme, Renderer>
+where
+    Id: Copy + Eq + 'a,
+    Message: Clone + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
+    Font: Into<Renderer::Font>,
+    F: Fn(Id) -> Message + Clone + 'a,
+{
+    navigation_rail_with_header(
+        destinations,
+        selection,
+        on_select,
+        navigation_menu_button(on_menu, menu_progress),
     )
 }
 
@@ -976,6 +1019,7 @@ where
         .push(navigation_rail_expanded_header(
             headline,
             on_menu,
+            expansion_progress,
             label_alpha,
         ));
 
@@ -1365,16 +1409,18 @@ where
         .align_x(alignment::Horizontal::Center)
 }
 
-fn navigation_menu_button<'a, Message, Renderer>(on_press: Message) -> Button<'a, Message, Renderer>
+fn navigation_menu_button<'a, Message, Renderer>(
+    on_press: Message,
+    progress: f32,
+) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
     Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
 {
-    let icon = fonts::icon("menu", tokens::component::icon_button::ICON_SIZE)
+    let icon = Canvas::new(NavigationMenuIcon { progress })
         .width(Length::Fixed(tokens::component::icon_button::ICON_SIZE))
-        .height(Length::Fixed(tokens::component::icon_button::ICON_SIZE))
-        .center();
+        .height(Length::Fixed(tokens::component::icon_button::ICON_SIZE));
 
     Button::new(
         Container::new(icon)
@@ -1396,9 +1442,145 @@ where
     .on_press(on_press)
 }
 
+#[derive(Debug, Clone, Copy)]
+struct NavigationMenuIcon {
+    progress: f32,
+}
+
+impl<Message, Renderer> canvas::Program<Message, Theme, Renderer> for NavigationMenuIcon
+where
+    Renderer: geometry::Renderer,
+{
+    type State = ();
+
+    fn draw(
+        &self,
+        _state: &Self::State,
+        renderer: &Renderer,
+        theme: &Theme,
+        bounds: Rectangle,
+        _cursor: mouse::Cursor,
+    ) -> Vec<canvas::Geometry<Renderer>> {
+        let size = bounds.width.min(bounds.height);
+
+        if size <= 0.0 {
+            return Vec::new();
+        }
+
+        let mut frame = canvas::Frame::new(renderer, bounds.size());
+        let offset = Vector::new((bounds.width - size) / 2.0, (bounds.height - size) / 2.0);
+        let center = Point::new(bounds.width / 2.0, bounds.height / 2.0);
+        let stroke = Stroke::default()
+            .with_width(navigation_menu_icon_stroke_width(size))
+            .with_color(theme.colors().surface.text_variant)
+            .with_line_cap(LineCap::Round);
+
+        frame.with_save(|frame| {
+            frame.translate(Vector::new(center.x, center.y));
+            frame.rotate(navigation_menu_icon_rotation_radians(self.progress));
+            frame.translate(Vector::new(-center.x, -center.y));
+
+            for (from, to) in navigation_menu_icon_segments(self.progress, size) {
+                frame.stroke(
+                    &Path::line(
+                        Point::new(from.x + offset.x, from.y + offset.y),
+                        Point::new(to.x + offset.x, to.y + offset.y),
+                    ),
+                    stroke,
+                );
+            }
+        });
+
+        vec![frame.into_geometry()]
+    }
+}
+
+fn navigation_menu_icon_rotation_radians(progress: f32) -> f32 {
+    PI * progress.clamp(0.0, 1.0)
+}
+
+fn navigation_menu_icon_segments(progress: f32, size: f32) -> [(Point, Point); 3] {
+    let progress = progress.clamp(0.0, 1.0);
+
+    [
+        (
+            navigation_menu_icon_point(
+                lerp(
+                    NAVIGATION_MENU_ICON_START_X,
+                    NAVIGATION_MENU_ICON_CENTER_X,
+                    progress,
+                ),
+                lerp(
+                    NAVIGATION_MENU_ICON_TOP_Y,
+                    NAVIGATION_MENU_ICON_ARROW_TOP_Y,
+                    progress,
+                ),
+                size,
+            ),
+            navigation_menu_icon_point(
+                NAVIGATION_MENU_ICON_END_X,
+                lerp(
+                    NAVIGATION_MENU_ICON_TOP_Y,
+                    NAVIGATION_MENU_ICON_CENTER_Y,
+                    progress,
+                ),
+                size,
+            ),
+        ),
+        (
+            navigation_menu_icon_point(
+                NAVIGATION_MENU_ICON_START_X,
+                NAVIGATION_MENU_ICON_CENTER_Y,
+                size,
+            ),
+            navigation_menu_icon_point(
+                NAVIGATION_MENU_ICON_END_X,
+                NAVIGATION_MENU_ICON_CENTER_Y,
+                size,
+            ),
+        ),
+        (
+            navigation_menu_icon_point(
+                lerp(
+                    NAVIGATION_MENU_ICON_START_X,
+                    NAVIGATION_MENU_ICON_CENTER_X,
+                    progress,
+                ),
+                lerp(
+                    NAVIGATION_MENU_ICON_BOTTOM_Y,
+                    NAVIGATION_MENU_ICON_ARROW_BOTTOM_Y,
+                    progress,
+                ),
+                size,
+            ),
+            navigation_menu_icon_point(
+                NAVIGATION_MENU_ICON_END_X,
+                lerp(
+                    NAVIGATION_MENU_ICON_BOTTOM_Y,
+                    NAVIGATION_MENU_ICON_CENTER_Y,
+                    progress,
+                ),
+                size,
+            ),
+        ),
+    ]
+}
+
+fn navigation_menu_icon_point(x: f32, y: f32, size: f32) -> Point {
+    Point::new(
+        x / NAVIGATION_MENU_ICON_VIEWPORT_SIZE * size,
+        y / NAVIGATION_MENU_ICON_VIEWPORT_SIZE * size,
+    )
+}
+
+fn navigation_menu_icon_stroke_width(size: f32) -> f32 {
+    NAVIGATION_MENU_ICON_STROKE_WIDTH / NAVIGATION_MENU_ICON_VIEWPORT_SIZE * size
+}
+
 fn navigation_rail_expanded_header<'a, Message, Renderer>(
     headline: &'static str,
     on_menu: Message,
+    menu_progress: f32,
     label_alpha: f32,
 ) -> Container<'a, Message, Theme, Renderer>
 where
@@ -1419,7 +1601,7 @@ where
         ))
         .spacing(navigation_rail_expanded_header_title_spacing())
         .align_y(alignment::Vertical::Center)
-        .push(navigation_menu_button(on_menu))
+        .push(navigation_menu_button(on_menu, menu_progress))
         .push(headline);
 
     Container::new(content)
@@ -1571,7 +1753,7 @@ where
         ))
         .spacing(navigation_drawer_menu_header_title_spacing())
         .align_y(alignment::Vertical::Center)
-        .push(navigation_menu_button(on_menu))
+        .push(navigation_menu_button(on_menu, 0.0))
         .push(type_text(headline, headline_scale).style(headline_text_style));
 
     Container::new(content)

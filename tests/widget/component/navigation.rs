@@ -107,6 +107,39 @@ fn navigation_state_toggles_menu_expansion() {
 }
 
 #[test]
+fn navigation_menu_icon_morphs_from_hamburger_to_arrow() {
+    assert_eq!(
+        navigation_menu_icon_segments(0.0, NAVIGATION_MENU_ICON_VIEWPORT_SIZE),
+        [
+            (Point::new(5.0, 7.0), Point::new(19.0, 7.0)),
+            (Point::new(5.0, 12.0), Point::new(19.0, 12.0)),
+            (Point::new(5.0, 17.0), Point::new(19.0, 17.0)),
+        ]
+    );
+    assert_eq!(
+        navigation_menu_icon_segments(1.0, NAVIGATION_MENU_ICON_VIEWPORT_SIZE),
+        [
+            (Point::new(12.0, 5.0), Point::new(19.0, 12.0)),
+            (Point::new(5.0, 12.0), Point::new(19.0, 12.0)),
+            (Point::new(12.0, 19.0), Point::new(19.0, 12.0)),
+        ]
+    );
+}
+
+#[test]
+fn navigation_menu_icon_rotation_tracks_expansion_progress() {
+    assert_eq!(navigation_menu_icon_rotation_radians(0.0), 0.0);
+    assert_eq!(
+        navigation_menu_icon_rotation_radians(0.5),
+        std::f32::consts::FRAC_PI_2
+    );
+    assert_eq!(
+        navigation_menu_icon_rotation_radians(1.0),
+        std::f32::consts::PI
+    );
+}
+
+#[test]
 fn navigation_state_owns_selection_animation_progress() {
     let start = Instant::now();
     let mut state = NavigationState::new(Page::One);
