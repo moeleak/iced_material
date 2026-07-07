@@ -6,8 +6,10 @@
 //! while adjusting the overlay anchor before handing off to iced's menu overlay.
 
 use std::borrow::Borrow;
+use std::f32::consts::PI;
 use std::fmt;
 
+use iced_widget::canvas::{Frame, Path};
 use iced_widget::core::text::paragraph;
 use iced_widget::core::text::{self, Text};
 use iced_widget::core::time::Instant;
@@ -16,9 +18,11 @@ use iced_widget::core::{
     Clipboard, Color, Element, Event, Layout, Length, Padding, Pixels, Point, Rectangle, Shell,
     Size, Vector, Widget, alignment, keyboard, layout, mouse, overlay, renderer, touch, window,
 };
+use iced_widget::graphics::geometry;
 use iced_widget::overlay::menu;
 use iced_widget::pick_list::{self as iced_select, Handle, Icon, Status};
 
+use super::support::{AnimatedScalar, duration_ms};
 use super::{
     absolute_line_height, draw_text_field_outline, menu_overlay, text_field_floating_label_notch,
 };
@@ -27,6 +31,13 @@ use crate::{Theme, tokens};
 
 const MAX_VISIBLE_OPTIONS: usize = 5;
 const DIRECTION_EPSILON: f32 = 0.5;
+const MENU_HANDLE_ROTATION_DURATION_MS: u16 = tokens::motion::DURATION_SHORT3_MS;
+const MENU_HANDLE_VIEWPORT_SIZE: f32 = 24.0;
+const MENU_HANDLE_ARROW_LEFT_X: f32 = 7.0;
+const MENU_HANDLE_ARROW_CENTER_X: f32 = 12.0;
+const MENU_HANDLE_ARROW_RIGHT_X: f32 = 17.0;
+const MENU_HANDLE_ARROW_TOP_Y: f32 = 10.0;
+const MENU_HANDLE_ARROW_BOTTOM_Y: f32 = 15.0;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct MenuAnchor {
@@ -89,7 +100,6 @@ where
     handle: Handle<Renderer::Font>,
     class: <Theme as iced_select::Catalog>::Class<'a>,
     menu_class: <Theme as menu::Catalog>::Class<'a>,
-    last_status: Option<Status>,
     menu_height: Length,
 }
 
@@ -136,7 +146,6 @@ where
             handle: Handle::default(),
             class: <Theme as iced_select::Catalog>::default(),
             menu_class: <Theme as iced_select::Catalog>::default_menu(),
-            last_status: None,
             menu_height: material_menu_height(option_count),
         }
     }
@@ -253,7 +262,7 @@ where
     L: Borrow<[T]>,
     V: Borrow<T>,
     Message: Clone + 'a,
-    Renderer: text::Renderer + 'a,
+    Renderer: text::Renderer + geometry::Renderer + 'a,
 {
     fn tag(&self) -> tree::Tag {
         tree::Tag::of::<State<Renderer::Paragraph>>()
@@ -382,7 +391,9 @@ where
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
             | Event::Touch(touch::Event::FingerPressed { .. }) => {
                 if state.is_open {
-                    state.is_open = false;
+                    let now = Instant::now();
+
+                    state.set_open(false, now);
 
                     if let Some(on_close) = &self.on_close {
                         shell.publish(on_close.clone());
@@ -391,16 +402,15 @@ where
                     shell.capture_event();
                 } else if cursor.is_over(layout.bounds()) {
                     let selected = self.selected.as_ref().map(Borrow::borrow);
+                    let now = Instant::now();
 
-                    state.is_open = true;
+                    state.set_open(true, now);
                     state.hovered_option = self
                         .options
                         .borrow()
                         .iter()
                         .position(|option| Some(option) == selected);
-                    state
-                        .menu
-                        .start_open(self.options.borrow().len(), Instant::now());
+                    state.menu.start_open(self.options.borrow().len(), now);
 
                     if let Some(on_open) = &self.on_open {
                         shell.publish(on_open.clone());
@@ -448,24 +458,23 @@ where
             _ => {}
         };
 
-        let status = {
-            let is_hovered = cursor.is_over(layout.bounds());
-
-            if state.is_open {
-                Status::Opened { is_hovered }
-            } else if is_hovered {
-                Status::Hovered
-            } else {
-                Status::Active
-            }
+        let now = match event {
+            Event::Window(window::Event::RedrawRequested(now)) => Some(*now),
+            _ => None,
         };
 
-        if let Event::Window(window::Event::RedrawRequested(_now)) = event {
-            self.last_status = Some(status);
-        } else if self
-            .last_status
-            .is_some_and(|last_status| last_status != status)
+        if let Some(now) = now
+            && state.advance(now)
         {
+            shell.request_redraw();
+        }
+
+        let status = select_status(state.is_open, cursor.is_over(layout.bounds()));
+
+        if state.last_status != Some(status) {
+            state.last_status = Some(status);
+            shell.request_redraw();
+        } else if state.is_animating() {
             shell.request_redraw();
         }
     }
@@ -492,7 +501,7 @@ where
         theme: &Theme,
         _style: &renderer::Style,
         layout: Layout<'_>,
-        _cursor: mouse::Cursor,
+        cursor: mouse::Cursor,
         viewport: &Rectangle,
     ) {
         let font = self.font.unwrap_or_else(|| renderer.default_font());
@@ -500,12 +509,11 @@ where
         let state = tree.state.downcast_ref::<State<Renderer::Paragraph>>();
 
         let bounds = layout.bounds();
+        let status = state
+            .last_status
+            .unwrap_or_else(|| select_status(state.is_open, cursor.is_over(bounds)));
 
-        let style = <Theme as iced_select::Catalog>::style(
-            theme,
-            &self.class,
-            self.last_status.unwrap_or(Status::Active),
-        );
+        let style = <Theme as iced_select::Catalog>::style(theme, &self.class, status);
 
         let label_width = self
             .label
@@ -525,14 +533,22 @@ where
             label_notch,
         );
 
-        let handle = match &self.handle {
-            Handle::Arrow { size } => Some((
-                Renderer::ICON_FONT,
-                Renderer::ARROW_DOWN_ICON,
-                *size,
-                text::LineHeight::default(),
-                text::Shaping::Basic,
-            )),
+        let text_handle = match &self.handle {
+            Handle::Arrow { size } => {
+                let size = size.unwrap_or(Pixels(tokens::component::select::TRAILING_ICON_SIZE));
+                let right = bounds.x + bounds.width - self.field_padding.right;
+                let center = Point::new(right - size.0 / 2.0, bounds.center_y());
+
+                draw_default_handle(
+                    renderer,
+                    center,
+                    size.0,
+                    state.handle_rotation.value,
+                    style.handle_color,
+                );
+
+                None
+            }
             Handle::Static(Icon {
                 font,
                 code_point,
@@ -562,7 +578,7 @@ where
             Handle::None => None,
         };
 
-        if let Some((font, code_point, size, line_height, shaping)) = handle {
+        if let Some((font, code_point, size, line_height, shaping)) = text_handle {
             let size = size.unwrap_or_else(|| renderer.default_size());
 
             renderer.fill_text(
@@ -637,7 +653,7 @@ where
                     wrapping: text::Wrapping::None,
                 },
                 Point::new(label_x, label_y),
-                select_label_color(theme, self.last_status.unwrap_or(Status::Active)),
+                select_label_color(theme, status),
                 *viewport,
             );
         }
@@ -657,13 +673,20 @@ where
         if state.is_open {
             let bounds = layout.bounds();
             let on_select = &self.on_select;
+            let menu_state = &mut state.menu;
+            let hovered_option = &mut state.hovered_option;
+            let open_state = &mut state.is_open;
+            let handle_rotation = &mut state.handle_rotation;
+            let last_status = &mut state.last_status;
 
             let mut menu = menu_overlay::Menu::new(
-                &mut state.menu,
+                menu_state,
                 self.options.borrow(),
-                &mut state.hovered_option,
+                hovered_option,
                 |option| {
-                    state.is_open = false;
+                    let now = Instant::now();
+
+                    set_menu_open(open_state, handle_rotation, last_status, false, now);
 
                     (on_select)(option)
                 },
@@ -709,7 +732,7 @@ where
     L: Borrow<[T]> + 'a,
     V: Borrow<T> + 'a,
     Message: Clone + 'a,
-    Renderer: text::Renderer + 'a,
+    Renderer: text::Renderer + geometry::Renderer + 'a,
 {
     fn from(select: Select<'a, T, L, V, Message, Renderer>) -> Self {
         Self::new(select)
@@ -725,6 +748,8 @@ struct State<P: text::Paragraph> {
     options: Vec<paragraph::Plain<P>>,
     placeholder: paragraph::Plain<P>,
     label: paragraph::Plain<P>,
+    handle_rotation: AnimatedScalar,
+    last_status: Option<Status>,
 }
 
 impl<P: text::Paragraph> State<P> {
@@ -737,7 +762,37 @@ impl<P: text::Paragraph> State<P> {
             options: Vec::new(),
             placeholder: paragraph::Plain::default(),
             label: paragraph::Plain::default(),
+            handle_rotation: AnimatedScalar::new(menu_handle_rotation_target(false)),
+            last_status: None,
         }
+    }
+
+    fn set_open(&mut self, is_open: bool, now: Instant) {
+        set_menu_open(
+            &mut self.is_open,
+            &mut self.handle_rotation,
+            &mut self.last_status,
+            is_open,
+            now,
+        );
+    }
+
+    fn is_animating(&self) -> bool {
+        self.handle_rotation.is_animating()
+    }
+
+    fn advance(&mut self, now: Instant) -> bool {
+        self.handle_rotation.advance(now)
+    }
+}
+
+fn select_status(is_open: bool, is_hovered: bool) -> Status {
+    if is_open {
+        Status::Opened { is_hovered }
+    } else if is_hovered {
+        Status::Hovered
+    } else {
+        Status::Active
     }
 }
 
@@ -749,6 +804,90 @@ fn select_label_color(theme: &Theme, status: Status) -> Color {
         Status::Hovered => colors.surface.text,
         Status::Active => colors.surface.text_variant,
     }
+}
+
+fn menu_handle_rotation_target(is_open: bool) -> f32 {
+    if is_open { 1.0 } else { 0.0 }
+}
+
+fn set_menu_open(
+    open_state: &mut bool,
+    handle_rotation: &mut AnimatedScalar,
+    last_status: &mut Option<Status>,
+    is_open: bool,
+    now: Instant,
+) {
+    let target = menu_handle_rotation_target(is_open);
+
+    let _ = handle_rotation.advance(now);
+
+    *open_state = is_open;
+    *last_status = None;
+    handle_rotation.set_target(
+        target,
+        now,
+        duration_ms(MENU_HANDLE_ROTATION_DURATION_MS),
+        tokens::motion::EASING_STANDARD,
+    );
+}
+
+fn draw_default_handle<Renderer>(
+    renderer: &mut Renderer,
+    center: Point,
+    size: f32,
+    progress: f32,
+    color: Color,
+) where
+    Renderer: geometry::Renderer,
+{
+    if size <= 0.0 {
+        return;
+    }
+
+    let top_left = Point::new(center.x - size / 2.0, center.y - size / 2.0);
+    let mut frame = Frame::new(renderer, Size::new(size, size));
+    let origin = Point::new(size / 2.0, size / 2.0);
+
+    frame.with_save(|frame| {
+        frame.translate(Vector::new(origin.x, origin.y));
+        frame.rotate(menu_handle_rotation_radians(progress));
+        frame.translate(Vector::new(-origin.x, -origin.y));
+        frame.fill(&default_handle_arrow_path(size), color);
+    });
+
+    renderer.with_translation(Vector::new(top_left.x, top_left.y), |renderer| {
+        renderer.draw_geometry(frame.into_geometry());
+    });
+}
+
+fn menu_handle_rotation_radians(progress: f32) -> f32 {
+    PI * progress.clamp(0.0, 1.0)
+}
+
+fn default_handle_arrow_path(size: f32) -> Path {
+    let [left, tip, right] = default_handle_arrow_points(size);
+
+    Path::new(|path| {
+        path.move_to(left);
+        path.line_to(tip);
+        path.line_to(right);
+        path.close();
+    })
+}
+
+fn default_handle_arrow_points(size: f32) -> [Point; 3] {
+    [
+        material_icon_point(MENU_HANDLE_ARROW_LEFT_X, MENU_HANDLE_ARROW_TOP_Y, size),
+        material_icon_point(MENU_HANDLE_ARROW_CENTER_X, MENU_HANDLE_ARROW_BOTTOM_Y, size),
+        material_icon_point(MENU_HANDLE_ARROW_RIGHT_X, MENU_HANDLE_ARROW_TOP_Y, size),
+    ]
+}
+
+fn material_icon_point(x: f32, y: f32, size: f32) -> Point {
+    Point::new(
+        x / MENU_HANDLE_VIEWPORT_SIZE * size,
+        y / MENU_HANDLE_VIEWPORT_SIZE * size,
+    )
 }
 
 impl<P: text::Paragraph> Default for State<P> {

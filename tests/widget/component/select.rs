@@ -25,6 +25,52 @@ fn material_option_padding_produces_m3_menu_item_height() {
 }
 
 #[test]
+fn select_status_tracks_open_state_before_hover_state() {
+    assert_eq!(select_status(false, false), Status::Active);
+    assert_eq!(select_status(false, true), Status::Hovered);
+    assert_eq!(
+        select_status(true, false),
+        Status::Opened { is_hovered: false }
+    );
+    assert_eq!(
+        select_status(true, true),
+        Status::Opened { is_hovered: true }
+    );
+}
+
+#[test]
+fn default_handle_rotation_matches_compose_trailing_icon_targets() {
+    assert_eq!(menu_handle_rotation_target(false), 0.0);
+    assert_eq!(menu_handle_rotation_target(true), 1.0);
+    assert_eq!(menu_handle_rotation_radians(0.0), 0.0);
+    assert_eq!(
+        menu_handle_rotation_radians(0.5),
+        std::f32::consts::FRAC_PI_2
+    );
+    assert_eq!(menu_handle_rotation_radians(1.0), std::f32::consts::PI);
+}
+
+#[test]
+fn default_handle_arrow_points_match_material_icon_viewbox() {
+    assert_eq!(
+        default_handle_arrow_points(MENU_HANDLE_VIEWPORT_SIZE),
+        [
+            Point::new(7.0, 10.0),
+            Point::new(12.0, 15.0),
+            Point::new(17.0, 10.0),
+        ]
+    );
+    assert_eq!(
+        default_handle_arrow_points(MENU_HANDLE_VIEWPORT_SIZE / 2.0),
+        [
+            Point::new(3.5, 5.0),
+            Point::new(6.0, 7.5),
+            Point::new(8.5, 5.0),
+        ]
+    );
+}
+
+#[test]
 fn select_prefers_down_when_menu_fits_below() {
     let position = Point::new(0.0, 500.0);
     let target_height = 56.0;

@@ -456,6 +456,7 @@ where
                 {
                     shell.publish((self.on_selected)(option.clone()));
                     shell.capture_event();
+                    shell.request_redraw();
                 }
             }
             Event::Mouse(mouse::Event::CursorMoved { .. }) => {
@@ -494,6 +495,7 @@ where
                     if let Some(option) = self.options.get(index) {
                         shell.publish((self.on_selected)(option.clone()));
                         shell.capture_event();
+                        shell.request_redraw();
                     }
                 }
             }
