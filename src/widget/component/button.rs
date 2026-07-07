@@ -196,6 +196,11 @@ impl ButtonState {
         true
     }
 
+    fn snap_state_layer_to_hover_target(&mut self) {
+        self.state_layer_opacity
+            .snap_to(button_hover_state_layer_target(self.is_hovered));
+    }
+
     fn animate_state_layer(&mut self, now: Instant) {
         self.state_layer_opacity.set_target(
             button_hover_state_layer_target(self.is_hovered),
@@ -324,9 +329,17 @@ where
         let state = tree.state.downcast_mut::<ButtonState>();
         let is_touch_event = matches!(event, Event::Touch(_));
         let is_hovered = self.on_press.is_some() && !is_touch_event && cursor.is_over(bounds);
+        let should_snap_initial_redraw_hover =
+            button_should_snap_initial_redraw_hover(event, state, is_hovered);
 
-        if state.sync_hover(is_hovered, now_or_current()) {
-            shell.request_redraw();
+        if button_should_sync_hover(event, cursor) {
+            if state.sync_hover(is_hovered, now_or_current()) {
+                if should_snap_initial_redraw_hover {
+                    state.snap_state_layer_to_hover_target();
+                }
+
+                shell.request_redraw();
+            }
         }
 
         match event {
@@ -445,7 +458,12 @@ where
             &viewport,
         );
 
-        draw_button_state_layer(renderer, bounds, &style, state.state_layer_opacity());
+        draw_button_state_layer(
+            renderer,
+            bounds,
+            &style,
+            button_state_layer_opacity_for_draw(state, status),
+        );
 
         draw_ripples(
             renderer,
@@ -506,6 +524,34 @@ fn button_hover_state_layer_target(is_hovered: bool) -> f32 {
         tokens::state::HOVER_STATE_LAYER_OPACITY
     } else {
         0.0
+    }
+}
+
+fn button_should_sync_hover(event: &Event, cursor: mouse::Cursor) -> bool {
+    match event {
+        Event::Window(window::Event::RedrawRequested(_)) => {
+            !matches!(cursor, mouse::Cursor::Unavailable)
+        }
+        Event::Mouse(_) | Event::Touch(_) => true,
+        _ => false,
+    }
+}
+
+fn button_should_snap_initial_redraw_hover(
+    event: &Event,
+    state: &ButtonState,
+    is_hovered: bool,
+) -> bool {
+    matches!(event, Event::Window(window::Event::RedrawRequested(_)))
+        && state.last_status.is_none()
+        && is_hovered
+}
+
+fn button_state_layer_opacity_for_draw(state: &ButtonState, status: Status) -> f32 {
+    if matches!(status, Status::Hovered) && state.last_status.is_none() {
+        button_hover_state_layer_target(true)
+    } else {
+        state.state_layer_opacity()
     }
 }
 

@@ -243,6 +243,15 @@ impl AnimatedScalar {
         self.spec = AnimationSpec::Cubic { duration, easing };
     }
 
+    pub(super) fn snap_to(&mut self, value: f32) {
+        self.value = value;
+        self.velocity = 0.0;
+        self.from = value;
+        self.initial_velocity = 0.0;
+        self.to = value;
+        self.started_at = None;
+    }
+
     pub(super) fn set_spring_target(
         &mut self,
         to: f32,

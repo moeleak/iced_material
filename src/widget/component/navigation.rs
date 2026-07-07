@@ -2036,6 +2036,14 @@ impl NavigationPressSurfaceState {
         self.animate_to_interaction_target(now);
     }
 
+    fn snap_to_interaction_target(&mut self) {
+        self.state_layer_opacity
+            .snap_to(navigation_interaction_state_layer_target(
+                self.is_hovered,
+                self.is_pressed,
+            ));
+    }
+
     fn cancel(&mut self, now: Instant) {
         self.is_pressed = false;
         self.is_hovered = false;
@@ -2164,9 +2172,17 @@ where
         };
         let is_touch_event = matches!(event, Event::Touch(_));
         let is_hovered = !is_touch_event && cursor.is_over(layout.bounds());
+        let should_snap_initial_redraw_hover =
+            navigation_should_snap_initial_redraw_hover(event, state, is_hovered);
 
-        if state.sync_hover(is_hovered, now.unwrap_or_else(Instant::now)) {
-            shell.request_redraw();
+        if navigation_should_sync_hover(event, cursor) {
+            if state.sync_hover(is_hovered, now.unwrap_or_else(Instant::now)) {
+                if should_snap_initial_redraw_hover {
+                    state.snap_to_interaction_target();
+                }
+
+                shell.request_redraw();
+            }
         }
 
         match event {
@@ -2270,7 +2286,7 @@ where
         let state = tree.state.downcast_ref::<NavigationPressSurfaceState>();
         let indicator_bounds = self.indicator.bounds(layout.bounds());
         let now = state.now.unwrap_or_else(Instant::now);
-        let opacity = state.opacity();
+        let opacity = navigation_press_surface_opacity_for_draw(state, cursor, layout.bounds());
         let layer_color = navigation_state_layer_color(theme, self.layer);
 
         if opacity > 0.0 {
@@ -2336,6 +2352,40 @@ fn navigation_interaction_state_layer_target(is_hovered: bool, _is_pressed: bool
         HOVERED_LAYER_OPACITY
     } else {
         0.0
+    }
+}
+
+fn navigation_should_sync_hover(event: &Event, cursor: mouse::Cursor) -> bool {
+    match event {
+        Event::Window(window::Event::RedrawRequested(_)) => {
+            !matches!(cursor, mouse::Cursor::Unavailable)
+        }
+        Event::Mouse(_) | Event::Touch(_) => true,
+        _ => false,
+    }
+}
+
+fn navigation_should_snap_initial_redraw_hover(
+    event: &Event,
+    state: &NavigationPressSurfaceState,
+    is_hovered: bool,
+) -> bool {
+    matches!(event, Event::Window(window::Event::RedrawRequested(_)))
+        && state.now.is_none()
+        && is_hovered
+}
+
+fn navigation_press_surface_opacity_for_draw(
+    state: &NavigationPressSurfaceState,
+    cursor: mouse::Cursor,
+    bounds: Rectangle,
+) -> f32 {
+    if cursor.is_over(bounds) && state.now.is_none() {
+        navigation_surface_state_layer_opacity_from_interaction(
+            navigation_interaction_state_layer_target(true, false),
+        )
+    } else {
+        state.opacity()
     }
 }
 

@@ -184,6 +184,68 @@ fn button_hover_state_layer_animates_with_compose_default_tween() {
 }
 
 #[test]
+fn button_redraw_without_cursor_does_not_resync_hover() {
+    let redraw = Event::Window(window::Event::RedrawRequested(Instant::now()));
+
+    assert!(!button_should_sync_hover(
+        &redraw,
+        mouse::Cursor::Unavailable
+    ));
+    assert!(button_should_sync_hover(
+        &redraw,
+        mouse::Cursor::Available(Point::new(20.0, 20.0))
+    ));
+}
+
+#[test]
+fn button_initial_redraw_hover_snaps_to_hover_layer_target() {
+    let start = Instant::now();
+    let redraw = Event::Window(window::Event::RedrawRequested(start));
+    let mut state = ButtonState::default();
+
+    assert!(button_should_snap_initial_redraw_hover(
+        &redraw, &state, true
+    ));
+    assert!(state.sync_hover(true, start));
+
+    state.snap_state_layer_to_hover_target();
+
+    assert_close(
+        state.state_layer_opacity(),
+        tokens::state::HOVER_STATE_LAYER_OPACITY,
+    );
+    assert!(!state.state_layer_opacity.is_animating());
+}
+
+#[test]
+fn button_draw_uses_hover_layer_target_for_fresh_hovered_state() {
+    let state = ButtonState::default();
+
+    assert_close(
+        button_state_layer_opacity_for_draw(&state, Status::Hovered),
+        tokens::state::HOVER_STATE_LAYER_OPACITY,
+    );
+    assert_eq!(
+        button_state_layer_opacity_for_draw(&state, Status::Active),
+        0.0
+    );
+}
+
+#[test]
+fn button_draw_keeps_mouse_hover_enter_animation() {
+    let start = Instant::now();
+    let mut state = ButtonState::default();
+
+    state.last_status = Some(Status::Active);
+    assert!(state.sync_hover(true, start));
+
+    assert_eq!(
+        button_state_layer_opacity_for_draw(&state, Status::Hovered),
+        0.0
+    );
+}
+
+#[test]
 fn button_hover_state_layer_keeps_animating_while_ripple_is_visible() {
     let start = Instant::now();
     let mut state = ButtonState::default();

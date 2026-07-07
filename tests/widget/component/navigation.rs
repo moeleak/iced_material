@@ -673,6 +673,79 @@ fn navigation_press_surface_click_keeps_hover_layer_independent_from_ripple() {
 }
 
 #[test]
+fn navigation_redraw_without_cursor_does_not_resync_hover() {
+    let redraw = Event::Window(window::Event::RedrawRequested(Instant::now()));
+
+    assert!(!navigation_should_sync_hover(
+        &redraw,
+        mouse::Cursor::Unavailable
+    ));
+    assert!(navigation_should_sync_hover(
+        &redraw,
+        mouse::Cursor::Available(Point::new(48.0, 160.0))
+    ));
+}
+
+#[test]
+fn navigation_initial_redraw_hover_snaps_to_hover_layer_target() {
+    let start = Instant::now();
+    let redraw = Event::Window(window::Event::RedrawRequested(start));
+    let mut state = NavigationPressSurfaceState::default();
+
+    assert!(navigation_should_snap_initial_redraw_hover(
+        &redraw, &state, true
+    ));
+    assert!(state.sync_hover(true, start));
+
+    state.snap_to_interaction_target();
+
+    assert_eq!(state.opacity(), HOVERED_LAYER_OPACITY);
+    assert!(!state.state_layer_opacity.is_animating());
+}
+
+#[test]
+fn navigation_draw_uses_hover_layer_target_for_fresh_hovered_state() {
+    let state = NavigationPressSurfaceState::default();
+    let bounds = Rectangle::new(Point::new(0.0, 120.0), Size::new(80.0, 56.0));
+
+    assert_eq!(
+        navigation_press_surface_opacity_for_draw(
+            &state,
+            mouse::Cursor::Available(Point::new(40.0, 148.0)),
+            bounds
+        ),
+        HOVERED_LAYER_OPACITY
+    );
+    assert_eq!(
+        navigation_press_surface_opacity_for_draw(
+            &state,
+            mouse::Cursor::Available(Point::new(140.0, 148.0)),
+            bounds
+        ),
+        0.0
+    );
+}
+
+#[test]
+fn navigation_draw_keeps_mouse_hover_enter_animation_after_first_frame() {
+    let start = Instant::now();
+    let mut state = NavigationPressSurfaceState::default();
+    let bounds = Rectangle::new(Point::new(0.0, 120.0), Size::new(80.0, 56.0));
+
+    assert!(state.sync_hover(true, start));
+    let _ = state.advance(start);
+
+    assert_eq!(
+        navigation_press_surface_opacity_for_draw(
+            &state,
+            mouse::Cursor::Available(Point::new(40.0, 148.0)),
+            bounds
+        ),
+        0.0
+    );
+}
+
+#[test]
 fn navigation_press_surface_keeps_release_ripple_visible() {
     let start = Instant::now();
     let mut state = NavigationPressSurfaceState::default();
