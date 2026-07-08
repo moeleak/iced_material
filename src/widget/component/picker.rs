@@ -764,7 +764,7 @@ impl DatePickerState {
     }
 
     /// Returns a task that positions the year picker near the displayed year.
-    pub fn scroll_year_picker_to_displayed_year<Message>(&self) -> iced::Task<Message>
+    pub fn scroll_to_year<Message>(&self) -> iced::Task<Message>
     where
         Message: Send + 'static,
     {
@@ -801,19 +801,16 @@ impl DatePickerState {
 
     /// Applies a date picker action and returns the follow-up scroll task used
     /// when the year picker becomes visible.
-    pub fn update_and_scroll_to_displayed_year<Message>(
-        &mut self,
-        action: DatePickerAction,
-    ) -> iced::Task<Message>
+    pub fn update_and_scroll<Message>(&mut self, action: DatePickerAction) -> iced::Task<Message>
     where
         Message: Send + 'static,
     {
-        self.update_and_scroll_to_displayed_year_at(action, Instant::now())
+        self.update_and_scroll_at(action, Instant::now())
     }
 
     /// Applies a date picker action at `now` and returns the follow-up scroll
     /// task used when the year picker becomes visible.
-    pub fn update_and_scroll_to_displayed_year_at<Message>(
+    pub fn update_and_scroll_at<Message>(
         &mut self,
         action: DatePickerAction,
         now: Instant,
@@ -826,7 +823,7 @@ impl DatePickerState {
         self.update_at(action, now);
 
         if !was_year_picker_visible && self.year_picker_visible() {
-            self.scroll_year_picker_to_displayed_year()
+            self.scroll_to_year()
         } else {
             iced::Task::none()
         }
@@ -1137,7 +1134,7 @@ impl DateRangePickerState {
     }
 
     /// Returns a task that positions the year picker near the displayed year.
-    pub fn scroll_year_picker_to_displayed_year<Message>(&self) -> iced::Task<Message>
+    pub fn scroll_to_year<Message>(&self) -> iced::Task<Message>
     where
         Message: Send + 'static,
     {
@@ -1190,19 +1187,19 @@ impl DateRangePickerState {
 
     /// Applies a date range picker action and returns the follow-up scroll task
     /// used when the year picker becomes visible.
-    pub fn update_and_scroll_to_displayed_year<Message>(
+    pub fn update_and_scroll<Message>(
         &mut self,
         action: DateRangePickerAction,
     ) -> iced::Task<Message>
     where
         Message: Send + 'static,
     {
-        self.update_and_scroll_to_displayed_year_at(action, Instant::now())
+        self.update_and_scroll_at(action, Instant::now())
     }
 
     /// Applies a date range picker action at `now` and returns the follow-up
     /// scroll task used when the year picker becomes visible.
-    pub fn update_and_scroll_to_displayed_year_at<Message>(
+    pub fn update_and_scroll_at<Message>(
         &mut self,
         action: DateRangePickerAction,
         now: Instant,
@@ -1215,7 +1212,7 @@ impl DateRangePickerState {
         self.update_at(action, now);
 
         if !was_year_picker_visible && self.year_picker_visible() {
-            self.scroll_year_picker_to_displayed_year()
+            self.scroll_to_year()
         } else {
             iced::Task::none()
         }
@@ -1462,6 +1459,12 @@ struct RangeBackgroundRect {
     y: f32,
     width: f32,
     height: f32,
+}
+
+impl RangeBackgroundRect {
+    fn corner_radius(self) -> f32 {
+        self.height / 2.0
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2136,7 +2139,7 @@ where
 }
 
 /// Creates a Material 3 date range picker dialog surface.
-pub fn date_range_picker_dialog<'a, Message, Renderer>(
+pub fn date_range_dialog<'a, Message, Renderer>(
     state: &'a DateRangePickerState,
     on_action: impl Fn(DateRangePickerAction) -> Message + Clone + 'a,
     actions: impl Into<Element<'a, Message, Theme, Renderer>>,
@@ -2146,11 +2149,11 @@ where
     Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
-    date_range_picker_dialog_with(state, on_action, actions, DatePickerOptions::default())
+    date_range_dialog_with(state, on_action, actions, DatePickerOptions::default())
 }
 
 /// Creates a Material 3 date range picker dialog surface with custom visual options.
-pub fn date_range_picker_dialog_with<'a, Message, Renderer>(
+pub fn date_range_dialog_with<'a, Message, Renderer>(
     state: &'a DateRangePickerState,
     on_action: impl Fn(DateRangePickerAction) -> Message + Clone + 'a,
     actions: impl Into<Element<'a, Message, Theme, Renderer>>,
@@ -3474,139 +3477,139 @@ fn range_month_selection_info(
     })
 }
 
-fn range_background_rects(
+#[derive(Debug, Clone, Copy)]
+struct RangeBackground {
     info: RangeMonthSelectionInfo,
-    size_width: f32,
-) -> Vec<RangeBackgroundRect> {
-    let item_container_width = tokens::component::date_picker::CALENDAR_CELL_SIZE;
-    let item_container_height = tokens::component::date_picker::CALENDAR_CELL_SIZE;
-    let item_state_layer_height = tokens::component::date_picker::DATE_CONTAINER_HEIGHT;
-    let state_layer_vertical_padding = (item_container_height - item_state_layer_height) / 2.0;
-    let horizontal_space_between_items = (size_width - 7.0 * item_container_width) / 7.0;
-    let item_step = item_container_width + horizontal_space_between_items;
-    let start_x = info.start_column as f32 * item_step
-        + if info.first_is_selection_start {
-            item_container_width / 2.0
-        } else {
-            0.0
-        }
-        + horizontal_space_between_items / 2.0;
-    let start_y = info.start_row as f32 * item_container_height + state_layer_vertical_padding;
-    let end_x = info.end_column as f32 * item_step
-        + if info.last_is_selection_end {
-            item_container_width / 2.0
-        } else {
-            item_container_width
-        }
-        + horizontal_space_between_items / 2.0;
-    let end_y = info.end_row as f32 * item_container_height + state_layer_vertical_padding;
-    let mut rects = Vec::with_capacity(3);
+    width: f32,
+}
 
-    rects.push(RangeBackgroundRect {
-        x: start_x,
-        y: start_y,
-        width: if info.start_row == info.end_row {
-            end_x - start_x
-        } else {
-            size_width - start_x
-        },
-        height: item_state_layer_height,
-    });
+impl RangeBackground {
+    fn rects(self) -> Vec<RangeBackgroundRect> {
+        let item_container_width = tokens::component::date_picker::CALENDAR_CELL_SIZE;
+        let item_container_height = tokens::component::date_picker::CALENDAR_CELL_SIZE;
+        let item_state_layer_height = tokens::component::date_picker::DATE_CONTAINER_HEIGHT;
+        let state_layer_vertical_padding = (item_container_height - item_state_layer_height) / 2.0;
+        let horizontal_space_between_items = (self.width - 7.0 * item_container_width) / 7.0;
+        let item_step = item_container_width + horizontal_space_between_items;
+        let start_x = self.info.start_column as f32 * item_step
+            + if self.info.first_is_selection_start {
+                item_container_width / 2.0
+            } else {
+                0.0
+            }
+            + horizontal_space_between_items / 2.0;
+        let start_y =
+            self.info.start_row as f32 * item_container_height + state_layer_vertical_padding;
+        let end_x = self.info.end_column as f32 * item_step
+            + if self.info.last_is_selection_end {
+                item_container_width / 2.0
+            } else {
+                item_container_width
+            }
+            + horizontal_space_between_items / 2.0;
+        let end_y = self.info.end_row as f32 * item_container_height + state_layer_vertical_padding;
+        let mut rects = Vec::with_capacity(3);
 
-    if info.start_row != info.end_row {
-        for row_offset in (1..=(info.end_row - info.start_row - 1)).rev() {
+        rects.push(RangeBackgroundRect {
+            x: start_x,
+            y: start_y,
+            width: if self.info.start_row == self.info.end_row {
+                end_x - start_x
+            } else {
+                self.width - start_x
+            },
+            height: item_state_layer_height,
+        });
+
+        if self.info.start_row != self.info.end_row {
+            for row_offset in (1..=(self.info.end_row - self.info.start_row - 1)).rev() {
+                rects.push(RangeBackgroundRect {
+                    x: 0.0,
+                    y: start_y + row_offset as f32 * item_container_height,
+                    width: self.width,
+                    height: item_state_layer_height,
+                });
+            }
+
             rects.push(RangeBackgroundRect {
                 x: 0.0,
-                y: start_y + row_offset as f32 * item_container_height,
-                width: size_width,
+                y: end_y,
+                width: end_x,
                 height: item_state_layer_height,
             });
         }
 
-        rects.push(RangeBackgroundRect {
-            x: 0.0,
-            y: end_y,
-            width: end_x,
-            height: item_state_layer_height,
-        });
+        rects
     }
 
-    rects
-}
+    fn reveal(self, progress: f32) -> Vec<RangeBackgroundRect> {
+        let progress = progress.clamp(0.0, 1.0);
+        let rects = self.rects();
+        let total_width: f32 = rects.iter().map(|rect| rect.width.max(0.0)).sum();
+        let mut remaining = total_width * progress;
+        let mut clipped = Vec::with_capacity(rects.len());
 
-fn range_background_rects_with_progress(
-    info: RangeMonthSelectionInfo,
-    size_width: f32,
-    progress: f32,
-) -> Vec<RangeBackgroundRect> {
-    let progress = progress.clamp(0.0, 1.0);
-    let rects = range_background_rects(info, size_width);
-    let total_width: f32 = rects.iter().map(|rect| rect.width.max(0.0)).sum();
-    let mut remaining = total_width * progress;
-    let mut clipped = Vec::with_capacity(rects.len());
+        for mut rect in rects {
+            if remaining <= 0.0 {
+                break;
+            }
 
-    for mut rect in rects {
-        if remaining <= 0.0 {
-            break;
+            let width = rect.width.min(remaining);
+
+            if width > f32::EPSILON {
+                rect.width = width;
+                clipped.push(rect);
+            }
+
+            remaining -= width;
         }
 
-        let width = rect.width.min(remaining);
-
-        if width > f32::EPSILON {
-            rect.width = width;
-            clipped.push(rect);
-        }
-
-        remaining -= width;
+        clipped
     }
-
-    clipped
 }
 
-fn range_endpoint_connector_rect(
-    range_position: DateRangePosition,
+#[derive(Debug, Clone, Copy)]
+struct RangeConnector {
+    position: DateRangePosition,
     weekday: usize,
-) -> Option<RangeBackgroundRect> {
-    let cell_size = tokens::component::date_picker::CALENDAR_CELL_SIZE;
-    let layer_height = tokens::component::date_picker::DATE_STATE_LAYER_HEIGHT;
-    let y = (cell_size - layer_height) / 2.0;
-    let half_width = cell_size / 2.0;
+}
 
-    match range_position {
-        DateRangePosition::Start if weekday < 6 => Some(RangeBackgroundRect {
-            x: half_width,
-            y,
-            width: half_width,
-            height: layer_height,
-        }),
-        DateRangePosition::End if weekday > 0 => Some(RangeBackgroundRect {
-            x: 0.0,
-            y,
-            width: half_width,
-            height: layer_height,
-        }),
-        DateRangePosition::None
-        | DateRangePosition::Single
-        | DateRangePosition::Middle
-        | DateRangePosition::Start
-        | DateRangePosition::End => None,
+impl RangeConnector {
+    fn rect(self) -> Option<RangeBackgroundRect> {
+        let cell_size = tokens::component::date_picker::CALENDAR_CELL_SIZE;
+        let layer_height = tokens::component::date_picker::DATE_STATE_LAYER_HEIGHT;
+        let y = (cell_size - layer_height) / 2.0;
+        let half_width = cell_size / 2.0;
+
+        match self.position {
+            DateRangePosition::Start if self.weekday < 6 => Some(RangeBackgroundRect {
+                x: half_width,
+                y,
+                width: half_width,
+                height: layer_height,
+            }),
+            DateRangePosition::End if self.weekday > 0 => Some(RangeBackgroundRect {
+                x: 0.0,
+                y,
+                width: half_width,
+                height: layer_height,
+            }),
+            DateRangePosition::None
+            | DateRangePosition::Single
+            | DateRangePosition::Middle
+            | DateRangePosition::Start
+            | DateRangePosition::End => None,
+        }
     }
-}
 
-fn range_background_corner_radius(rect: RangeBackgroundRect) -> f32 {
-    rect.height / 2.0
-}
+    fn reveal_progress(range_background_progress: f32, selected_progress: f32) -> f32 {
+        let range_background_progress = range_background_progress.clamp(0.0, 1.0);
 
-fn range_endpoint_connector_progress(
-    range_background_progress: f32,
-    selected_progress: f32,
-) -> f32 {
-    let range_background_progress = range_background_progress.clamp(0.0, 1.0);
-
-    if selected_progress >= 1.0 {
-        range_background_progress
-    } else {
-        0.0
+        if selected_progress >= 1.0 {
+            range_background_progress
+        } else {
+            0.0
+        }
     }
 }
 
@@ -3848,7 +3851,11 @@ where
                 theme.colors().secondary.container,
                 progress * self.content_alpha,
             );
-            let rects = range_background_rects_with_progress(self.info, frame.width(), progress);
+            let rects = RangeBackground {
+                info: self.info,
+                width: frame.width(),
+            }
+            .reveal(progress);
 
             for rect in rects {
                 let size = Size::new(rect.width, rect.height);
@@ -3856,7 +3863,7 @@ where
                 let path = Path::rounded_rectangle(
                     top_left,
                     size,
-                    border::Radius::from(range_background_corner_radius(rect)),
+                    border::Radius::from(rect.corner_radius()),
                 );
 
                 frame.fill(&path, color);
@@ -3905,15 +3912,19 @@ where
             0.0
         };
         let connector_progress =
-            range_endpoint_connector_progress(self.range_background_progress, selected_progress);
+            RangeConnector::reveal_progress(self.range_background_progress, selected_progress);
 
         if connector_progress > 0.0
-            && let Some(rect) = range_endpoint_connector_rect(self.range_position, self.weekday)
+            && let Some(rect) = (RangeConnector {
+                position: self.range_position,
+                weekday: self.weekday,
+            }
+            .rect())
         {
             let path = Path::rounded_rectangle(
                 Point::new(rect.x, rect.y),
                 Size::new(rect.width, rect.height),
-                border::Radius::from(range_background_corner_radius(rect)),
+                border::Radius::from(rect.corner_radius()),
             );
 
             frame.fill(

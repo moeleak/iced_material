@@ -24,11 +24,11 @@ where
     ))
     .padding(Padding {
         top: 0.0,
-        right: plain_tooltip_inner_horizontal_padding(),
+        right: PlainTooltipMetrics::horizontal_padding(),
         bottom: 0.0,
-        left: plain_tooltip_inner_horizontal_padding(),
+        left: PlainTooltipMetrics::horizontal_padding(),
     })
-    .max_width(plain_tooltip_inner_max_width());
+    .max_width(PlainTooltipMetrics::max_width());
 
     RichTooltip::new(content, tooltip, position)
         .gap(tokens::component::tooltip::SPACING_BETWEEN_TOOLTIP_AND_ANCHOR)
@@ -184,7 +184,7 @@ where
     RichTooltip::new(content, tooltip, position)
         .gap(tokens::component::tooltip::SPACING_BETWEEN_TOOLTIP_AND_ANCHOR)
         .padding(0.0)
-        .clip_padding(rich_tooltip_shadow_padding())
+        .clip_padding(RichTooltipSurface::shadow_padding())
         .style(tooltip_style::rich)
 }
 
@@ -344,7 +344,7 @@ where
             if let Some(cursor_position) = cursor_position {
                 state.show(now, cursor_position);
                 shell.request_redraw();
-            } else if rich_tooltip_anchor_exit_dismisses(self.interactive_surface, state) {
+            } else if RichTooltipHitArea::anchor_exit_dismisses(self.interactive_surface, state) {
                 state.dismiss(now);
             }
 
@@ -701,12 +701,12 @@ where
         let cursor_in_content = cursor.is_over(self.content_bounds);
         let cursor_in_tooltip = cursor.is_over(tooltip_bounds);
         let cursor_in_keep_alive = self.interactive_surface
-            && rich_tooltip_keep_alive_contains(
-                self.content_bounds,
-                tooltip_bounds,
-                self.position,
-                cursor,
-            );
+            && RichTooltipHitArea {
+                content: self.content_bounds,
+                tooltip: tooltip_bounds,
+                position: self.position,
+            }
+            .contains(cursor);
 
         if cursor_in_tooltip && let Some(child_layout) = layout.children().next() {
             self.tooltip.as_widget_mut().update(
@@ -788,7 +788,11 @@ where
             iced_container::Catalog::style(theme, self.class),
             frame.alpha,
         );
-        let surface_bounds = rich_tooltip_visual_bounds(layout.bounds(), self.clip_padding);
+        let surface_bounds = RichTooltipSurface {
+            bounds: layout.bounds(),
+            clip_padding: self.clip_padding,
+        }
+        .visual_bounds();
         let transformation = tooltip_scale_transformation(surface_bounds, frame.scale);
 
         renderer.with_layer(layout.bounds(), |renderer| {
@@ -928,81 +932,89 @@ fn rich_tooltip_surface_bounds(
     tooltip_bounds
 }
 
-fn rich_tooltip_visual_bounds(tooltip_bounds: Rectangle, clip_padding: f32) -> Rectangle {
-    Rectangle {
-        x: tooltip_bounds.x + clip_padding,
-        y: tooltip_bounds.y + clip_padding,
-        width: (tooltip_bounds.width - clip_padding * 2.0).max(0.0),
-        height: (tooltip_bounds.height - clip_padding * 2.0).max(0.0),
+#[derive(Debug, Clone, Copy)]
+struct RichTooltipSurface {
+    bounds: Rectangle,
+    clip_padding: f32,
+}
+
+impl RichTooltipSurface {
+    fn visual_bounds(self) -> Rectangle {
+        Rectangle {
+            x: self.bounds.x + self.clip_padding,
+            y: self.bounds.y + self.clip_padding,
+            width: (self.bounds.width - self.clip_padding * 2.0).max(0.0),
+            height: (self.bounds.height - self.clip_padding * 2.0).max(0.0),
+        }
+    }
+
+    fn shadow_padding() -> f32 {
+        let shadow =
+            tokens::elevation::shadow(tokens::component::tooltip::RICH_CONTAINER_ELEVATION_LEVEL)
+                .ambient;
+
+        (shadow.blur + shadow.y.abs()).ceil()
     }
 }
 
-fn rich_tooltip_shadow_padding() -> f32 {
-    let shadow =
-        tokens::elevation::shadow(tokens::component::tooltip::RICH_CONTAINER_ELEVATION_LEVEL)
-            .ambient;
-
-    (shadow.blur + shadow.y.abs()).ceil()
+#[derive(Debug, Clone, Copy)]
+struct RichTooltipHitArea {
+    content: Rectangle,
+    tooltip: Rectangle,
+    position: Position,
 }
 
-fn rich_tooltip_keep_alive_contains(
-    content_bounds: Rectangle,
-    tooltip_bounds: Rectangle,
-    position: Position,
-    cursor: mouse::Cursor,
-) -> bool {
-    let Some(cursor) = cursor.position() else {
-        return false;
-    };
+impl RichTooltipHitArea {
+    fn contains(self, cursor: mouse::Cursor) -> bool {
+        let Some(cursor) = cursor.position() else {
+            return false;
+        };
 
-    if content_bounds.contains(cursor) || tooltip_bounds.contains(cursor) {
-        return true;
+        if self.content.contains(cursor) || self.tooltip.contains(cursor) {
+            return true;
+        }
+
+        self.corridor()
+            .is_some_and(|bounds| bounds.contains(cursor))
     }
 
-    rich_tooltip_corridor_bounds(content_bounds, tooltip_bounds, position)
-        .is_some_and(|bounds| bounds.contains(cursor))
-}
+    fn anchor_exit_dismisses(interactive_surface: bool, state: &RichTooltipState) -> bool {
+        !interactive_surface || !state.is_visible()
+    }
 
-fn rich_tooltip_anchor_exit_dismisses(interactive_surface: bool, state: &RichTooltipState) -> bool {
-    !interactive_surface || !state.is_visible()
-}
+    fn corridor(self) -> Option<Rectangle> {
+        let content_right = self.content.x + self.content.width;
+        let content_bottom = self.content.y + self.content.height;
+        let tooltip_right = self.tooltip.x + self.tooltip.width;
+        let tooltip_bottom = self.tooltip.y + self.tooltip.height;
 
-fn rich_tooltip_corridor_bounds(
-    content_bounds: Rectangle,
-    tooltip_bounds: Rectangle,
-    position: Position,
-) -> Option<Rectangle> {
-    let content_right = content_bounds.x + content_bounds.width;
-    let content_bottom = content_bounds.y + content_bounds.height;
-    let tooltip_right = tooltip_bounds.x + tooltip_bounds.width;
-    let tooltip_bottom = tooltip_bounds.y + tooltip_bounds.height;
-
-    match position {
-        Position::Top if tooltip_bottom <= content_bounds.y => Some(Rectangle {
-            x: content_bounds.x,
-            y: tooltip_bottom,
-            width: content_bounds.width,
-            height: content_bounds.y - tooltip_bottom,
-        }),
-        Position::Bottom if content_bottom <= tooltip_bounds.y => Some(Rectangle {
-            x: content_bounds.x,
-            y: content_bottom,
-            width: content_bounds.width,
-            height: tooltip_bounds.y - content_bottom,
-        }),
-        Position::Left if tooltip_right <= content_bounds.x => Some(Rectangle {
-            x: tooltip_right,
-            y: content_bounds.y,
-            width: content_bounds.x - tooltip_right,
-            height: content_bounds.height,
-        }),
-        Position::Right if content_right <= tooltip_bounds.x => Some(Rectangle {
-            x: content_right,
-            y: content_bounds.y,
-            width: tooltip_bounds.x - content_right,
-            height: content_bounds.height,
-        }),
-        _ => None,
+        match self.position {
+            Position::Top if tooltip_bottom <= self.content.y => Some(Rectangle {
+                x: self.content.x,
+                y: tooltip_bottom,
+                width: self.content.width,
+                height: self.content.y - tooltip_bottom,
+            }),
+            Position::Bottom if content_bottom <= self.tooltip.y => Some(Rectangle {
+                x: self.content.x,
+                y: content_bottom,
+                width: self.content.width,
+                height: self.tooltip.y - content_bottom,
+            }),
+            Position::Left if tooltip_right <= self.content.x => Some(Rectangle {
+                x: tooltip_right,
+                y: self.content.y,
+                width: self.content.x - tooltip_right,
+                height: self.content.height,
+            }),
+            Position::Right if content_right <= self.tooltip.x => Some(Rectangle {
+                x: content_right,
+                y: self.content.y,
+                width: self.tooltip.x - content_right,
+                height: self.content.height,
+            }),
+            _ => None,
+        }
     }
 }
 
@@ -1105,15 +1117,19 @@ fn rich_supporting_text_style(theme: &Theme) -> iced_widget::text::Style {
     }
 }
 
-fn plain_tooltip_inner_horizontal_padding() -> f32 {
-    (tokens::component::tooltip::PLAIN_HORIZONTAL_SPACE
-        - tokens::component::tooltip::PLAIN_VERTICAL_SPACE)
-        .max(0.0)
-}
+struct PlainTooltipMetrics;
 
-fn plain_tooltip_inner_max_width() -> f32 {
-    tokens::component::tooltip::PLAIN_MAX_WIDTH
-        - tokens::component::tooltip::PLAIN_VERTICAL_SPACE * 2.0
+impl PlainTooltipMetrics {
+    fn horizontal_padding() -> f32 {
+        (tokens::component::tooltip::PLAIN_HORIZONTAL_SPACE
+            - tokens::component::tooltip::PLAIN_VERTICAL_SPACE)
+            .max(0.0)
+    }
+
+    fn max_width() -> f32 {
+        tokens::component::tooltip::PLAIN_MAX_WIDTH
+            - tokens::component::tooltip::PLAIN_VERTICAL_SPACE * 2.0
+    }
 }
 
 #[cfg(test)]

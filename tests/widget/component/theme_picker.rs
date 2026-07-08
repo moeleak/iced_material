@@ -36,11 +36,11 @@ fn state_toggle_animates_picker_panel_reveal() {
 #[test]
 fn bottom_margin_accounts_for_adaptive_navigation_clearance() {
     assert_eq!(
-        bottom_margin_for_navigation_layout(navigation::AdaptiveLayout::NavigationBar),
+        bottom_margin(navigation::AdaptiveLayout::NavigationBar),
         FLOATING_MARGIN + tokens::component::navigation_bar::CONTAINER_HEIGHT
     );
     assert_eq!(
-        bottom_margin_for_navigation_layout(navigation::AdaptiveLayout::NavigationRail),
+        bottom_margin(navigation::AdaptiveLayout::NavigationRail),
         FLOATING_MARGIN
     );
 }

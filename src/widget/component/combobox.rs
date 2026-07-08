@@ -18,7 +18,7 @@ use iced_widget::text_input::{self, Icon, TextInput};
 
 use super::menu_overlay;
 use super::{
-    MobileTextInputState, absolute_line_height, draw_text_field_notched,
+    MobileTextInputState, TextInputUpdateContext, absolute_line_height, draw_text_field_notched,
     mobile_text_input_activation, register_mobile_text_region, select, sync_mobile_keyboard,
     text_field_floating_label_notch, update_mobile_text_input,
 };
@@ -754,10 +754,12 @@ where
             event,
             layout,
             activation,
-            renderer,
-            clipboard,
-            &mut local_shell,
-            viewport,
+            TextInputUpdateContext {
+                renderer,
+                clipboard,
+                shell: &mut local_shell,
+                viewport,
+            },
         );
 
         if local_shell.is_event_captured() {

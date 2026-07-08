@@ -351,12 +351,20 @@ fn date_range_month_selection_info_spans_partial_months() {
     );
 }
 
+fn range_bg(info: RangeMonthSelectionInfo, width: f32) -> RangeBackground {
+    RangeBackground { info, width }
+}
+
+fn connector(position: DateRangePosition, weekday: usize) -> RangeConnector {
+    RangeConnector { position, weekday }
+}
+
 #[test]
 fn date_range_background_rects_match_compose_ltr_geometry() {
     let grid_width = tokens::component::date_picker::CALENDAR_CELL_SIZE * 7.0;
 
     assert_eq!(
-        range_background_rects(
+        range_bg(
             RangeMonthSelectionInfo {
                 start_column: 5,
                 start_row: 1,
@@ -366,7 +374,8 @@ fn date_range_background_rects_match_compose_ltr_geometry() {
                 last_is_selection_end: true,
             },
             grid_width,
-        ),
+        )
+        .rects(),
         vec![RangeBackgroundRect {
             x: 264.0,
             y: 52.0,
@@ -376,7 +385,7 @@ fn date_range_background_rects_match_compose_ltr_geometry() {
     );
 
     assert_eq!(
-        range_background_rects(
+        range_bg(
             RangeMonthSelectionInfo {
                 start_column: 5,
                 start_row: 1,
@@ -386,7 +395,8 @@ fn date_range_background_rects_match_compose_ltr_geometry() {
                 last_is_selection_end: true,
             },
             grid_width,
-        ),
+        )
+        .rects(),
         vec![
             RangeBackgroundRect {
                 x: 264.0,
@@ -413,7 +423,7 @@ fn date_range_background_rects_match_compose_ltr_geometry() {
 #[test]
 fn date_range_background_rows_keep_rounded_shape() {
     let grid_width = tokens::component::date_picker::CALENDAR_CELL_SIZE * 7.0;
-    let rects = range_background_rects(
+    let rects = range_bg(
         RangeMonthSelectionInfo {
             start_column: 5,
             start_row: 1,
@@ -423,12 +433,13 @@ fn date_range_background_rows_keep_rounded_shape() {
             last_is_selection_end: true,
         },
         grid_width,
-    );
+    )
+    .rects();
 
     assert!(rects.len() > 1);
     for rect in rects {
         assert_eq!(
-            range_background_corner_radius(rect),
+            rect.corner_radius(),
             tokens::component::date_picker::DATE_CONTAINER_HEIGHT / 2.0
         );
     }
@@ -436,7 +447,7 @@ fn date_range_background_rows_keep_rounded_shape() {
 
 #[test]
 fn date_range_endpoint_connectors_fill_selected_cell_half() {
-    let start = range_endpoint_connector_rect(DateRangePosition::Start, 5);
+    let start = connector(DateRangePosition::Start, 5).rect();
     assert_eq!(
         start,
         Some(RangeBackgroundRect {
@@ -447,15 +458,12 @@ fn date_range_endpoint_connectors_fill_selected_cell_half() {
         })
     );
     assert_eq!(
-        range_background_corner_radius(start.unwrap()),
+        start.unwrap().corner_radius(),
         tokens::component::date_picker::DATE_CONTAINER_HEIGHT / 2.0
     );
-    assert_eq!(
-        range_endpoint_connector_rect(DateRangePosition::Start, 6),
-        None
-    );
+    assert_eq!(connector(DateRangePosition::Start, 6).rect(), None);
 
-    let end = range_endpoint_connector_rect(DateRangePosition::End, 1);
+    let end = connector(DateRangePosition::End, 1).rect();
     assert_eq!(
         end,
         Some(RangeBackgroundRect {
@@ -466,25 +474,16 @@ fn date_range_endpoint_connectors_fill_selected_cell_half() {
         })
     );
     assert_eq!(
-        range_background_corner_radius(end.unwrap()),
+        end.unwrap().corner_radius(),
         tokens::component::date_picker::DATE_CONTAINER_HEIGHT / 2.0
     );
-    assert_eq!(
-        range_endpoint_connector_rect(DateRangePosition::End, 0),
-        None
-    );
-    assert_eq!(
-        range_endpoint_connector_rect(DateRangePosition::Single, 3),
-        None
-    );
-    assert_eq!(
-        range_endpoint_connector_rect(DateRangePosition::Middle, 3),
-        None
-    );
-    assert_eq!(range_endpoint_connector_progress(1.0, 0.0), 0.0);
-    assert_eq!(range_endpoint_connector_progress(1.0, 0.5), 0.0);
-    assert_eq!(range_endpoint_connector_progress(1.0, 1.0), 1.0);
-    assert_eq!(range_endpoint_connector_progress(0.4, 1.0), 0.4);
+    assert_eq!(connector(DateRangePosition::End, 0).rect(), None);
+    assert_eq!(connector(DateRangePosition::Single, 3).rect(), None);
+    assert_eq!(connector(DateRangePosition::Middle, 3).rect(), None);
+    assert_eq!(RangeConnector::reveal_progress(1.0, 0.0), 0.0);
+    assert_eq!(RangeConnector::reveal_progress(1.0, 0.5), 0.0);
+    assert_eq!(RangeConnector::reveal_progress(1.0, 1.0), 1.0);
+    assert_eq!(RangeConnector::reveal_progress(0.4, 1.0), 0.4);
 }
 
 #[test]
@@ -507,9 +506,9 @@ fn date_range_background_rects_reveal_along_range_path() {
         last_is_selection_end: true,
     };
 
-    assert!(range_background_rects_with_progress(single_row, grid_width, 0.0).is_empty());
+    assert!(range_bg(single_row, grid_width).reveal(0.0).is_empty());
     assert_eq!(
-        range_background_rects_with_progress(single_row, grid_width, 0.5),
+        range_bg(single_row, grid_width).reveal(0.5),
         vec![RangeBackgroundRect {
             x: 264.0,
             y: 52.0,
@@ -518,7 +517,7 @@ fn date_range_background_rects_reveal_along_range_path() {
         }]
     );
     assert_eq!(
-        range_background_rects_with_progress(cross_row, grid_width, 0.25),
+        range_bg(cross_row, grid_width).reveal(0.25),
         vec![
             RangeBackgroundRect {
                 x: 264.0,
@@ -593,13 +592,11 @@ fn date_range_input_mode_updates_start_and_end_fields() {
 #[test]
 fn picker_update_helpers_return_year_scroll_tasks() {
     let mut date = DatePickerState::new(Date::new(2026, 7, 4));
-    let _: iced::Task<()> =
-        date.update_and_scroll_to_displayed_year(DatePickerAction::ToggleYearPicker);
+    let _: iced::Task<()> = date.update_and_scroll(DatePickerAction::ToggleYearPicker);
     assert!(date.year_picker_visible());
 
     let mut range = DateRangePickerState::new(Date::new(2026, 7, 4), Date::new(2026, 7, 10));
-    let _: iced::Task<()> =
-        range.update_and_scroll_to_displayed_year(DateRangePickerAction::ToggleYearPicker);
+    let _: iced::Task<()> = range.update_and_scroll(DateRangePickerAction::ToggleYearPicker);
     assert!(range.year_picker_visible());
 }
 

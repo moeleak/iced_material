@@ -413,7 +413,7 @@ where
 }
 
 /// Places an Android-animated single-line snackbar with one action over content.
-pub fn host_single_line_with_action<'a, Message, Renderer>(
+pub fn host<'a, Message, Renderer>(
     content: impl Into<Element<'a, Message, Theme, Renderer>>,
     transition: &Transition,
     now: Instant,

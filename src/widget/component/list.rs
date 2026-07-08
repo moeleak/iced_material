@@ -23,7 +23,7 @@ where
     )
 }
 
-pub fn one_line_with_leading_icon<'a, Message, Renderer>(
+pub fn one_line_icon<'a, Message, Renderer>(
     icon: impl text::IntoFragment<'a>,
     label: impl text::IntoFragment<'a>,
 ) -> Container<'a, Message, Theme, Renderer>

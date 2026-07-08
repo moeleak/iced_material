@@ -451,10 +451,12 @@ where
             event,
             input_layout,
             activation,
-            renderer,
-            clipboard,
-            shell,
-            viewport,
+            TextInputUpdateContext {
+                renderer,
+                clipboard,
+                shell,
+                viewport,
+            },
         );
 
         normalize_windows_ime_request(shell.input_method_mut(), bounds);

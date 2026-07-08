@@ -373,13 +373,13 @@ impl NavigationRailExpansionState {
     pub fn open(&mut self, now: Instant) {
         self.open = true;
         self.progress
-            .set_spring_target(1.0, now, navigation_rail_expansion_spring());
+            .set_spring_target(1.0, now, rail_expansion_spring());
     }
 
     pub fn close(&mut self, now: Instant) {
         self.open = false;
         self.progress
-            .set_spring_target(0.0, now, navigation_rail_expansion_spring());
+            .set_spring_target(0.0, now, rail_expansion_spring());
     }
 
     pub fn toggle(&mut self, now: Instant) {
@@ -397,7 +397,7 @@ impl NavigationRailExpansionState {
     }
 }
 
-fn navigation_rail_expansion_spring() -> tokens::motion::Spring {
+fn rail_expansion_spring() -> tokens::motion::Spring {
     tokens::motion::Spring {
         damping_ratio: 1.0,
         stiffness: tokens::motion::EXPRESSIVE_FAST_SPATIAL.stiffness,
@@ -484,20 +484,8 @@ pub fn item_animation_duration_ms(layout: AdaptiveLayout) -> u16 {
     layout.item_animation_duration_ms()
 }
 
-pub fn navigation_rail_min_height(destination_count: usize, has_header: bool) -> f32 {
-    let header_height = if has_header {
-        navigation_rail_header_slot_height()
-    } else {
-        0.0
-    };
-    let child_count = destination_count + usize::from(has_header);
-    let spacing_count = child_count.saturating_sub(1);
-
-    tokens::component::navigation_rail::CONTENT_TOP_MARGIN
-        + header_height
-        + destination_count as f32 * navigation_rail_item_slot_height()
-        + spacing_count as f32 * tokens::component::navigation_rail::VERTICAL_PADDING
-        + tokens::component::navigation_rail::VERTICAL_PADDING
+pub fn rail_min_height(destination_count: usize, has_header: bool) -> f32 {
+    RailMetrics::min_height(destination_count, has_header)
 }
 
 /// Starts a builder for an adaptive navigation suite.
@@ -577,7 +565,7 @@ impl<'a, Id> Suite<'a, Id> {
         Font: Into<Renderer::Font>,
         F: Fn(Id) -> Message + Clone + 'a,
     {
-        navigation_suite_for_layout(
+        view_for_layout(
             self.layout,
             self.destinations,
             self.state.selection(),
@@ -627,7 +615,7 @@ impl<'a, Id, Message> SuiteWithMenu<'a, Id, Message> {
         Font: Into<Renderer::Font>,
         F: Fn(Id) -> Message + Clone + 'a,
     {
-        navigation_suite_for_layout_with_menu(
+        view_menu_for_layout(
             self.headline,
             self.suite.layout,
             self.suite.destinations,
@@ -639,7 +627,7 @@ impl<'a, Id, Message> SuiteWithMenu<'a, Id, Message> {
     }
 }
 
-pub fn navigation_suite<'a, Id, Message, Renderer, F>(
+pub fn view<'a, Id, Message, Renderer, F>(
     width: f32,
     height: f32,
     destinations: &'a [Destination<Id>],
@@ -654,7 +642,7 @@ where
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
-    navigation_suite_for_layout(
+    view_for_layout(
         adaptive_layout(width, height),
         destinations,
         selection,
@@ -663,7 +651,7 @@ where
     )
 }
 
-pub fn navigation_suite_for_layout<'a, Id, Message, Renderer, F>(
+pub fn view_for_layout<'a, Id, Message, Renderer, F>(
     layout: AdaptiveLayout,
     destinations: &'a [Destination<Id>],
     selection: Selection<Id>,
@@ -684,18 +672,18 @@ where
             .width(Length::Fill)
             .height(Length::Fill)
             .push(content)
-            .push(navigation_bar(destinations, selection, on_select))
+            .push(bar(destinations, selection, on_select))
             .into(),
         AdaptiveLayout::NavigationRail => Row::new()
             .width(Length::Fill)
             .height(Length::Fill)
-            .push(navigation_rail(destinations, selection, on_select))
+            .push(rail(destinations, selection, on_select))
             .push(content)
             .into(),
     }
 }
 
-pub fn navigation_suite_with_menu<'a, Id, Message, Renderer, F>(
+pub fn view_with_menu<'a, Id, Message, Renderer, F>(
     headline: &'static str,
     window_size: Size,
     destinations: &'a [Destination<Id>],
@@ -711,7 +699,7 @@ where
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
-    navigation_suite_for_layout_with_menu(
+    view_menu_for_layout(
         headline,
         adaptive_layout(window_size.width, window_size.height),
         destinations,
@@ -722,7 +710,7 @@ where
     )
 }
 
-pub fn navigation_suite_for_layout_with_menu<'a, Id, Message, Renderer, F>(
+fn view_menu_for_layout<'a, Id, Message, Renderer, F>(
     headline: &'static str,
     layout: AdaptiveLayout,
     destinations: &'a [Destination<Id>],
@@ -747,22 +735,22 @@ where
             .width(Length::Fill)
             .height(Length::Fill)
             .push(content)
-            .push(navigation_bar(destinations, selection, on_select))
+            .push(bar(destinations, selection, on_select))
             .into(),
         AdaptiveLayout::NavigationRail => Row::new()
             .width(Length::Fill)
             .height(Length::Fill)
             .push(if state.is_menu_visible() {
-                navigation_rail_expanded_with_menu_at_width(
+                expanded_rail_with(
                     headline,
                     destinations,
                     selection,
                     on_select,
                     on_menu,
-                    navigation_rail_expanded_width_for_progress(menu_progress),
+                    ExpandedRailOptions::default().width(expanded_rail_width(menu_progress)),
                 )
             } else {
-                navigation_rail_with_menu_at_progress(
+                rail_with_menu_at_progress(
                     destinations,
                     selection,
                     on_select,
@@ -775,7 +763,7 @@ where
     }
 }
 
-pub fn navigation_bar<'a, Id, Message, Renderer, F>(
+pub fn bar<'a, Id, Message, Renderer, F>(
     destinations: &'a [Destination<Id>],
     selection: Selection<Id>,
     on_select: F,
@@ -816,10 +804,64 @@ where
             bottom: 0.0,
             left: tokens::component::navigation_bar::ITEM_HORIZONTAL_PADDING,
         })
-        .style(navigation_bar_container)
+        .style(bar_container)
 }
 
-pub fn navigation_rail<'a, Id, Message, Renderer, F>(
+pub struct NavigationRailOptions<'a, Message, Renderer> {
+    header: Option<Element<'a, Message, Theme, Renderer>>,
+    fit_content: bool,
+}
+
+impl<Message, Renderer> std::fmt::Debug for NavigationRailOptions<'_, Message, Renderer> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NavigationRailOptions")
+            .field("has_header", &self.header.is_some())
+            .field("fit_content", &self.fit_content)
+            .finish()
+    }
+}
+
+impl<'a, Message, Renderer> Default for NavigationRailOptions<'a, Message, Renderer> {
+    fn default() -> Self {
+        Self {
+            header: None,
+            fit_content: false,
+        }
+    }
+}
+
+impl<'a, Message, Renderer> NavigationRailOptions<'a, Message, Renderer> {
+    pub fn fit_content(mut self) -> Self {
+        self.fit_content = true;
+        self
+    }
+
+    pub fn header(mut self, header: impl Into<Element<'a, Message, Theme, Renderer>>) -> Self {
+        self.header = Some(header.into());
+        self
+    }
+
+    pub fn menu(self, on_menu: Message) -> Self
+    where
+        Message: Clone + 'a,
+        Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
+        Font: Into<Renderer::Font>,
+    {
+        self.menu_progress(on_menu, 0.0)
+    }
+
+    fn menu_progress(mut self, on_menu: Message, progress: f32) -> Self
+    where
+        Message: Clone + 'a,
+        Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
+        Font: Into<Renderer::Font>,
+    {
+        self.header = Some(navigation_menu_button(on_menu, progress).into());
+        self
+    }
+}
+
+pub fn rail<'a, Id, Message, Renderer, F>(
     destinations: &'a [Destination<Id>],
     selection: Selection<Id>,
     on_select: F,
@@ -831,13 +873,19 @@ where
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
-    navigation_rail_with_optional_header(destinations, selection, on_select, None)
+    rail_with(
+        destinations,
+        selection,
+        on_select,
+        NavigationRailOptions::default(),
+    )
 }
 
-pub fn navigation_rail_fitting_content<'a, Id, Message, Renderer, F>(
+pub fn rail_with<'a, Id, Message, Renderer, F>(
     destinations: &'a [Destination<Id>],
     selection: Selection<Id>,
     on_select: F,
+    options: NavigationRailOptions<'a, Message, Renderer>,
 ) -> Container<'a, Message, Theme, Renderer>
 where
     Id: Copy + Eq + 'a,
@@ -846,12 +894,20 @@ where
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
-    navigation_rail(destinations, selection, on_select).height(Length::Fixed(
-        navigation_rail_min_height(destinations.len(), false),
-    ))
+    let has_header = options.header.is_some();
+    let rail = rail_with_optional_header(destinations, selection, on_select, options.header);
+
+    if options.fit_content {
+        rail.height(Length::Fixed(rail_min_height(
+            destinations.len(),
+            has_header,
+        )))
+    } else {
+        rail
+    }
 }
 
-pub fn navigation_rail_with_header<'a, Id, Message, Renderer, F>(
+pub fn rail_with_header<'a, Id, Message, Renderer, F>(
     destinations: &'a [Destination<Id>],
     selection: Selection<Id>,
     on_select: F,
@@ -864,28 +920,15 @@ where
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
-    navigation_rail_with_optional_header(destinations, selection, on_select, Some(header.into()))
+    rail_with(
+        destinations,
+        selection,
+        on_select,
+        NavigationRailOptions::default().header(header),
+    )
 }
 
-pub fn navigation_rail_with_header_fitting_content<'a, Id, Message, Renderer, F>(
-    destinations: &'a [Destination<Id>],
-    selection: Selection<Id>,
-    on_select: F,
-    header: impl Into<Element<'a, Message, Theme, Renderer>>,
-) -> Container<'a, Message, Theme, Renderer>
-where
-    Id: Copy + Eq + 'a,
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
-    Font: Into<Renderer::Font>,
-    F: Fn(Id) -> Message + Clone + 'a,
-{
-    navigation_rail_with_header(destinations, selection, on_select, header).height(Length::Fixed(
-        navigation_rail_min_height(destinations.len(), true),
-    ))
-}
-
-pub fn navigation_rail_with_menu<'a, Id, Message, Renderer, F>(
+pub fn rail_with_menu<'a, Id, Message, Renderer, F>(
     destinations: &'a [Destination<Id>],
     selection: Selection<Id>,
     on_select: F,
@@ -898,15 +941,15 @@ where
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
-    navigation_rail_with_header(
+    rail_with(
         destinations,
         selection,
         on_select,
-        navigation_menu_button(on_menu, 0.0),
+        NavigationRailOptions::default().menu(on_menu),
     )
 }
 
-fn navigation_rail_with_menu_at_progress<'a, Id, Message, Renderer, F>(
+fn rail_with_menu_at_progress<'a, Id, Message, Renderer, F>(
     destinations: &'a [Destination<Id>],
     selection: Selection<Id>,
     on_select: F,
@@ -920,33 +963,15 @@ where
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
-    navigation_rail_with_header(
+    rail_with(
         destinations,
         selection,
         on_select,
-        navigation_menu_button(on_menu, menu_progress),
+        NavigationRailOptions::default().menu_progress(on_menu, menu_progress),
     )
 }
 
-pub fn navigation_rail_with_menu_fitting_content<'a, Id, Message, Renderer, F>(
-    destinations: &'a [Destination<Id>],
-    selection: Selection<Id>,
-    on_select: F,
-    on_menu: Message,
-) -> Container<'a, Message, Theme, Renderer>
-where
-    Id: Copy + Eq + 'a,
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
-    Font: Into<Renderer::Font>,
-    F: Fn(Id) -> Message + Clone + 'a,
-{
-    navigation_rail_with_menu(destinations, selection, on_select, on_menu).height(Length::Fixed(
-        navigation_rail_min_height(destinations.len(), true),
-    ))
-}
-
-pub fn navigation_rail_expanded_with_menu<'a, Id, Message, Renderer, F>(
+pub fn expanded_rail<'a, Id, Message, Renderer, F>(
     headline: &'static str,
     destinations: &'a [Destination<Id>],
     selection: Selection<Id>,
@@ -960,44 +985,50 @@ where
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
-    navigation_rail_expanded_with_menu_at_width(
+    expanded_rail_with(
         headline,
         destinations,
         selection,
         on_select,
         on_menu,
-        tokens::component::navigation_rail::EXPANDED_CONTAINER_WIDTH,
+        ExpandedRailOptions::default(),
     )
 }
 
-pub fn navigation_rail_expanded_with_menu_fitting_content<'a, Id, Message, Renderer, F>(
-    headline: &'static str,
-    destinations: &'a [Destination<Id>],
-    selection: Selection<Id>,
-    on_select: F,
-    on_menu: Message,
-) -> Container<'a, Message, Theme, Renderer>
-where
-    Id: Copy + Eq + 'a,
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
-    Font: Into<Renderer::Font>,
-    F: Fn(Id) -> Message + Clone + 'a,
-{
-    navigation_rail_expanded_with_menu(headline, destinations, selection, on_select, on_menu)
-        .height(Length::Fixed(navigation_rail_min_height(
-            destinations.len(),
-            true,
-        )))
+#[derive(Debug, Clone, Copy)]
+pub struct ExpandedRailOptions {
+    width: f32,
+    fit_content: bool,
 }
 
-pub fn navigation_rail_expanded_with_menu_at_width<'a, Id, Message, Renderer, F>(
+impl Default for ExpandedRailOptions {
+    fn default() -> Self {
+        Self {
+            width: tokens::component::navigation_rail::EXPANDED_CONTAINER_WIDTH,
+            fit_content: false,
+        }
+    }
+}
+
+impl ExpandedRailOptions {
+    pub fn width(mut self, width: f32) -> Self {
+        self.width = width;
+        self
+    }
+
+    pub fn fit_content(mut self) -> Self {
+        self.fit_content = true;
+        self
+    }
+}
+
+pub fn expanded_rail_with<'a, Id, Message, Renderer, F>(
     headline: &'static str,
     destinations: &'a [Destination<Id>],
     selection: Selection<Id>,
     on_select: F,
     on_menu: Message,
-    width: f32,
+    options: ExpandedRailOptions,
 ) -> Container<'a, Message, Theme, Renderer>
 where
     Id: Copy + Eq + 'a,
@@ -1006,35 +1037,25 @@ where
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
-    let width = navigation_rail_expanded_container_width(width);
-    let indicator_width = navigation_rail_expanded_indicator_width(width);
-    let expansion_progress = navigation_rail_expanded_progress_for_width(width);
-    let label_alpha = navigation_rail_expanded_label_alpha_for_width(width);
+    let metrics = ExpandedRailMetrics::new(options.width);
     let mut items = Column::new()
-        .width(Length::Fixed(width))
+        .width(Length::Fixed(metrics.width()))
         .height(Length::Fill)
         .spacing(tokens::component::navigation_rail::VERTICAL_PADDING)
         .align_x(alignment::Horizontal::Center)
-        .push(navigation_rail_expanded_header(
-            headline,
-            on_menu,
-            expansion_progress,
-            label_alpha,
-        ));
+        .push(expanded_rail_header(headline, on_menu, metrics));
 
     for destination in destinations {
-        items = items.push(navigation_rail_expanded_item(
+        items = items.push(expanded_rail_item(
             *destination,
             selection,
             on_select.clone(),
-            indicator_width,
-            expansion_progress,
-            label_alpha,
+            metrics,
         ));
     }
 
-    Container::new(items)
-        .width(Length::Fixed(width))
+    let rail = Container::new(items)
+        .width(Length::Fixed(metrics.width()))
         .height(Length::Fill)
         .padding(Padding {
             top: tokens::component::navigation_rail::CONTENT_TOP_MARGIN,
@@ -1042,10 +1063,16 @@ where
             bottom: tokens::component::navigation_rail::VERTICAL_PADDING,
             left: 0.0,
         })
-        .style(navigation_rail_container)
+        .style(rail_container);
+
+    if options.fit_content {
+        rail.height(Length::Fixed(rail_min_height(destinations.len(), true)))
+    } else {
+        rail
+    }
 }
 
-fn navigation_rail_with_optional_header<'a, Id, Message, Renderer, F>(
+fn rail_with_optional_header<'a, Id, Message, Renderer, F>(
     destinations: &'a [Destination<Id>],
     selection: Selection<Id>,
     on_select: F,
@@ -1067,7 +1094,7 @@ where
         .align_x(alignment::Horizontal::Center);
 
     if let Some(header) = header {
-        items = items.push(navigation_rail_header(header));
+        items = items.push(rail_header(header));
     }
 
     for destination in destinations {
@@ -1089,10 +1116,10 @@ where
             bottom: tokens::component::navigation_rail::VERTICAL_PADDING,
             left: 0.0,
         })
-        .style(navigation_rail_container)
+        .style(rail_container)
 }
 
-pub fn navigation_drawer<'a, Id, Message, Renderer, F>(
+pub fn drawer<'a, Id, Message, Renderer, F>(
     headline: &'static str,
     destinations: &'a [Destination<Id>],
     selection: Selection<Id>,
@@ -1105,21 +1132,41 @@ where
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
-    navigation_drawer_at_width(
+    drawer_with(
         headline,
         destinations,
         selection,
         on_select,
-        tokens::component::navigation_drawer::CONTAINER_WIDTH,
+        NavigationDrawerOptions::default(),
     )
 }
 
-pub fn navigation_drawer_at_width<'a, Id, Message, Renderer, F>(
+#[derive(Debug, Clone, Copy)]
+pub struct NavigationDrawerOptions {
+    width: f32,
+}
+
+impl Default for NavigationDrawerOptions {
+    fn default() -> Self {
+        Self {
+            width: tokens::component::navigation_drawer::CONTAINER_WIDTH,
+        }
+    }
+}
+
+impl NavigationDrawerOptions {
+    pub fn width(mut self, width: f32) -> Self {
+        self.width = width;
+        self
+    }
+}
+
+pub fn drawer_with<'a, Id, Message, Renderer, F>(
     headline: &'static str,
     destinations: &'a [Destination<Id>],
     selection: Selection<Id>,
     on_select: F,
-    width: f32,
+    options: NavigationDrawerOptions,
 ) -> Container<'a, Message, Theme, Renderer>
 where
     Id: Copy + Eq + 'a,
@@ -1128,17 +1175,17 @@ where
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
-    navigation_drawer_with_optional_header(
+    drawer_with_optional_header(
         headline,
         destinations,
         selection,
         on_select,
-        width,
+        options.width,
         None,
     )
 }
 
-pub fn navigation_drawer_with_menu<'a, Id, Message, Renderer, F>(
+pub fn drawer_menu<'a, Id, Message, Renderer, F>(
     headline: &'static str,
     destinations: &'a [Destination<Id>],
     selection: Selection<Id>,
@@ -1152,23 +1199,23 @@ where
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
-    navigation_drawer_with_menu_at_width(
+    drawer_menu_with(
         headline,
         destinations,
         selection,
         on_select,
         on_menu,
-        tokens::component::navigation_drawer::CONTAINER_WIDTH,
+        NavigationDrawerOptions::default(),
     )
 }
 
-pub fn navigation_drawer_with_menu_at_width<'a, Id, Message, Renderer, F>(
+pub fn drawer_menu_with<'a, Id, Message, Renderer, F>(
     headline: &'static str,
     destinations: &'a [Destination<Id>],
     selection: Selection<Id>,
     on_select: F,
     on_menu: Message,
-    width: f32,
+    options: NavigationDrawerOptions,
 ) -> Container<'a, Message, Theme, Renderer>
 where
     Id: Copy + Eq + 'a,
@@ -1177,17 +1224,17 @@ where
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
-    navigation_drawer_with_optional_header(
+    drawer_with_optional_header(
         headline,
         destinations,
         selection,
         on_select,
-        width,
-        Some(navigation_drawer_menu_header(headline, on_menu).into()),
+        options.width,
+        Some(drawer_menu_header(headline, on_menu).into()),
     )
 }
 
-fn navigation_drawer_with_optional_header<'a, Id, Message, Renderer, F>(
+fn drawer_with_optional_header<'a, Id, Message, Renderer, F>(
     headline: &'static str,
     destinations: &'a [Destination<Id>],
     selection: Selection<Id>,
@@ -1202,11 +1249,10 @@ where
     Font: Into<Renderer::Font>,
     F: Fn(Id) -> Message + Clone + 'a,
 {
-    let container_width = navigation_drawer_container_width(width);
-    let indicator_width = navigation_drawer_indicator_width(container_width);
+    let metrics = DrawerMetrics::new(width);
     let headline_scale = tokens::component::navigation_drawer::HEADLINE_TEXT;
     let mut items = Column::new()
-        .width(Length::Fixed(container_width))
+        .width(Length::Fixed(metrics.width()))
         .height(Length::Fill)
         .spacing(0);
 
@@ -1231,16 +1277,16 @@ where
     }
 
     for destination in destinations {
-        items = items.push(navigation_drawer_item(
+        items = items.push(drawer_item(
             *destination,
             selection,
             on_select.clone(),
-            indicator_width,
+            metrics.indicator_width(),
         ));
     }
 
     Container::new(items)
-        .width(Length::Fixed(container_width))
+        .width(Length::Fixed(metrics.width()))
         .height(Length::Fill)
         .padding(Padding {
             top: tokens::component::navigation_drawer::ITEM_HORIZONTAL_PADDING,
@@ -1248,10 +1294,10 @@ where
             bottom: tokens::component::navigation_drawer::ITEM_HORIZONTAL_PADDING,
             left: tokens::component::navigation_drawer::ITEM_HORIZONTAL_PADDING,
         })
-        .style(navigation_drawer_container)
+        .style(drawer_container)
 }
 
-pub fn navigation_drawer_width_for_progress(progress: f32) -> f32 {
+pub fn drawer_width(progress: f32) -> f32 {
     let progress = progress.clamp(0.0, 1.0);
 
     if progress <= f32::EPSILON {
@@ -1303,7 +1349,7 @@ where
         .push(indicator)
         .push(label);
 
-    navigation_press_surface(
+    press_surface(
         Container::new(content)
             .width(Length::Fill)
             .height(Length::Fixed(
@@ -1312,7 +1358,7 @@ where
             .padding(Padding {
                 top: tokens::component::navigation_bar::INDICATOR_VERTICAL_OFFSET,
                 right: 0.0,
-                bottom: navigation_bar_item_bottom_padding(),
+                bottom: BarMetrics::item_bottom_padding(),
                 left: 0.0,
             })
             .align_y(alignment::Vertical::Center),
@@ -1367,7 +1413,7 @@ where
         .push(indicator)
         .push(label);
 
-    navigation_press_surface(
+    press_surface(
         Container::new(content)
             .width(Length::Fixed(
                 tokens::component::navigation_rail::ITEM_WIDTH,
@@ -1376,7 +1422,7 @@ where
                 tokens::component::navigation_rail::ITEM_HEIGHT,
             ))
             .padding(Padding {
-                top: navigation_rail_item_content_top_padding(),
+                top: RailMetrics::item_content_top_padding(),
                 right: 0.0,
                 bottom: 0.0,
                 left: 0.0,
@@ -1384,7 +1430,7 @@ where
         message,
         NavigationStateLayer::BarOrRail,
         NavigationIndicatorPlacement::TopCenter {
-            top: navigation_rail_item_content_top_padding(),
+            top: RailMetrics::item_content_top_padding(),
             width: tokens::component::navigation_rail::ACTIVE_INDICATOR_WIDTH,
             height: tokens::component::navigation_rail::ACTIVE_INDICATOR_HEIGHT,
         },
@@ -1392,7 +1438,7 @@ where
     .into()
 }
 
-fn navigation_rail_header<'a, Message, Renderer>(
+fn rail_header<'a, Message, Renderer>(
     header: Element<'a, Message, Theme, Renderer>,
 ) -> Container<'a, Message, Theme, Renderer>
 where
@@ -1406,7 +1452,7 @@ where
         .padding(Padding {
             top: 0.0,
             right: 0.0,
-            bottom: navigation_rail_header_bottom_padding(),
+            bottom: RailMetrics::header_bottom_padding(),
             left: 0.0,
         })
         .align_x(alignment::Horizontal::Center)
@@ -1474,13 +1520,13 @@ where
         let offset = Vector::new((bounds.width - size) / 2.0, (bounds.height - size) / 2.0);
         let center = Point::new(bounds.width / 2.0, bounds.height / 2.0);
         let stroke = Stroke::default()
-            .with_width(navigation_menu_icon_stroke_width(size))
+            .with_width(NavigationMenuIcon::stroke_width(size))
             .with_color(theme.colors().surface.text_variant)
             .with_line_cap(LineCap::Round);
 
         frame.with_save(|frame| {
             frame.translate(Vector::new(center.x, center.y));
-            frame.rotate(navigation_menu_icon_rotation_radians(self.progress));
+            frame.rotate(self.rotation_radians());
             frame.translate(Vector::new(-center.x, -center.y));
 
             for (from, to) in navigation_menu_icon_segments(self.progress, size) {
@@ -1498,8 +1544,14 @@ where
     }
 }
 
-fn navigation_menu_icon_rotation_radians(progress: f32) -> f32 {
-    PI * progress.clamp(0.0, 1.0)
+impl NavigationMenuIcon {
+    fn rotation_radians(self) -> f32 {
+        PI * self.progress.clamp(0.0, 1.0)
+    }
+
+    fn stroke_width(size: f32) -> f32 {
+        NAVIGATION_MENU_ICON_STROKE_WIDTH / NAVIGATION_MENU_ICON_VIEWPORT_SIZE * size
+    }
 }
 
 fn navigation_menu_icon_segments(progress: f32, size: f32) -> [(Point, Point); 3] {
@@ -1576,15 +1628,10 @@ fn navigation_menu_icon_point(x: f32, y: f32, size: f32) -> Point {
     )
 }
 
-fn navigation_menu_icon_stroke_width(size: f32) -> f32 {
-    NAVIGATION_MENU_ICON_STROKE_WIDTH / NAVIGATION_MENU_ICON_VIEWPORT_SIZE * size
-}
-
-fn navigation_rail_expanded_header<'a, Message, Renderer>(
+fn expanded_rail_header<'a, Message, Renderer>(
     headline: &'static str,
     on_menu: Message,
-    menu_progress: f32,
-    label_alpha: f32,
+    metrics: ExpandedRailMetrics,
 ) -> Container<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
@@ -1595,37 +1642,35 @@ where
     let headline = type_text(headline, headline_scale).style(move |theme| text::Style {
         color: Some(alpha_color(
             theme.colors().surface.text_variant,
-            label_alpha,
+            metrics.label_alpha(),
         )),
     });
     let content = Row::new()
         .height(Length::Fixed(
             tokens::component::icon_button::CONTAINER_HEIGHT,
         ))
-        .spacing(navigation_rail_expanded_header_title_spacing())
+        .spacing(metrics.header_title_spacing())
         .align_y(alignment::Vertical::Center)
-        .push(navigation_menu_button(on_menu, menu_progress))
+        .push(navigation_menu_button(on_menu, metrics.progress()))
         .push(headline);
 
     Container::new(content)
-        .height(Length::Fixed(navigation_rail_header_slot_height()))
+        .height(Length::Fixed(RailMetrics::header_slot_height()))
         .width(Length::Fill)
         .padding(Padding {
             top: 0.0,
             right: tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_MARGIN_HORIZONTAL,
-            bottom: navigation_rail_header_bottom_padding(),
-            left: navigation_rail_expanded_header_leading_space(),
+            bottom: RailMetrics::header_bottom_padding(),
+            left: metrics.header_leading_space(),
         })
         .align_y(alignment::Vertical::Center)
 }
 
-fn navigation_rail_expanded_item<'a, Id, Message, Renderer, F>(
+fn expanded_rail_item<'a, Id, Message, Renderer, F>(
     destination: Destination<Id>,
     selection: Selection<Id>,
     on_select: F,
-    indicator_width: f32,
-    expansion_progress: f32,
-    label_alpha: f32,
+    metrics: ExpandedRailMetrics,
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Id: Copy + Eq + 'a,
@@ -1636,16 +1681,15 @@ where
 {
     let size_progress = selection.size_progress(destination.id);
     let alpha_progress = selection.alpha_progress(destination.id);
-    let indicator_height =
-        navigation_rail_expanded_indicator_height_for_progress(expansion_progress);
-    let vertical_inset =
-        navigation_rail_expanded_item_vertical_inset_for_progress(expansion_progress);
+    let indicator_width = metrics.indicator_width();
+    let indicator_height = metrics.indicator_height();
+    let vertical_inset = metrics.item_vertical_inset();
     let scale = tokens::component::navigation_drawer::LABEL_TEXT;
     let message = on_select(destination.id);
-    let badge_on_icon = navigation_rail_expanded_badge_uses_icon_anchor(label_alpha);
-    let trailing_badge_alpha = navigation_rail_expanded_trailing_badge_alpha(label_alpha);
-    let collapsed_label_alpha = navigation_rail_expanded_collapsed_label_alpha(label_alpha);
-    let icon = navigation_rail_expanded_icon_layer(
+    let badge_on_icon = metrics.badge_uses_icon_anchor();
+    let trailing_badge_alpha = metrics.trailing_badge_alpha();
+    let collapsed_label_alpha = metrics.collapsed_label_alpha();
+    let icon = expanded_rail_icon_layer(
         destination.icon,
         alpha_progress,
         indicator_height,
@@ -1654,7 +1698,7 @@ where
     let label = type_text(destination.label, scale).style(move |theme| text::Style {
         color: Some(alpha_color(
             drawer_content_color(theme, alpha_progress),
-            label_alpha,
+            metrics.label_alpha(),
         )),
     });
     let content = Row::new()
@@ -1664,7 +1708,7 @@ where
         .push(Container::new(label).width(Length::Fill));
     let content = if let Some(badge) = destination.badge.filter(|_| !badge_on_icon) {
         content
-            .push(Space::new().width(Length::Fixed(navigation_drawer_badge_space())))
+            .push(Space::new().width(Length::Fixed(DrawerMetrics::badge_space())))
             .push(destination_badge_with_alpha::<Message, Renderer>(
                 badge,
                 trailing_badge_alpha,
@@ -1679,7 +1723,7 @@ where
             top: 0.0,
             right: tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_PADDING_END,
             bottom: 0.0,
-            left: navigation_rail_expanded_label_leading_padding(),
+            left: metrics.label_leading_padding(),
         })
         .align_y(alignment::Vertical::Center);
     let expanded_indicator = Stack::new()
@@ -1698,20 +1742,20 @@ where
         ))
         .push(content)
         .push(icon);
-    let collapsed_label = navigation_rail_expanded_collapsed_label::<Message, Renderer>(
+    let collapsed_label = collapsed_rail_label::<Message, Renderer>(
         destination.label,
         alpha_progress,
         collapsed_label_alpha,
     )
-    .width(Length::Fixed(navigation_rail_collapsed_label_width()))
-    .height(Length::Fixed(navigation_rail_item_slot_height()));
+    .width(Length::Fixed(RailMetrics::collapsed_label_width()))
+    .height(Length::Fixed(RailMetrics::item_slot_height()));
     let item = Stack::new()
         .width(Length::Fixed(indicator_width))
-        .height(Length::Fixed(navigation_rail_item_slot_height()))
+        .height(Length::Fixed(RailMetrics::item_slot_height()))
         .push(
             Container::new(expanded_indicator)
                 .width(Length::Fixed(indicator_width))
-                .height(Length::Fixed(navigation_rail_item_slot_height()))
+                .height(Length::Fixed(RailMetrics::item_slot_height()))
                 .padding(Padding {
                     top: vertical_inset,
                     right: 0.0,
@@ -1722,10 +1766,10 @@ where
         )
         .push(collapsed_label);
 
-    navigation_press_surface(
+    press_surface(
         Container::new(item)
             .width(Length::Fixed(indicator_width))
-            .height(Length::Fixed(navigation_rail_item_slot_height())),
+            .height(Length::Fixed(RailMetrics::item_slot_height())),
         message,
         NavigationStateLayer::Drawer {
             progress: alpha_progress,
@@ -1740,7 +1784,7 @@ where
     .into()
 }
 
-fn navigation_drawer_menu_header<'a, Message, Renderer>(
+fn drawer_menu_header<'a, Message, Renderer>(
     headline: &'static str,
     on_menu: Message,
 ) -> Container<'a, Message, Theme, Renderer>
@@ -1754,7 +1798,7 @@ where
         .height(Length::Fixed(
             tokens::component::navigation_drawer::ACTIVE_INDICATOR_HEIGHT,
         ))
-        .spacing(navigation_drawer_menu_header_title_spacing())
+        .spacing(DrawerMetrics::menu_header_title_spacing())
         .align_y(alignment::Vertical::Center)
         .push(navigation_menu_button(on_menu, 0.0))
         .push(type_text(headline, headline_scale).style(headline_text_style));
@@ -1768,12 +1812,12 @@ where
             right: tokens::component::navigation_drawer::ITEM_HORIZONTAL_PADDING
                 + tokens::component::navigation_drawer::ITEM_CONTENT_TRAILING_SPACE,
             bottom: 0.0,
-            left: navigation_drawer_menu_header_leading_space(),
+            left: DrawerMetrics::menu_header_leading_space(),
         })
         .align_y(alignment::Vertical::Center)
 }
 
-fn navigation_drawer_item<'a, Id, Message, Renderer, F>(
+fn drawer_item<'a, Id, Message, Renderer, F>(
     destination: Destination<Id>,
     selection: Selection<Id>,
     on_select: F,
@@ -1810,7 +1854,7 @@ where
         .push(Container::new(label).width(Length::Fill));
     let content = if let Some(badge) = destination.badge {
         content
-            .push(Space::new().width(Length::Fixed(navigation_drawer_badge_space())))
+            .push(Space::new().width(Length::Fixed(DrawerMetrics::badge_space())))
             .push(destination_badge::<Message, Renderer>(badge))
     } else {
         content
@@ -1847,7 +1891,7 @@ where
         ))
         .push(content);
 
-    navigation_press_surface(
+    press_surface(
         indicator,
         message,
         NavigationStateLayer::Drawer {
@@ -1907,7 +1951,7 @@ where
         )
 }
 
-fn navigation_press_surface<'a, Message, Renderer>(
+fn press_surface<'a, Message, Renderer>(
     content: impl Into<Element<'a, Message, Theme, Renderer>>,
     on_press: Message,
     layer: NavigationStateLayer,
@@ -2048,10 +2092,7 @@ impl NavigationPressSurfaceState {
 
     fn snap_to_interaction_target(&mut self) {
         self.state_layer_opacity
-            .snap_to(navigation_interaction_state_layer_target(
-                self.is_hovered,
-                self.is_pressed,
-            ));
+            .snap_to(NavigationLayer::target(self.is_hovered, self.is_pressed));
     }
 
     fn cancel(&mut self, now: Instant) {
@@ -2071,12 +2112,12 @@ impl NavigationPressSurfaceState {
     }
 
     fn opacity(&self) -> f32 {
-        navigation_surface_state_layer_opacity_from_interaction(self.state_layer_opacity.value)
+        NavigationLayer::opacity(self.state_layer_opacity.value)
     }
 
     fn animate_to_interaction_target(&mut self, now: Instant) {
         self.state_layer_opacity.set_target(
-            navigation_interaction_state_layer_target(self.is_hovered, self.is_pressed),
+            NavigationLayer::target(self.is_hovered, self.is_pressed),
             now,
             duration_ms(tokens::motion::DURATION_SHORT2_MS),
             tokens::motion::EASING_STANDARD,
@@ -2182,10 +2223,15 @@ where
         };
         let is_touch_event = matches!(event, Event::Touch(_));
         let is_hovered = !is_touch_event && cursor.is_over(layout.bounds());
-        let should_snap_initial_redraw_hover =
-            navigation_should_snap_initial_redraw_hover(event, state, is_hovered);
+        let interaction = NavigationInteraction {
+            event,
+            cursor,
+            is_hovered,
+        };
+        let pointer = NavigationPointer { event, cursor };
+        let should_snap_initial_redraw_hover = interaction.should_snap_initial_redraw(state);
 
-        if navigation_should_sync_hover(event, cursor)
+        if interaction.should_sync_hover()
             && state.sync_hover(is_hovered, now.unwrap_or_else(Instant::now))
         {
             if should_snap_initial_redraw_hover {
@@ -2198,11 +2244,11 @@ where
         match event {
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
             | Event::Touch(touch::Event::FingerPressed { .. })
-                if navigation_event_is_over(event, layout.bounds(), cursor) =>
+                if pointer.is_over(layout.bounds()) =>
             {
                 let indicator_bounds = self.indicator.bounds(layout.bounds());
 
-                if let Some(origin) = navigation_press_origin(event, indicator_bounds, cursor) {
+                if let Some(origin) = pointer.press_origin(indicator_bounds) {
                     state.press(origin, now.unwrap_or_else(Instant::now));
                     shell.request_redraw();
                     shell.capture_event();
@@ -2212,7 +2258,7 @@ where
             | Event::Touch(touch::Event::FingerLifted { .. })
                 if state.is_pressed =>
             {
-                let is_released_over = navigation_event_is_over(event, layout.bounds(), cursor);
+                let is_released_over = pointer.is_over(layout.bounds());
                 let is_touch_release = matches!(event, Event::Touch(_));
 
                 if is_touch_release {
@@ -2294,8 +2340,13 @@ where
         let state = tree.state.downcast_ref::<NavigationPressSurfaceState>();
         let indicator_bounds = self.indicator.bounds(layout.bounds());
         let now = state.now.unwrap_or_else(Instant::now);
-        let opacity = navigation_press_surface_opacity_for_draw(state, cursor, layout.bounds());
-        let layer_color = navigation_state_layer_color(theme, self.layer);
+        let opacity = NavigationDrawState {
+            state,
+            cursor,
+            bounds: layout.bounds(),
+        }
+        .opacity();
+        let layer_color = layer_color(theme, self.layer);
 
         if opacity > 0.0 {
             renderer.fill_quad(
@@ -2348,96 +2399,103 @@ where
     }
 }
 
-#[cfg(test)]
-fn navigation_surface_state_layer_opacity(is_hovered: bool, is_pressed: bool) -> f32 {
-    navigation_surface_state_layer_opacity_from_interaction(
-        navigation_interaction_state_layer_target(is_hovered, is_pressed),
-    )
-}
+struct NavigationLayer;
 
-fn navigation_interaction_state_layer_target(is_hovered: bool, _is_pressed: bool) -> f32 {
-    if is_hovered {
-        HOVERED_LAYER_OPACITY
-    } else {
-        0.0
-    }
-}
-
-fn navigation_should_sync_hover(event: &Event, cursor: mouse::Cursor) -> bool {
-    match event {
-        Event::Window(window::Event::RedrawRequested(_)) => {
-            !matches!(cursor, mouse::Cursor::Unavailable)
+impl NavigationLayer {
+    fn target(is_hovered: bool, _is_pressed: bool) -> f32 {
+        if is_hovered {
+            HOVERED_LAYER_OPACITY
+        } else {
+            0.0
         }
-        Event::Mouse(_) | Event::Touch(_) => true,
-        _ => false,
+    }
+
+    fn opacity(interaction_opacity: f32) -> f32 {
+        interaction_opacity
     }
 }
 
-fn navigation_should_snap_initial_redraw_hover(
-    event: &Event,
-    state: &NavigationPressSurfaceState,
+#[derive(Debug, Clone, Copy)]
+struct NavigationInteraction<'a> {
+    event: &'a Event,
+    cursor: mouse::Cursor,
     is_hovered: bool,
-) -> bool {
-    matches!(event, Event::Window(window::Event::RedrawRequested(_)))
-        && state.now.is_none()
-        && is_hovered
 }
 
-fn navigation_press_surface_opacity_for_draw(
-    state: &NavigationPressSurfaceState,
+impl NavigationInteraction<'_> {
+    fn should_sync_hover(self) -> bool {
+        match self.event {
+            Event::Window(window::Event::RedrawRequested(_)) => {
+                !matches!(self.cursor, mouse::Cursor::Unavailable)
+            }
+            Event::Mouse(_) | Event::Touch(_) => true,
+            _ => false,
+        }
+    }
+
+    fn should_snap_initial_redraw(self, state: &NavigationPressSurfaceState) -> bool {
+        matches!(self.event, Event::Window(window::Event::RedrawRequested(_)))
+            && state.now.is_none()
+            && self.is_hovered
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct NavigationDrawState<'a> {
+    state: &'a NavigationPressSurfaceState,
     cursor: mouse::Cursor,
     bounds: Rectangle,
-) -> f32 {
-    if cursor.is_over(bounds) && state.now.is_none() {
-        navigation_surface_state_layer_opacity_from_interaction(
-            navigation_interaction_state_layer_target(true, false),
-        )
-    } else {
-        state.opacity()
+}
+
+impl NavigationDrawState<'_> {
+    fn opacity(self) -> f32 {
+        if self.cursor.is_over(self.bounds) && self.state.now.is_none() {
+            NavigationLayer::opacity(NavigationLayer::target(true, false))
+        } else {
+            self.state.opacity()
+        }
     }
 }
 
-fn navigation_surface_state_layer_opacity_from_interaction(interaction_opacity: f32) -> f32 {
-    interaction_opacity
-}
-
-fn navigation_press_origin(
-    event: &Event,
-    indicator_bounds: Rectangle,
+#[derive(Debug, Clone, Copy)]
+struct NavigationPointer<'a> {
+    event: &'a Event,
     cursor: mouse::Cursor,
-) -> Option<Point> {
-    let position = cursor
-        .position()
-        .or_else(|| navigation_event_position(event))?;
-
-    if cursor.is_levitating() {
-        return None;
-    }
-
-    Some(position - Vector::new(indicator_bounds.x, indicator_bounds.y))
 }
 
-fn navigation_event_is_over(event: &Event, bounds: Rectangle, cursor: mouse::Cursor) -> bool {
-    if cursor.position().is_some() {
-        return cursor.is_over(bounds);
+impl NavigationPointer<'_> {
+    fn is_over(self, bounds: Rectangle) -> bool {
+        if self.cursor.position().is_some() {
+            return self.cursor.is_over(bounds);
+        }
+
+        if self.cursor.is_levitating() {
+            return false;
+        }
+
+        self.position()
+            .map(|position| bounds.contains(position))
+            .unwrap_or_else(|| self.cursor.is_over(bounds))
     }
 
-    if cursor.is_levitating() {
-        return false;
+    fn press_origin(self, indicator_bounds: Rectangle) -> Option<Point> {
+        let position = self.cursor.position().or_else(|| self.position())?;
+
+        if self.cursor.is_levitating() {
+            return None;
+        }
+
+        Some(position - Vector::new(indicator_bounds.x, indicator_bounds.y))
     }
 
-    navigation_event_position(event)
-        .map(|position| bounds.contains(position))
-        .unwrap_or_else(|| cursor.is_over(bounds))
-}
-
-fn navigation_event_position(event: &Event) -> Option<Point> {
-    match event {
-        Event::Touch(touch::Event::FingerPressed { position, .. })
-        | Event::Touch(touch::Event::FingerMoved { position, .. })
-        | Event::Touch(touch::Event::FingerLifted { position, .. })
-        | Event::Touch(touch::Event::FingerLost { position, .. }) => Some(*position),
-        _ => None,
+    fn position(self) -> Option<Point> {
+        match self.event {
+            Event::Touch(touch::Event::FingerPressed { position, .. })
+            | Event::Touch(touch::Event::FingerMoved { position, .. })
+            | Event::Touch(touch::Event::FingerLifted { position, .. })
+            | Event::Touch(touch::Event::FingerLost { position, .. }) => Some(*position),
+            _ => None,
+        }
     }
 }
 
@@ -2477,121 +2535,225 @@ fn animated_indicator_width(target_width: f32, progress: f32) -> f32 {
     target_width * progress.max(0.0)
 }
 
-fn navigation_bar_item_bottom_padding() -> f32 {
-    let label = tokens::component::navigation_bar::LABEL_TEXT;
+struct BarMetrics;
 
-    (tokens::component::navigation_bar::CONTAINER_HEIGHT
-        - tokens::component::navigation_bar::INDICATOR_VERTICAL_OFFSET
-        - tokens::component::navigation_bar::ACTIVE_INDICATOR_HEIGHT
-        - tokens::component::navigation_bar::INDICATOR_TO_LABEL_PADDING
-        - label.line_height)
-        .max(0.0)
+impl BarMetrics {
+    fn item_bottom_padding() -> f32 {
+        let label = tokens::component::navigation_bar::LABEL_TEXT;
+
+        (tokens::component::navigation_bar::CONTAINER_HEIGHT
+            - tokens::component::navigation_bar::INDICATOR_VERTICAL_OFFSET
+            - tokens::component::navigation_bar::ACTIVE_INDICATOR_HEIGHT
+            - tokens::component::navigation_bar::INDICATOR_TO_LABEL_PADDING
+            - label.line_height)
+            .max(0.0)
+    }
 }
 
-fn navigation_rail_item_content_top_padding() -> f32 {
-    tokens::component::navigation_rail::ITEM_TOP_PADDING
+struct RailMetrics;
+
+impl RailMetrics {
+    fn min_height(destination_count: usize, has_header: bool) -> f32 {
+        let header_height = if has_header {
+            Self::header_slot_height()
+        } else {
+            0.0
+        };
+        let child_count = destination_count + usize::from(has_header);
+        let spacing_count = child_count.saturating_sub(1);
+
+        tokens::component::navigation_rail::CONTENT_TOP_MARGIN
+            + header_height
+            + destination_count as f32 * Self::item_slot_height()
+            + spacing_count as f32 * tokens::component::navigation_rail::VERTICAL_PADDING
+            + tokens::component::navigation_rail::VERTICAL_PADDING
+    }
+
+    fn item_content_top_padding() -> f32 {
+        tokens::component::navigation_rail::ITEM_TOP_PADDING
+    }
+
+    fn header_bottom_padding() -> f32 {
+        tokens::component::navigation_rail::HEADER_PADDING
+    }
+
+    fn header_slot_height() -> f32 {
+        tokens::component::icon_button::CONTAINER_HEIGHT + Self::header_bottom_padding()
+    }
+
+    fn item_slot_height() -> f32 {
+        tokens::component::navigation_rail::ITEM_HEIGHT
+    }
+
+    fn collapsed_label_top_padding() -> f32 {
+        Self::item_content_top_padding()
+            + tokens::component::navigation_rail::ACTIVE_INDICATOR_HEIGHT
+            + tokens::component::navigation_rail::ITEM_VERTICAL_PADDING
+    }
+
+    fn collapsed_label_width() -> f32 {
+        tokens::component::navigation_rail::ACTIVE_INDICATOR_WIDTH
+    }
+
+    #[cfg(test)]
+    fn collapsed_icon_center_x() -> f32 {
+        tokens::component::navigation_rail::CONTAINER_WIDTH / 2.0
+    }
+
+    #[cfg(test)]
+    fn collapsed_icon_center_y() -> f32 {
+        Self::item_content_top_padding()
+            + tokens::component::navigation_rail::ACTIVE_INDICATOR_HEIGHT / 2.0
+    }
+
+    #[cfg(test)]
+    fn first_item_y_after_header() -> f32 {
+        tokens::component::navigation_rail::CONTENT_TOP_MARGIN
+            + Self::header_slot_height()
+            + tokens::component::navigation_rail::VERTICAL_PADDING
+    }
 }
 
-fn navigation_rail_header_bottom_padding() -> f32 {
-    tokens::component::navigation_rail::HEADER_PADDING
+#[derive(Debug, Clone, Copy)]
+struct ExpandedRailMetrics {
+    width: f32,
 }
 
-fn navigation_rail_header_slot_height() -> f32 {
-    tokens::component::icon_button::CONTAINER_HEIGHT + navigation_rail_header_bottom_padding()
+impl ExpandedRailMetrics {
+    fn new(width: f32) -> Self {
+        Self {
+            width: width.clamp(
+                tokens::component::navigation_rail::CONTAINER_WIDTH,
+                tokens::component::navigation_drawer::CONTAINER_WIDTH,
+            ),
+        }
+    }
+
+    fn width(self) -> f32 {
+        self.width
+    }
+
+    fn indicator_width(self) -> f32 {
+        (self.width
+            - tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_MARGIN_HORIZONTAL * 2.0)
+            .max(0.0)
+    }
+
+    fn progress(self) -> f32 {
+        let range = tokens::component::navigation_rail::EXPANDED_CONTAINER_WIDTH
+            - tokens::component::navigation_rail::CONTAINER_WIDTH;
+
+        if range <= f32::EPSILON {
+            1.0
+        } else {
+            ((self.width - tokens::component::navigation_rail::CONTAINER_WIDTH) / range)
+                .clamp(0.0, 1.0)
+        }
+    }
+
+    fn label_alpha(self) -> f32 {
+        ((self.progress() - 0.6) / 0.4).clamp(0.0, 1.0)
+    }
+
+    fn item_vertical_inset(self) -> f32 {
+        Self::item_vertical_inset_for(self.progress())
+    }
+
+    fn item_vertical_inset_for(progress: f32) -> f32 {
+        lerp(
+            RailMetrics::item_content_top_padding(),
+            Self::expanded_item_vertical_inset(),
+            progress.clamp(0.0, 1.0),
+        )
+    }
+
+    fn indicator_height(self) -> f32 {
+        Self::indicator_height_for(self.progress())
+    }
+
+    fn indicator_height_for(progress: f32) -> f32 {
+        lerp(
+            tokens::component::navigation_rail::ACTIVE_INDICATOR_HEIGHT,
+            tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_HEIGHT,
+            progress.clamp(0.0, 1.0),
+        )
+    }
+
+    fn label_leading_padding(self) -> f32 {
+        Self::icon_anchor_width() + tokens::component::navigation_rail::ICON_LABEL_HORIZONTAL_SPACE
+    }
+
+    fn badge_uses_icon_anchor(self) -> bool {
+        Self::badge_uses_icon_anchor_for(self.label_alpha())
+    }
+
+    fn badge_uses_icon_anchor_for(label_alpha: f32) -> bool {
+        label_alpha <= 0.0
+    }
+
+    fn trailing_badge_alpha(self) -> f32 {
+        Self::trailing_badge_alpha_for(self.label_alpha())
+    }
+
+    fn trailing_badge_alpha_for(label_alpha: f32) -> f32 {
+        label_alpha.clamp(0.0, 1.0)
+    }
+
+    fn collapsed_label_alpha(self) -> f32 {
+        Self::collapsed_label_alpha_for(self.label_alpha())
+    }
+
+    fn collapsed_label_alpha_for(label_alpha: f32) -> f32 {
+        (1.0 - label_alpha).clamp(0.0, 1.0)
+    }
+
+    fn header_leading_space(self) -> f32 {
+        tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_MARGIN_HORIZONTAL
+            + tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_PADDING_START
+            - (tokens::component::icon_button::CONTAINER_WIDTH
+                - tokens::component::navigation_rail::ICON_SIZE)
+                / 2.0
+    }
+
+    fn header_title_spacing(self) -> f32 {
+        let label_start =
+            tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_MARGIN_HORIZONTAL
+                + tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_PADDING_START
+                + tokens::component::navigation_rail::ICON_SIZE
+                + tokens::component::navigation_rail::ICON_LABEL_HORIZONTAL_SPACE;
+
+        (label_start
+            - self.header_leading_space()
+            - tokens::component::icon_button::CONTAINER_WIDTH)
+            .max(0.0)
+    }
+
+    #[cfg(test)]
+    fn expanded_icon_center_x(self) -> f32 {
+        tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_MARGIN_HORIZONTAL
+            + tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_PADDING_START
+            + tokens::component::navigation_rail::ICON_SIZE / 2.0
+    }
+
+    #[cfg(test)]
+    fn expanded_icon_center_y(self) -> f32 {
+        self.item_vertical_inset() + self.indicator_height() / 2.0
+    }
+
+    fn icon_anchor_width() -> f32 {
+        tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_PADDING_START
+            + tokens::component::navigation_rail::ICON_SIZE
+    }
+
+    fn expanded_item_vertical_inset() -> f32 {
+        ((tokens::component::navigation_rail::ITEM_HEIGHT
+            - tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_HEIGHT)
+            / 2.0)
+            .max(0.0)
+    }
 }
 
-fn navigation_rail_item_slot_height() -> f32 {
-    tokens::component::navigation_rail::ITEM_HEIGHT
-}
-
-fn navigation_rail_expanded_item_vertical_inset() -> f32 {
-    ((tokens::component::navigation_rail::ITEM_HEIGHT
-        - tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_HEIGHT)
-        / 2.0)
-        .max(0.0)
-}
-
-fn navigation_rail_expanded_indicator_height_for_progress(progress: f32) -> f32 {
-    lerp(
-        tokens::component::navigation_rail::ACTIVE_INDICATOR_HEIGHT,
-        tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_HEIGHT,
-        progress.clamp(0.0, 1.0),
-    )
-}
-
-fn navigation_rail_expanded_item_vertical_inset_for_progress(progress: f32) -> f32 {
-    lerp(
-        navigation_rail_item_content_top_padding(),
-        navigation_rail_expanded_item_vertical_inset(),
-        progress.clamp(0.0, 1.0),
-    )
-}
-
-fn navigation_rail_expanded_icon_anchor_width() -> f32 {
-    tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_PADDING_START
-        + tokens::component::navigation_rail::ICON_SIZE
-}
-
-fn navigation_rail_expanded_label_leading_padding() -> f32 {
-    navigation_rail_expanded_icon_anchor_width()
-        + tokens::component::navigation_rail::ICON_LABEL_HORIZONTAL_SPACE
-}
-
-fn navigation_rail_collapsed_label_top_padding() -> f32 {
-    navigation_rail_item_content_top_padding()
-        + tokens::component::navigation_rail::ACTIVE_INDICATOR_HEIGHT
-        + tokens::component::navigation_rail::ITEM_VERTICAL_PADDING
-}
-
-fn navigation_rail_collapsed_label_width() -> f32 {
-    tokens::component::navigation_rail::ACTIVE_INDICATOR_WIDTH
-}
-
-#[cfg(test)]
-fn navigation_rail_collapsed_icon_center_x() -> f32 {
-    tokens::component::navigation_rail::CONTAINER_WIDTH / 2.0
-}
-
-#[cfg(test)]
-fn navigation_rail_expanded_icon_center_x() -> f32 {
-    tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_MARGIN_HORIZONTAL
-        + tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_PADDING_START
-        + tokens::component::navigation_rail::ICON_SIZE / 2.0
-}
-
-#[cfg(test)]
-fn navigation_rail_collapsed_icon_center_y() -> f32 {
-    navigation_rail_item_content_top_padding()
-        + tokens::component::navigation_rail::ACTIVE_INDICATOR_HEIGHT / 2.0
-}
-
-#[cfg(test)]
-fn navigation_rail_expanded_icon_center_y_for_progress(progress: f32) -> f32 {
-    navigation_rail_expanded_item_vertical_inset_for_progress(progress)
-        + navigation_rail_expanded_indicator_height_for_progress(progress) / 2.0
-}
-
-#[cfg(test)]
-fn navigation_rail_first_item_y_after_header() -> f32 {
-    tokens::component::navigation_rail::CONTENT_TOP_MARGIN
-        + navigation_rail_header_slot_height()
-        + tokens::component::navigation_rail::VERTICAL_PADDING
-}
-
-fn navigation_rail_expanded_container_width(width: f32) -> f32 {
-    width.clamp(
-        tokens::component::navigation_rail::CONTAINER_WIDTH,
-        tokens::component::navigation_drawer::CONTAINER_WIDTH,
-    )
-}
-
-fn navigation_rail_expanded_indicator_width(container_width: f32) -> f32 {
-    (container_width
-        - tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_MARGIN_HORIZONTAL * 2.0)
-        .max(0.0)
-}
-
-pub fn navigation_rail_expanded_width_for_progress(progress: f32) -> f32 {
+pub fn expanded_rail_width(progress: f32) -> f32 {
     lerp(
         tokens::component::navigation_rail::CONTAINER_WIDTH,
         tokens::component::navigation_rail::EXPANDED_CONTAINER_WIDTH,
@@ -2599,95 +2761,55 @@ pub fn navigation_rail_expanded_width_for_progress(progress: f32) -> f32 {
     )
 }
 
-fn navigation_rail_expanded_progress_for_width(width: f32) -> f32 {
-    let range = tokens::component::navigation_rail::EXPANDED_CONTAINER_WIDTH
-        - tokens::component::navigation_rail::CONTAINER_WIDTH;
+#[derive(Debug, Clone, Copy)]
+struct DrawerMetrics {
+    width: f32,
+}
 
-    if range <= f32::EPSILON {
-        1.0
-    } else {
-        ((navigation_rail_expanded_container_width(width)
-            - tokens::component::navigation_rail::CONTAINER_WIDTH)
-            / range)
-            .clamp(0.0, 1.0)
+impl DrawerMetrics {
+    fn new(width: f32) -> Self {
+        Self {
+            width: width.clamp(
+                tokens::component::navigation_drawer::MINIMUM_CONTAINER_WIDTH,
+                tokens::component::navigation_drawer::CONTAINER_WIDTH,
+            ),
+        }
+    }
+
+    fn width(self) -> f32 {
+        self.width
+    }
+
+    fn indicator_width(self) -> f32 {
+        (self.width - tokens::component::navigation_drawer::ITEM_HORIZONTAL_PADDING * 2.0).max(0.0)
+    }
+
+    fn menu_header_leading_space() -> f32 {
+        tokens::component::navigation_drawer::ITEM_HORIZONTAL_PADDING
+            + tokens::component::navigation_drawer::ITEM_CONTENT_LEADING_SPACE
+            - (tokens::component::icon_button::CONTAINER_WIDTH
+                - tokens::component::navigation_drawer::ICON_SIZE)
+                / 2.0
+    }
+
+    fn menu_header_title_spacing() -> f32 {
+        let label_start = tokens::component::navigation_drawer::ITEM_HORIZONTAL_PADDING
+            + tokens::component::navigation_drawer::ITEM_CONTENT_LEADING_SPACE
+            + tokens::component::navigation_drawer::ICON_SIZE
+            + tokens::component::navigation_drawer::ICON_LABEL_SPACE;
+
+        (label_start
+            - Self::menu_header_leading_space()
+            - tokens::component::icon_button::CONTAINER_WIDTH)
+            .max(0.0)
+    }
+
+    fn badge_space() -> f32 {
+        tokens::component::navigation_drawer::LABEL_BADGE_SPACE
     }
 }
 
-fn navigation_rail_expanded_label_alpha_for_width(width: f32) -> f32 {
-    let progress = navigation_rail_expanded_progress_for_width(width);
-
-    ((progress - 0.6) / 0.4).clamp(0.0, 1.0)
-}
-
-fn navigation_rail_expanded_badge_uses_icon_anchor(label_alpha: f32) -> bool {
-    label_alpha <= 0.0
-}
-
-fn navigation_rail_expanded_trailing_badge_alpha(label_alpha: f32) -> f32 {
-    label_alpha.clamp(0.0, 1.0)
-}
-
-fn navigation_rail_expanded_collapsed_label_alpha(label_alpha: f32) -> f32 {
-    (1.0 - label_alpha).clamp(0.0, 1.0)
-}
-
-fn navigation_rail_expanded_header_leading_space() -> f32 {
-    tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_MARGIN_HORIZONTAL
-        + tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_PADDING_START
-        - (tokens::component::icon_button::CONTAINER_WIDTH
-            - tokens::component::navigation_rail::ICON_SIZE)
-            / 2.0
-}
-
-fn navigation_rail_expanded_header_title_spacing() -> f32 {
-    let label_start =
-        tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_MARGIN_HORIZONTAL
-            + tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_PADDING_START
-            + tokens::component::navigation_rail::ICON_SIZE
-            + tokens::component::navigation_rail::ICON_LABEL_HORIZONTAL_SPACE;
-
-    (label_start
-        - navigation_rail_expanded_header_leading_space()
-        - tokens::component::icon_button::CONTAINER_WIDTH)
-        .max(0.0)
-}
-
-fn navigation_drawer_container_width(width: f32) -> f32 {
-    width.clamp(
-        tokens::component::navigation_drawer::MINIMUM_CONTAINER_WIDTH,
-        tokens::component::navigation_drawer::CONTAINER_WIDTH,
-    )
-}
-
-fn navigation_drawer_indicator_width(container_width: f32) -> f32 {
-    (container_width - tokens::component::navigation_drawer::ITEM_HORIZONTAL_PADDING * 2.0).max(0.0)
-}
-
-fn navigation_drawer_menu_header_leading_space() -> f32 {
-    tokens::component::navigation_drawer::ITEM_HORIZONTAL_PADDING
-        + tokens::component::navigation_drawer::ITEM_CONTENT_LEADING_SPACE
-        - (tokens::component::icon_button::CONTAINER_WIDTH
-            - tokens::component::navigation_drawer::ICON_SIZE)
-            / 2.0
-}
-
-fn navigation_drawer_menu_header_title_spacing() -> f32 {
-    let label_start = tokens::component::navigation_drawer::ITEM_HORIZONTAL_PADDING
-        + tokens::component::navigation_drawer::ITEM_CONTENT_LEADING_SPACE
-        + tokens::component::navigation_drawer::ICON_SIZE
-        + tokens::component::navigation_drawer::ICON_LABEL_SPACE;
-
-    (label_start
-        - navigation_drawer_menu_header_leading_space()
-        - tokens::component::icon_button::CONTAINER_WIDTH)
-        .max(0.0)
-}
-
-fn navigation_drawer_badge_space() -> f32 {
-    tokens::component::navigation_drawer::LABEL_BADGE_SPACE
-}
-
-fn navigation_rail_expanded_icon_layer<'a, Message, Renderer>(
+fn expanded_rail_icon_layer<'a, Message, Renderer>(
     icon: &'static str,
     progress: f32,
     height: f32,
@@ -2709,13 +2831,13 @@ where
     .height(Length::Fixed(height));
 
     Container::new(icon)
-        .width(Length::Fixed(navigation_rail_expanded_icon_anchor_width()))
+        .width(Length::Fixed(ExpandedRailMetrics::icon_anchor_width()))
         .height(Length::Fixed(height))
         .align_x(alignment::Horizontal::Right)
         .align_y(alignment::Vertical::Center)
 }
 
-fn navigation_rail_expanded_collapsed_label<'a, Message, Renderer>(
+fn collapsed_rail_label<'a, Message, Renderer>(
     label: &'static str,
     progress: f32,
     alpha: f32,
@@ -2733,7 +2855,7 @@ where
 
     Container::new(label)
         .padding(Padding {
-            top: navigation_rail_collapsed_label_top_padding(),
+            top: RailMetrics::collapsed_label_top_padding(),
             right: 0.0,
             bottom: 0.0,
             left: 0.0,
@@ -2886,7 +3008,7 @@ where
         .line_height(LineHeight::Absolute(scale.line_height.into()))
 }
 
-fn navigation_bar_container(theme: &Theme) -> iced_widget::container::Style {
+fn bar_container(theme: &Theme) -> iced_widget::container::Style {
     let colors = theme.colors();
 
     iced_widget::container::Style {
@@ -2901,7 +3023,7 @@ fn navigation_bar_container(theme: &Theme) -> iced_widget::container::Style {
     }
 }
 
-fn navigation_rail_container(theme: &Theme) -> iced_widget::container::Style {
+fn rail_container(theme: &Theme) -> iced_widget::container::Style {
     let colors = theme.colors();
 
     iced_widget::container::Style {
@@ -2916,7 +3038,7 @@ fn navigation_rail_container(theme: &Theme) -> iced_widget::container::Style {
     }
 }
 
-fn navigation_drawer_container(theme: &Theme) -> iced_widget::container::Style {
+fn drawer_container(theme: &Theme) -> iced_widget::container::Style {
     let colors = theme.colors();
 
     iced_widget::container::Style {
@@ -2975,7 +3097,7 @@ fn drawer_content_color(theme: &Theme, progress: f32) -> Color {
     )
 }
 
-fn navigation_state_layer_color(theme: &Theme, layer: NavigationStateLayer) -> Color {
+fn layer_color(theme: &Theme, layer: NavigationStateLayer) -> Color {
     let colors = theme.colors();
 
     match layer {

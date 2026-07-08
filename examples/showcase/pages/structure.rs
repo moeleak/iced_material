@@ -44,9 +44,9 @@ fn top_app_bars() -> material::Element<'static, Message> {
 
 fn search_view(state: &Showcase) -> material::Element<'_, Message> {
     let results = material::widget::list::group([
-        material::widget::list::one_line_with_leading_icon("input", "Inputs").into(),
-        material::widget::list::one_line_with_leading_icon("tune", "Controls").into(),
-        material::widget::list::one_line_with_leading_icon("info", "Feedback").into(),
+        material::widget::list::one_line_icon("input", "Inputs").into(),
+        material::widget::list::one_line_icon("tune", "Controls").into(),
+        material::widget::list::one_line_icon("info", "Feedback").into(),
     ]);
 
     material::widget::search::docked_view(

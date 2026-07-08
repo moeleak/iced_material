@@ -193,7 +193,7 @@ where
 }
 
 /// Creates an animated label segment with an action message.
-pub fn animated_selectable_label_action<'a, Message, Renderer>(
+pub fn animated_label_action<'a, Message, Renderer>(
     label: impl text::IntoFragment<'a>,
     selected_progress: f32,
     position: SegmentPosition,
@@ -210,7 +210,7 @@ where
 }
 
 /// Creates animated label segments from the given selection state and actions.
-pub fn animated_selectable_label_actions<'a, Message, Renderer, Label>(
+pub fn animated_label_actions<'a, Message, Renderer, Label>(
     state: &State,
     segments: impl IntoIterator<Item = (Label, Message)>,
 ) -> Vec<Element<'a, Message, Theme, Renderer>>
@@ -227,7 +227,7 @@ where
         .into_iter()
         .enumerate()
         .map(|(index, (label, on_press))| {
-            animated_selectable_label_action(
+            animated_label_action(
                 label,
                 state.progress_for(index),
                 SegmentPosition::for_index(index, len),

@@ -208,14 +208,6 @@ fn text_field_touch_position(position: Point, cursor: mouse::Cursor) -> Option<P
     Some(position)
 }
 
-fn text_field_touch_press_is_over(event: &Event, bounds: Rectangle, cursor: mouse::Cursor) -> bool {
-    matches!(
-        event,
-        Event::Touch(touch::Event::FingerPressed { position, .. })
-            if text_field_touch_position(*position, cursor).is_some_and(|position| bounds.contains(position))
-    )
-}
-
 fn text_field_keyboard_activation(
     touch_activation: &mut Option<TextFieldTouchActivation>,
     event: &Event,
@@ -266,28 +258,95 @@ fn text_field_keyboard_activation(
     }
 }
 
-fn text_field_visible_keyboard_activation(
-    touch_activation: &mut Option<TextFieldTouchActivation>,
-    event: &Event,
-    visible_bounds: Option<Rectangle>,
-    cursor: mouse::Cursor,
-) -> bool {
-    let Some(bounds) = visible_bounds else {
-        if matches!(event, Event::Touch(_)) {
-            *touch_activation = None;
-        }
-
-        return false;
-    };
-
-    text_field_keyboard_activation(touch_activation, event, bounds, cursor)
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum TextFieldInnerTouchHandling {
     Forward,
     Suppress,
     ConfirmedTap,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum TextFieldTouchBounds {
+    Visible(Rectangle),
+    Hidden,
+}
+
+impl TextFieldTouchBounds {
+    fn visible(bounds: Option<Rectangle>) -> Self {
+        bounds.map(Self::Visible).unwrap_or(Self::Hidden)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct TextFieldTouchContext<'a> {
+    is_enabled: bool,
+    event: &'a Event,
+    bounds: TextFieldTouchBounds,
+    cursor: mouse::Cursor,
+    activation_before: Option<TextFieldTouchActivation>,
+    confirmed_tap: bool,
+}
+
+impl TextFieldTouchContext<'_> {
+    fn keyboard_activation(&self, touch_activation: &mut Option<TextFieldTouchActivation>) -> bool {
+        let TextFieldTouchBounds::Visible(bounds) = self.bounds else {
+            if matches!(self.event, Event::Touch(_)) {
+                *touch_activation = None;
+            }
+
+            return false;
+        };
+
+        text_field_keyboard_activation(touch_activation, self.event, bounds, self.cursor)
+    }
+
+    fn inner_handling(self) -> TextFieldInnerTouchHandling {
+        if !self.is_enabled {
+            return TextFieldInnerTouchHandling::Forward;
+        }
+
+        if self.confirmed_tap {
+            return TextFieldInnerTouchHandling::ConfirmedTap;
+        }
+
+        let TextFieldTouchBounds::Visible(bounds) = self.bounds else {
+            return if matches!(self.event, Event::Touch(_)) {
+                TextFieldInnerTouchHandling::Suppress
+            } else {
+                TextFieldInnerTouchHandling::Forward
+            };
+        };
+
+        if self.press_is_over(bounds) || self.matches_activation() {
+            TextFieldInnerTouchHandling::Suppress
+        } else {
+            TextFieldInnerTouchHandling::Forward
+        }
+    }
+
+    fn press_is_over(self, bounds: Rectangle) -> bool {
+        matches!(
+            self.event,
+            Event::Touch(touch::Event::FingerPressed { position, .. })
+                if text_field_touch_position(*position, self.cursor)
+                    .is_some_and(|position| bounds.contains(position))
+        )
+    }
+
+    fn matches_activation(self) -> bool {
+        let Some(activation) = self.activation_before else {
+            return false;
+        };
+
+        match self.event {
+            Event::Touch(
+                touch::Event::FingerMoved { id, .. }
+                | touch::Event::FingerLifted { id, .. }
+                | touch::Event::FingerLost { id, .. },
+            ) => activation.matches(*id),
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -326,22 +385,20 @@ fn text_input_activation(
     cursor: mouse::Cursor,
 ) -> TextInputActivation {
     let inner_cursor = text_field_touch_cursor(event, cursor);
-    let touch_activation_before = *touch_activation;
-    let request_mobile_keyboard = is_enabled
-        && text_field_visible_keyboard_activation(
-            touch_activation,
-            event,
-            visible_bounds,
-            inner_cursor,
-        );
-    let inner_touch_handling = text_field_inner_touch_handling_for_visible_bounds(
+    let touch = TextFieldTouchContext {
         is_enabled,
         event,
-        visible_bounds,
-        inner_cursor,
-        touch_activation_before,
-        request_mobile_keyboard,
-    );
+        bounds: TextFieldTouchBounds::visible(visible_bounds),
+        cursor: inner_cursor,
+        activation_before: *touch_activation,
+        confirmed_tap: false,
+    };
+    let request_mobile_keyboard = is_enabled && touch.keyboard_activation(touch_activation);
+    let inner_touch_handling = TextFieldTouchContext {
+        confirmed_tap: request_mobile_keyboard,
+        ..touch
+    }
+    .inner_handling();
 
     TextInputActivation {
         cursor: inner_cursor,
@@ -372,17 +429,20 @@ fn register_mobile_text_region(is_enabled: bool, bounds: Rectangle, viewport: &R
     }
 }
 
-#[expect(clippy::too_many_arguments)]
+struct TextInputUpdateContext<'a, 'b, Message, Renderer> {
+    renderer: &'a Renderer,
+    clipboard: &'a mut dyn Clipboard,
+    shell: &'a mut Shell<'b, Message>,
+    viewport: &'a Rectangle,
+}
+
 fn update_mobile_text_input<'a, Message, Renderer>(
     input: &mut IcedTextInput<'a, Message, Theme, Renderer>,
     tree: &mut Tree,
     event: &Event,
     layout: Layout<'_>,
     activation: TextInputActivation,
-    renderer: &Renderer,
-    clipboard: &mut dyn Clipboard,
-    shell: &mut Shell<'_, Message>,
-    viewport: &Rectangle,
+    context: TextInputUpdateContext<'_, '_, Message, Renderer>,
 ) where
     Message: Clone,
     Renderer: iced_widget::core::Renderer + core_text::Renderer,
@@ -394,10 +454,10 @@ fn update_mobile_text_input<'a, Message, Renderer>(
                 event,
                 layout,
                 activation.cursor,
-                renderer,
-                clipboard,
-                shell,
-                viewport,
+                context.renderer,
+                &mut *context.clipboard,
+                &mut *context.shell,
+                context.viewport,
             );
         }
         TextFieldInnerTouchHandling::Suppress => {}
@@ -408,10 +468,10 @@ fn update_mobile_text_input<'a, Message, Renderer>(
                 &press,
                 layout,
                 activation.cursor,
-                renderer,
-                clipboard,
-                shell,
-                viewport,
+                context.renderer,
+                &mut *context.clipboard,
+                &mut *context.shell,
+                context.viewport,
             );
 
             let release = Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left));
@@ -420,10 +480,10 @@ fn update_mobile_text_input<'a, Message, Renderer>(
                 &release,
                 layout,
                 activation.cursor,
-                renderer,
-                clipboard,
-                shell,
-                viewport,
+                context.renderer,
+                &mut *context.clipboard,
+                &mut *context.shell,
+                context.viewport,
             );
         }
     }
@@ -432,77 +492,8 @@ fn update_mobile_text_input<'a, Message, Renderer>(
         tree.state
             .downcast_mut::<iced_text_input::State<Renderer::Paragraph>>(),
         event,
-        shell,
+        &mut *context.shell,
     );
-}
-
-fn text_field_touch_matches_activation(
-    touch_activation: Option<TextFieldTouchActivation>,
-    event: &Event,
-) -> bool {
-    let Some(activation) = touch_activation else {
-        return false;
-    };
-
-    match event {
-        Event::Touch(
-            touch::Event::FingerMoved { id, .. }
-            | touch::Event::FingerLifted { id, .. }
-            | touch::Event::FingerLost { id, .. },
-        ) => activation.matches(*id),
-        _ => false,
-    }
-}
-
-fn text_field_inner_touch_handling(
-    is_enabled: bool,
-    event: &Event,
-    bounds: Rectangle,
-    cursor: mouse::Cursor,
-    touch_activation_before: Option<TextFieldTouchActivation>,
-    confirmed_tap: bool,
-) -> TextFieldInnerTouchHandling {
-    if !is_enabled {
-        return TextFieldInnerTouchHandling::Forward;
-    }
-
-    if confirmed_tap {
-        return TextFieldInnerTouchHandling::ConfirmedTap;
-    }
-
-    if text_field_touch_press_is_over(event, bounds, cursor)
-        || text_field_touch_matches_activation(touch_activation_before, event)
-    {
-        return TextFieldInnerTouchHandling::Suppress;
-    }
-
-    TextFieldInnerTouchHandling::Forward
-}
-
-fn text_field_inner_touch_handling_for_visible_bounds(
-    is_enabled: bool,
-    event: &Event,
-    visible_bounds: Option<Rectangle>,
-    cursor: mouse::Cursor,
-    touch_activation_before: Option<TextFieldTouchActivation>,
-    confirmed_tap: bool,
-) -> TextFieldInnerTouchHandling {
-    let Some(bounds) = visible_bounds else {
-        return if matches!(event, Event::Touch(_)) {
-            TextFieldInnerTouchHandling::Suppress
-        } else {
-            TextFieldInnerTouchHandling::Forward
-        };
-    };
-
-    text_field_inner_touch_handling(
-        is_enabled,
-        event,
-        bounds,
-        cursor,
-        touch_activation_before,
-        confirmed_tap,
-    )
 }
 
 fn press_is_over(event: &Event, bounds: Rectangle, cursor: mouse::Cursor) -> bool {
@@ -544,30 +535,40 @@ fn selection_control_hit_bounds(layout: Layout<'_>, target_size: f32) -> Rectang
         .next()
         .map_or(content_bounds, |control| control.bounds());
 
-    selection_control_hit_bounds_from_rects(content_bounds, control_bounds, target_size)
+    SelectionControlHitTarget {
+        content: content_bounds,
+        control: control_bounds,
+        target_size,
+    }
+    .bounds()
 }
 
-fn selection_control_hit_bounds_from_rects(
-    content_bounds: Rectangle,
-    control_bounds: Rectangle,
+#[derive(Debug, Clone, Copy)]
+struct SelectionControlHitTarget {
+    content: Rectangle,
+    control: Rectangle,
     target_size: f32,
-) -> Rectangle {
-    let target_height = content_bounds.height.max(target_size);
-    let content_target = Rectangle {
-        y: content_bounds.center_y() - target_height / 2.0,
-        height: target_height,
-        ..content_bounds
-    };
-    let control_padding =
-        ((target_size - control_bounds.width.min(control_bounds.height)) / 2.0).max(0.0);
-    let control_target = Rectangle {
-        x: control_bounds.x - control_padding,
-        y: control_bounds.y - control_padding,
-        width: control_bounds.width + control_padding * 2.0,
-        height: control_bounds.height + control_padding * 2.0,
-    };
+}
 
-    union_bounds(content_target, control_target)
+impl SelectionControlHitTarget {
+    fn bounds(self) -> Rectangle {
+        let target_height = self.content.height.max(self.target_size);
+        let content_target = Rectangle {
+            y: self.content.center_y() - target_height / 2.0,
+            height: target_height,
+            ..self.content
+        };
+        let control_padding =
+            ((self.target_size - self.control.width.min(self.control.height)) / 2.0).max(0.0);
+        let control_target = Rectangle {
+            x: self.control.x - control_padding,
+            y: self.control.y - control_padding,
+            width: self.control.width + control_padding * 2.0,
+            height: self.control.height + control_padding * 2.0,
+        };
+
+        union_bounds(content_target, control_target)
+    }
 }
 
 fn union_bounds(a: Rectangle, b: Rectangle) -> Rectangle {
@@ -765,10 +766,12 @@ where
             event,
             input_layout,
             activation,
-            renderer,
-            clipboard,
-            shell,
-            viewport,
+            TextInputUpdateContext {
+                renderer,
+                clipboard,
+                shell,
+                viewport,
+            },
         );
 
         normalize_windows_ime_request(shell.input_method_mut(), bounds);

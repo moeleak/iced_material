@@ -5,25 +5,23 @@ use super::super::{Message, NAV_DESTINATIONS, Showcase, TabChoice};
 
 pub(super) fn view(state: &Showcase) -> material::Element<'_, Message> {
     let selection = state.navigation_selection();
-    let bar = material::widget::navigation::navigation_bar(
+    let bar = material::widget::navigation::bar(&NAV_DESTINATIONS, selection, Message::Navigate);
+    let rail = material::widget::navigation::rail_with(
         &NAV_DESTINATIONS,
         selection,
         Message::Navigate,
+        material::widget::navigation::NavigationRailOptions::default()
+            .menu(Message::MenuPressed)
+            .fit_content(),
     );
-    let rail = material::widget::navigation::navigation_rail_with_menu_fitting_content(
+    let expanded_rail = material::widget::navigation::expanded_rail_with(
+        "Showcase",
         &NAV_DESTINATIONS,
         selection,
         Message::Navigate,
         Message::MenuPressed,
+        material::widget::navigation::ExpandedRailOptions::default().fit_content(),
     );
-    let expanded_rail =
-        material::widget::navigation::navigation_rail_expanded_with_menu_fitting_content(
-            "Showcase",
-            &NAV_DESTINATIONS,
-            selection,
-            Message::Navigate,
-            Message::MenuPressed,
-        );
 
     page::sections([
         page::section("Tabs", tabs(state)).into(),

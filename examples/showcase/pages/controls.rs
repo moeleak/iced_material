@@ -98,7 +98,7 @@ fn chips(state: &Showcase) -> material::Element<'_, Message> {
 fn segmented_buttons(state: &Showcase) -> material::Element<'_, Message> {
     use material::widget::segmented_button;
 
-    segmented_button::group(segmented_button::animated_selectable_label_actions(
+    segmented_button::group(segmented_button::animated_label_actions(
         &state.segment_state,
         [
             ("List", Message::SegmentSelected(SegmentChoice::List)),

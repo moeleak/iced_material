@@ -305,35 +305,59 @@ fn text_field_visible_keyboard_activation_rejects_touch_without_visible_bounds()
         touch::Finger(1),
         Point::new(20.0, 130.0),
     ));
+    let event = Event::Touch(touch::Event::FingerPressed {
+        id: touch::Finger(1),
+        position: Point::new(20.0, 130.0),
+    });
 
-    assert!(!text_field_visible_keyboard_activation(
-        &mut activation,
-        &Event::Touch(touch::Event::FingerPressed {
-            id: touch::Finger(1),
-            position: Point::new(20.0, 130.0),
-        }),
-        None,
-        mouse::Cursor::Unavailable
-    ));
+    assert!(
+        !TextFieldTouchContext {
+            is_enabled: true,
+            event: &event,
+            bounds: TextFieldTouchBounds::Hidden,
+            cursor: mouse::Cursor::Unavailable,
+            activation_before: activation,
+            confirmed_tap: false,
+        }
+        .keyboard_activation(&mut activation)
+    );
     assert!(activation.is_none());
+}
+
+fn touch_ctx(
+    event: &Event,
+    bounds: TextFieldTouchBounds,
+    cursor: mouse::Cursor,
+    activation_before: Option<TextFieldTouchActivation>,
+    confirmed_tap: bool,
+) -> TextFieldTouchContext<'_> {
+    TextFieldTouchContext {
+        is_enabled: true,
+        event,
+        bounds,
+        cursor,
+        activation_before,
+        confirmed_tap,
+    }
 }
 
 #[test]
 fn text_field_inner_touch_handling_delays_inside_press() {
     let bounds = Rectangle::new(Point::new(10.0, 120.0), Size::new(100.0, 48.0));
+    let event = Event::Touch(touch::Event::FingerPressed {
+        id: touch::Finger(1),
+        position: Point::new(20.0, 130.0),
+    });
 
     assert_eq!(
-        text_field_inner_touch_handling(
-            true,
-            &Event::Touch(touch::Event::FingerPressed {
-                id: touch::Finger(1),
-                position: Point::new(20.0, 130.0),
-            }),
-            bounds,
+        touch_ctx(
+            &event,
+            TextFieldTouchBounds::Visible(bounds),
             mouse::Cursor::Available(Point::new(20.0, 130.0)),
             None,
             false,
-        ),
+        )
+        .inner_handling(),
         TextFieldInnerTouchHandling::Suppress
     );
 }
@@ -341,19 +365,20 @@ fn text_field_inner_touch_handling_delays_inside_press() {
 #[test]
 fn text_field_inner_touch_handling_forwards_outside_press() {
     let bounds = Rectangle::new(Point::new(10.0, 120.0), Size::new(100.0, 48.0));
+    let event = Event::Touch(touch::Event::FingerPressed {
+        id: touch::Finger(1),
+        position: Point::new(200.0, 130.0),
+    });
 
     assert_eq!(
-        text_field_inner_touch_handling(
-            true,
-            &Event::Touch(touch::Event::FingerPressed {
-                id: touch::Finger(1),
-                position: Point::new(200.0, 130.0),
-            }),
-            bounds,
+        touch_ctx(
+            &event,
+            TextFieldTouchBounds::Visible(bounds),
             mouse::Cursor::Available(Point::new(200.0, 130.0)),
             None,
             false,
-        ),
+        )
+        .inner_handling(),
         TextFieldInnerTouchHandling::Forward
     );
 }
@@ -365,19 +390,20 @@ fn text_field_inner_touch_handling_confirms_tap_on_release() {
         touch::Finger(1),
         Point::new(20.0, 130.0),
     ));
+    let event = Event::Touch(touch::Event::FingerLifted {
+        id: touch::Finger(1),
+        position: Point::new(20.0, 130.0),
+    });
 
     assert_eq!(
-        text_field_inner_touch_handling(
-            true,
-            &Event::Touch(touch::Event::FingerLifted {
-                id: touch::Finger(1),
-                position: Point::new(20.0, 130.0),
-            }),
-            bounds,
+        touch_ctx(
+            &event,
+            TextFieldTouchBounds::Visible(bounds),
             mouse::Cursor::Unavailable,
             activation,
             true,
-        ),
+        )
+        .inner_handling(),
         TextFieldInnerTouchHandling::ConfirmedTap
     );
 }
@@ -389,37 +415,40 @@ fn text_field_inner_touch_handling_suppresses_pending_scroll() {
         touch::Finger(1),
         Point::new(20.0, 130.0),
     ));
+    let event = Event::Touch(touch::Event::FingerMoved {
+        id: touch::Finger(1),
+        position: Point::new(20.0, 140.0),
+    });
 
     assert_eq!(
-        text_field_inner_touch_handling(
-            true,
-            &Event::Touch(touch::Event::FingerMoved {
-                id: touch::Finger(1),
-                position: Point::new(20.0, 140.0),
-            }),
-            bounds,
+        touch_ctx(
+            &event,
+            TextFieldTouchBounds::Visible(bounds),
             mouse::Cursor::Unavailable,
             activation,
             false,
-        ),
+        )
+        .inner_handling(),
         TextFieldInnerTouchHandling::Suppress
     );
 }
 
 #[test]
 fn text_field_inner_touch_handling_suppresses_touch_without_visible_bounds() {
+    let event = Event::Touch(touch::Event::FingerPressed {
+        id: touch::Finger(1),
+        position: Point::new(20.0, 130.0),
+    });
+
     assert_eq!(
-        text_field_inner_touch_handling_for_visible_bounds(
-            true,
-            &Event::Touch(touch::Event::FingerPressed {
-                id: touch::Finger(1),
-                position: Point::new(20.0, 130.0),
-            }),
-            None,
+        touch_ctx(
+            &event,
+            TextFieldTouchBounds::Hidden,
             mouse::Cursor::Unavailable,
             None,
             false,
-        ),
+        )
+        .inner_handling(),
         TextFieldInnerTouchHandling::Suppress
     );
 }
@@ -505,11 +534,12 @@ fn release_is_over_uses_mouse_cursor_for_mouse_release() {
 fn selection_control_hit_bounds_expand_small_icon_to_touch_target() {
     let content = Rectangle::new(Point::new(20.0, 100.0), Size::new(120.0, 18.0));
     let control = Rectangle::new(Point::new(20.0, 100.0), Size::new(18.0, 18.0));
-    let bounds = selection_control_hit_bounds_from_rects(
+    let bounds = SelectionControlHitTarget {
         content,
         control,
-        tokens::component::checkbox::STATE_LAYER_SIZE,
-    );
+        target_size: tokens::component::checkbox::STATE_LAYER_SIZE,
+    }
+    .bounds();
 
     assert_eq!(
         bounds,
@@ -521,11 +551,12 @@ fn selection_control_hit_bounds_expand_small_icon_to_touch_target() {
 fn selection_control_hit_bounds_keep_radio_target_height() {
     let content = Rectangle::new(Point::new(16.0, 80.0), Size::new(160.0, 20.0));
     let control = Rectangle::new(Point::new(16.0, 80.0), Size::new(20.0, 20.0));
-    let bounds = selection_control_hit_bounds_from_rects(
+    let bounds = SelectionControlHitTarget {
         content,
         control,
-        tokens::component::radio::TARGET_SIZE,
-    );
+        target_size: tokens::component::radio::TARGET_SIZE,
+    }
+    .bounds();
 
     assert_eq!(
         bounds,
@@ -543,11 +574,12 @@ fn selection_control_hit_bounds_cover_switch_state_layer_edges() {
             tokens::component::switch::TRACK_HEIGHT,
         ),
     );
-    let bounds = selection_control_hit_bounds_from_rects(
+    let bounds = SelectionControlHitTarget {
         content,
         control,
-        tokens::component::switch::STATE_LAYER_SIZE,
-    );
+        target_size: tokens::component::switch::STATE_LAYER_SIZE,
+    }
+    .bounds();
 
     assert_eq!(
         bounds,
@@ -889,42 +921,49 @@ fn material_navigation_constructors_compile_to_elements() {
     ];
     let selection = navigation::Selection::new(Page::First);
 
+    let _: TestElement<'_> = navigation::bar(&destinations, selection, |_| Message::Pressed).into();
     let _: TestElement<'_> =
-        navigation::navigation_bar(&destinations, selection, |_| Message::Pressed).into();
-    let _: TestElement<'_> =
-        navigation::navigation_rail(&destinations, selection, |_| Message::Pressed).into();
-    let _: TestElement<'_> =
-        navigation::navigation_rail_fitting_content(&destinations, selection, |_| Message::Pressed)
-            .into();
-    let _: TestElement<'_> = navigation::navigation_rail_with_header(
+        navigation::rail(&destinations, selection, |_| Message::Pressed).into();
+    let _: TestElement<'_> = navigation::rail_with(
+        &destinations,
+        selection,
+        |_| Message::Pressed,
+        navigation::NavigationRailOptions::default().fit_content(),
+    )
+    .into();
+    let _: TestElement<'_> = navigation::rail_with_header(
         &destinations,
         selection,
         |_| Message::Pressed,
         Text::new("Header"),
     )
     .into();
-    let _: TestElement<'_> = navigation::navigation_rail_with_header_fitting_content(
+    let _: TestElement<'_> = navigation::rail_with(
         &destinations,
         selection,
         |_| Message::Pressed,
-        Text::new("Header"),
+        navigation::NavigationRailOptions::default()
+            .header(Text::new("Header"))
+            .fit_content(),
     )
     .into();
-    let _: TestElement<'_> = navigation::navigation_rail_with_menu(
-        &destinations,
-        selection,
-        |_| Message::Pressed,
-        Message::Pressed,
-    )
-    .into();
-    let _: TestElement<'_> = navigation::navigation_rail_with_menu_fitting_content(
+    let _: TestElement<'_> = navigation::rail_with_menu(
         &destinations,
         selection,
         |_| Message::Pressed,
         Message::Pressed,
     )
     .into();
-    let _: TestElement<'_> = navigation::navigation_rail_expanded_with_menu(
+    let _: TestElement<'_> = navigation::rail_with(
+        &destinations,
+        selection,
+        |_| Message::Pressed,
+        navigation::NavigationRailOptions::default()
+            .menu(Message::Pressed)
+            .fit_content(),
+    )
+    .into();
+    let _: TestElement<'_> = navigation::expanded_rail(
         "Navigation",
         &destinations,
         selection,
@@ -932,35 +971,35 @@ fn material_navigation_constructors_compile_to_elements() {
         Message::Pressed,
     )
     .into();
-    let _: TestElement<'_> = navigation::navigation_rail_expanded_with_menu_fitting_content(
+    let _: TestElement<'_> = navigation::expanded_rail_with(
         "Navigation",
         &destinations,
         selection,
         |_| Message::Pressed,
         Message::Pressed,
+        navigation::ExpandedRailOptions::default().fit_content(),
     )
     .into();
-    let _: TestElement<'_> = navigation::navigation_rail_expanded_with_menu_at_width(
+    let _: TestElement<'_> = navigation::expanded_rail_with(
         "Navigation",
         &destinations,
         selection,
         |_| Message::Pressed,
         Message::Pressed,
-        220.0,
+        navigation::ExpandedRailOptions::default().width(220.0),
     )
     .into();
     let _: TestElement<'_> =
-        navigation::navigation_drawer("Navigation", &destinations, selection, |_| Message::Pressed)
-            .into();
-    let _: TestElement<'_> = navigation::navigation_drawer_at_width(
+        navigation::drawer("Navigation", &destinations, selection, |_| Message::Pressed).into();
+    let _: TestElement<'_> = navigation::drawer_with(
         "Navigation",
         &destinations,
         selection,
         |_| Message::Pressed,
-        240.0,
+        navigation::NavigationDrawerOptions::default().width(240.0),
     )
     .into();
-    let _: TestElement<'_> = navigation::navigation_drawer_with_menu(
+    let _: TestElement<'_> = navigation::drawer_menu(
         "Navigation",
         &destinations,
         selection,
@@ -968,17 +1007,17 @@ fn material_navigation_constructors_compile_to_elements() {
         Message::Pressed,
     )
     .into();
-    let _: TestElement<'_> = navigation::navigation_drawer_with_menu_at_width(
+    let _: TestElement<'_> = navigation::drawer_menu_with(
         "Navigation",
         &destinations,
         selection,
         |_| Message::Pressed,
         Message::Pressed,
-        240.0,
+        navigation::NavigationDrawerOptions::default().width(240.0),
     )
     .into();
     let content = Text::new("Navigation suite content");
-    let _: TestElement<'_> = navigation::navigation_suite(
+    let _: TestElement<'_> = navigation::view(
         1080.0,
         980.0,
         &destinations,
@@ -988,7 +1027,7 @@ fn material_navigation_constructors_compile_to_elements() {
     );
     let content = Text::new("Navigation suite menu content");
     let state = navigation::NavigationState::new(Page::First);
-    let _: TestElement<'_> = navigation::navigation_suite_with_menu(
+    let _: TestElement<'_> = navigation::view_with_menu(
         "Navigation",
         Size::new(1080.0, 980.0),
         &destinations,
@@ -1136,13 +1175,13 @@ fn material_segmented_button_constructors_compile_to_elements() {
 
     let segment_state = segmented_button::State::new(0);
     let _: TestElement<'_> = segmented_button::group([
-        segmented_button::animated_selectable_label_action(
+        segmented_button::animated_label_action(
             "List",
             1.0,
             SegmentPosition::First,
             Message::Pressed,
         ),
-        segmented_button::animated_selectable_label_action(
+        segmented_button::animated_label_action(
             "Grid",
             0.0,
             SegmentPosition::Last,
@@ -1150,16 +1189,15 @@ fn material_segmented_button_constructors_compile_to_elements() {
         ),
     ])
     .into();
-    let _: TestElement<'_> =
-        segmented_button::group(segmented_button::animated_selectable_label_actions(
-            &segment_state,
-            [
-                ("List", Message::Pressed),
-                ("Grid", Message::Pressed),
-                ("Map", Message::Pressed),
-            ],
-        ))
-        .into();
+    let _: TestElement<'_> = segmented_button::group(segmented_button::animated_label_actions(
+        &segment_state,
+        [
+            ("List", Message::Pressed),
+            ("Grid", Message::Pressed),
+            ("Map", Message::Pressed),
+        ],
+    ))
+    .into();
 }
 
 #[test]
@@ -1206,7 +1244,7 @@ fn material_combobox_with_input_constructor_compiles_to_element() {
 #[test]
 fn material_list_item_constructors_compile_to_elements() {
     let _: TestElement<'_> = list::one_line("Single line").into();
-    let _: TestElement<'_> = list::one_line_with_leading_icon("info", "With leading icon").into();
+    let _: TestElement<'_> = list::one_line_icon("info", "With leading icon").into();
     let _: TestElement<'_> = list::two_line("Two line", "Supporting text").into();
     let _: TestElement<'_> = list::two_line_with_trailing("Inventory", "In stock", "42").into();
     let _: TestElement<'_> =
@@ -1303,7 +1341,7 @@ fn material_snackbar_constructors_compile_to_elements() {
     .into();
 
     let content: TestElement<'_> = Text::new("Content").into();
-    let _: TestElement<'_> = snackbar::host_single_line_with_action(
+    let _: TestElement<'_> = snackbar::host(
         content,
         &snackbar::Transition::default(),
         iced_widget::core::time::Instant::now(),
@@ -1502,7 +1540,7 @@ fn material_picker_constructors_compile_to_elements() {
         |_| Message::Pressed,
         picker::DatePickerOptions::default().show_mode_toggle(false),
     );
-    let _: TestElement<'_> = picker::date_range_picker_dialog(
+    let _: TestElement<'_> = picker::date_range_dialog(
         &range,
         |_| Message::Pressed,
         picker::date_picker_dialog_actions([
@@ -1510,7 +1548,7 @@ fn material_picker_constructors_compile_to_elements() {
             dialog::action_button("OK", Message::Pressed),
         ]),
     );
-    let _: TestElement<'_> = picker::date_range_picker_dialog_with(
+    let _: TestElement<'_> = picker::date_range_dialog_with(
         &range,
         |_| Message::Pressed,
         picker::date_picker_dialog_actions([

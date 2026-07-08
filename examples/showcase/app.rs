@@ -274,12 +274,10 @@ fn update(state: &mut Showcase, message: Message) -> Task<Message> {
             state.search_query = query;
             Task::none()
         }
-        Message::DatePickerChanged(action) => state
-            .date_picker
-            .update_and_scroll_to_displayed_year(action),
-        Message::DateRangePickerChanged(action) => state
-            .date_range_picker
-            .update_and_scroll_to_displayed_year(action),
+        Message::DatePickerChanged(action) => state.date_picker.update_and_scroll(action),
+        Message::DateRangePickerChanged(action) => {
+            state.date_range_picker.update_and_scroll(action)
+        }
         Message::TimePickerChanged(action) => {
             state.time_picker.update(action);
             Task::none()
@@ -353,9 +351,7 @@ fn update(state: &mut Showcase, message: Message) -> Task<Message> {
             state.theme_controller.update(
                 action,
                 state.window_size,
-                theme_picker::bottom_margin_for_navigation_layout(
-                    state.adaptive_navigation_layout(),
-                ),
+                theme_picker::bottom_margin(state.adaptive_navigation_layout()),
                 Instant::now(),
             );
             Task::none()
@@ -406,7 +402,7 @@ fn subscription(state: &Showcase) -> Subscription<Message> {
 
 fn view(state: &Showcase) -> material::Element<'_, Message> {
     let now = Instant::now();
-    let page_content = material::widget::snackbar::host_single_line_with_action(
+    let page_content = material::widget::snackbar::host(
         pages::view(state),
         &state.snackbar,
         now,
@@ -421,7 +417,7 @@ fn view(state: &Showcase) -> material::Element<'_, Message> {
         .view(Message::Navigate, page_content);
     let content = state.theme_controller.controls_over(
         content,
-        theme_picker::bottom_margin_for_navigation_layout(state.adaptive_navigation_layout()),
+        theme_picker::bottom_margin(state.adaptive_navigation_layout()),
         Message::ThemeChanged,
     );
 
@@ -625,16 +621,12 @@ mod tests {
     #[test]
     fn theme_picker_uses_navigation_bar_clearance() {
         assert_eq!(
-            theme_picker::bottom_margin_for_navigation_layout(
-                navigation::AdaptiveLayout::NavigationBar
-            ),
+            theme_picker::bottom_margin(navigation::AdaptiveLayout::NavigationBar),
             theme_picker::FLOATING_MARGIN
                 + material::tokens::component::navigation_bar::CONTAINER_HEIGHT
         );
         assert_eq!(
-            theme_picker::bottom_margin_for_navigation_layout(
-                navigation::AdaptiveLayout::NavigationRail
-            ),
+            theme_picker::bottom_margin(navigation::AdaptiveLayout::NavigationRail),
             theme_picker::FLOATING_MARGIN
         );
     }
@@ -696,9 +688,7 @@ mod tests {
 
         let expected_origin = theme_picker::swatch_center(
             showcase.window_size,
-            theme_picker::bottom_margin_for_navigation_layout(
-                showcase.adaptive_navigation_layout(),
-            ),
+            theme_picker::bottom_margin(showcase.adaptive_navigation_layout()),
             theme_picker::MaterialColor::Blue,
         );
         let animation = showcase

@@ -69,7 +69,7 @@ let layout = material::widget::navigation::AdaptiveLayout::from_size(
     app.window_size.width,
     app.window_size.height,
 );
-let bottom_margin = theme_picker::bottom_margin_for_navigation_layout(layout);
+let bottom_margin = theme_picker::bottom_margin(layout);
 ```
 
 ## Render the Floating Picker

@@ -198,12 +198,12 @@ impl ButtonState {
 
     fn snap_state_layer_to_hover_target(&mut self) {
         self.state_layer_opacity
-            .snap_to(button_hover_state_layer_target(self.is_hovered));
+            .snap_to(ButtonDrawState::hover_target(self.is_hovered));
     }
 
     fn animate_state_layer(&mut self, now: Instant) {
         self.state_layer_opacity.set_target(
-            button_hover_state_layer_target(self.is_hovered),
+            ButtonDrawState::hover_target(self.is_hovered),
             now,
             duration_ms(tokens::state::STATE_LAYER_TRANSITION_DURATION_MS),
             tokens::motion::EASING_LINEAR,
@@ -329,11 +329,14 @@ where
         let state = tree.state.downcast_mut::<ButtonState>();
         let is_touch_event = matches!(event, Event::Touch(_));
         let is_hovered = self.on_press.is_some() && !is_touch_event && cursor.is_over(bounds);
-        let should_snap_initial_redraw_hover =
-            button_should_snap_initial_redraw_hover(event, state, is_hovered);
+        let interaction = ButtonInteraction {
+            event,
+            cursor,
+            is_hovered,
+        };
+        let should_snap_initial_redraw_hover = interaction.should_snap_initial_redraw(state);
 
-        if button_should_sync_hover(event, cursor) && state.sync_hover(is_hovered, now_or_current())
-        {
+        if interaction.should_sync_hover() && state.sync_hover(is_hovered, now_or_current()) {
             if should_snap_initial_redraw_hover {
                 state.snap_state_layer_to_hover_target();
             }
@@ -355,7 +358,12 @@ where
             }
             Event::Touch(touch::Event::FingerMoved { .. })
                 if state.is_pressed
-                    && touch_moved_beyond_click_slop(state.touch_press_position, event, cursor) =>
+                    && TouchClick {
+                        press_position: state.touch_press_position,
+                        event,
+                        cursor,
+                    }
+                    .moved_beyond_slop() =>
             {
                 state.cancel(now_or_current());
                 shell.request_redraw();
@@ -458,7 +466,7 @@ where
             renderer,
             bounds,
             &style,
-            button_state_layer_opacity_for_draw(state, status),
+            ButtonDrawState { state, status }.layer_opacity(),
         );
 
         draw_ripples(
@@ -515,39 +523,52 @@ where
     }
 }
 
-fn button_hover_state_layer_target(is_hovered: bool) -> f32 {
-    if is_hovered {
-        tokens::state::HOVER_STATE_LAYER_OPACITY
-    } else {
-        0.0
-    }
-}
-
-fn button_should_sync_hover(event: &Event, cursor: mouse::Cursor) -> bool {
-    match event {
-        Event::Window(window::Event::RedrawRequested(_)) => {
-            !matches!(cursor, mouse::Cursor::Unavailable)
-        }
-        Event::Mouse(_) | Event::Touch(_) => true,
-        _ => false,
-    }
-}
-
-fn button_should_snap_initial_redraw_hover(
-    event: &Event,
-    state: &ButtonState,
+#[derive(Debug, Clone, Copy)]
+struct ButtonInteraction<'a> {
+    event: &'a Event,
+    cursor: mouse::Cursor,
     is_hovered: bool,
-) -> bool {
-    matches!(event, Event::Window(window::Event::RedrawRequested(_)))
-        && state.last_status.is_none()
-        && is_hovered
 }
 
-fn button_state_layer_opacity_for_draw(state: &ButtonState, status: Status) -> f32 {
-    if matches!(status, Status::Hovered) && state.last_status.is_none() {
-        button_hover_state_layer_target(true)
-    } else {
-        state.state_layer_opacity()
+impl ButtonInteraction<'_> {
+    fn should_sync_hover(self) -> bool {
+        match self.event {
+            Event::Window(window::Event::RedrawRequested(_)) => {
+                !matches!(self.cursor, mouse::Cursor::Unavailable)
+            }
+            Event::Mouse(_) | Event::Touch(_) => true,
+            _ => false,
+        }
+    }
+
+    fn should_snap_initial_redraw(self, state: &ButtonState) -> bool {
+        matches!(self.event, Event::Window(window::Event::RedrawRequested(_)))
+            && state.last_status.is_none()
+            && self.is_hovered
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ButtonDrawState<'a> {
+    state: &'a ButtonState,
+    status: Status,
+}
+
+impl ButtonDrawState<'_> {
+    fn layer_opacity(self) -> f32 {
+        if matches!(self.status, Status::Hovered) && self.state.last_status.is_none() {
+            Self::hover_target(true)
+        } else {
+            self.state.state_layer_opacity()
+        }
+    }
+
+    fn hover_target(is_hovered: bool) -> f32 {
+        if is_hovered {
+            tokens::state::HOVER_STATE_LAYER_OPACITY
+        } else {
+            0.0
+        }
     }
 }
 
@@ -660,21 +681,26 @@ fn touch_position(event: &Event, cursor: mouse::Cursor) -> Option<Point> {
     }
 }
 
-fn touch_moved_beyond_click_slop(
+#[derive(Debug, Clone, Copy)]
+struct TouchClick<'a> {
     press_position: Option<Point>,
-    event: &Event,
+    event: &'a Event,
     cursor: mouse::Cursor,
-) -> bool {
-    let Some(press_position) = press_position else {
-        return false;
-    };
-    let Some(position) = touch_position(event, cursor) else {
-        return false;
-    };
-    let dx = position.x - press_position.x;
-    let dy = position.y - press_position.y;
+}
 
-    dx * dx + dy * dy > TOUCH_CLICK_SLOP * TOUCH_CLICK_SLOP
+impl TouchClick<'_> {
+    fn moved_beyond_slop(self) -> bool {
+        let Some(press_position) = self.press_position else {
+            return false;
+        };
+        let Some(position) = touch_position(self.event, self.cursor) else {
+            return false;
+        };
+        let dx = position.x - press_position.x;
+        let dy = position.y - press_position.y;
+
+        dx * dx + dy * dy > TOUCH_CLICK_SLOP * TOUCH_CLICK_SLOP
+    }
 }
 
 fn relative_position(position: Point, bounds: Rectangle) -> Option<Point> {

@@ -128,13 +128,13 @@ fn navigation_menu_icon_morphs_from_hamburger_to_arrow() {
 
 #[test]
 fn navigation_menu_icon_rotation_tracks_expansion_progress() {
-    assert_eq!(navigation_menu_icon_rotation_radians(0.0), 0.0);
+    assert_eq!(NavigationMenuIcon { progress: 0.0 }.rotation_radians(), 0.0);
     assert_eq!(
-        navigation_menu_icon_rotation_radians(0.5),
+        NavigationMenuIcon { progress: 0.5 }.rotation_radians(),
         std::f32::consts::FRAC_PI_2
     );
     assert_eq!(
-        navigation_menu_icon_rotation_radians(1.0),
+        NavigationMenuIcon { progress: 1.0 }.rotation_radians(),
         std::f32::consts::PI
     );
 }
@@ -326,30 +326,30 @@ fn active_indicator_width_follows_selection_progress() {
 
 #[test]
 fn navigation_bar_item_geometry_matches_material_vertical_offsets() {
-    assert_eq!(navigation_bar_item_bottom_padding(), 16.0);
+    assert_eq!(BarMetrics::item_bottom_padding(), 16.0);
 }
 
 #[test]
 fn navigation_rail_item_geometry_matches_material_vertical_offsets() {
-    assert_eq!(navigation_rail_item_content_top_padding(), 6.0);
+    assert_eq!(RailMetrics::item_content_top_padding(), 6.0);
 }
 
 #[test]
 fn navigation_rail_header_geometry_matches_material_header_padding() {
-    assert_eq!(navigation_rail_header_bottom_padding(), 40.0);
-    assert_eq!(navigation_rail_header_slot_height(), 80.0);
+    assert_eq!(RailMetrics::header_bottom_padding(), 40.0);
+    assert_eq!(RailMetrics::header_slot_height(), 80.0);
 }
 
 #[test]
 fn navigation_rail_min_height_fits_all_destinations_and_header() {
-    assert_eq!(navigation_rail_min_height(5, true), 468.0);
-    assert_eq!(navigation_rail_min_height(5, false), 384.0);
+    assert_eq!(rail_min_height(5, true), 468.0);
+    assert_eq!(rail_min_height(5, false), 384.0);
     assert_eq!(
-        navigation_rail_min_height(1, true),
+        rail_min_height(1, true),
         tokens::component::navigation_rail::CONTENT_TOP_MARGIN
-            + navigation_rail_header_slot_height()
+            + RailMetrics::header_slot_height()
             + tokens::component::navigation_rail::VERTICAL_PADDING
-            + navigation_rail_item_slot_height()
+            + RailMetrics::item_slot_height()
             + tokens::component::navigation_rail::VERTICAL_PADDING
     );
 }
@@ -362,39 +362,44 @@ fn navigation_rail_fitting_content_sets_minimum_height() {
     ];
     let selection = Selection::new(Page::One);
 
-    let rail: Container<'_, Message, Theme, iced_widget::Renderer> =
-        navigation_rail_fitting_content(&destinations, selection, |_| Message::Frame);
+    let rail: Container<'_, Message, Theme, iced_widget::Renderer> = rail_with(
+        &destinations,
+        selection,
+        |_| Message::Frame,
+        NavigationRailOptions::default().fit_content(),
+    );
     let rail_size = iced_widget::core::Widget::<Message, Theme, iced_widget::Renderer>::size(&rail);
     assert_eq!(
         rail_size.height,
-        Length::Fixed(navigation_rail_min_height(destinations.len(), false))
+        Length::Fixed(rail_min_height(destinations.len(), false))
     );
 
-    let rail: Container<'_, Message, Theme, iced_widget::Renderer> =
-        navigation_rail_with_menu_fitting_content(
-            &destinations,
-            selection,
-            |_| Message::Frame,
-            Message::Frame,
-        );
+    let rail: Container<'_, Message, Theme, iced_widget::Renderer> = rail_with(
+        &destinations,
+        selection,
+        |_| Message::Frame,
+        NavigationRailOptions::default()
+            .menu(Message::Frame)
+            .fit_content(),
+    );
     let rail_size = iced_widget::core::Widget::<Message, Theme, iced_widget::Renderer>::size(&rail);
     assert_eq!(
         rail_size.height,
-        Length::Fixed(navigation_rail_min_height(destinations.len(), true))
+        Length::Fixed(rail_min_height(destinations.len(), true))
     );
 
-    let rail: Container<'_, Message, Theme, iced_widget::Renderer> =
-        navigation_rail_expanded_with_menu_fitting_content(
-            "Navigation",
-            &destinations,
-            selection,
-            |_| Message::Frame,
-            Message::Frame,
-        );
+    let rail: Container<'_, Message, Theme, iced_widget::Renderer> = expanded_rail_with(
+        "Navigation",
+        &destinations,
+        selection,
+        |_| Message::Frame,
+        Message::Frame,
+        ExpandedRailOptions::default().fit_content(),
+    );
     let rail_size = iced_widget::core::Widget::<Message, Theme, iced_widget::Renderer>::size(&rail);
     assert_eq!(
         rail_size.height,
-        Length::Fixed(navigation_rail_min_height(destinations.len(), true))
+        Length::Fixed(rail_min_height(destinations.len(), true))
     );
 }
 
@@ -403,150 +408,135 @@ fn navigation_rail_expanded_geometry_matches_material_expressive_attributes() {
     fn assert_close(actual: f32, expected: f32) {
         assert!((actual - expected).abs() < 0.000_1);
     }
+    let expanded =
+        ExpandedRailMetrics::new(tokens::component::navigation_rail::EXPANDED_CONTAINER_WIDTH);
 
     assert_eq!(
-        navigation_rail_expanded_container_width(0.0),
+        ExpandedRailMetrics::new(0.0).width(),
+        tokens::component::navigation_rail::CONTAINER_WIDTH
+    );
+    assert_eq!(expanded.indicator_width(), 180.0);
+    assert_eq!(expanded.header_leading_space(), 28.0);
+    assert_eq!(expanded.header_title_spacing(), 0.0);
+    assert_eq!(
+        expanded_rail_width(0.0),
         tokens::component::navigation_rail::CONTAINER_WIDTH
     );
     assert_eq!(
-        navigation_rail_expanded_indicator_width(
-            tokens::component::navigation_rail::EXPANDED_CONTAINER_WIDTH
-        ),
-        180.0
-    );
-    assert_eq!(navigation_rail_expanded_header_leading_space(), 28.0);
-    assert_eq!(navigation_rail_expanded_header_title_spacing(), 0.0);
-    assert_eq!(
-        navigation_rail_expanded_width_for_progress(0.0),
-        tokens::component::navigation_rail::CONTAINER_WIDTH
-    );
-    assert_eq!(
-        navigation_rail_expanded_width_for_progress(1.0),
+        expanded_rail_width(1.0),
         tokens::component::navigation_rail::EXPANDED_CONTAINER_WIDTH
     );
     assert_eq!(
-        navigation_rail_expanded_progress_for_width(
-            tokens::component::navigation_rail::CONTAINER_WIDTH
-        ),
+        ExpandedRailMetrics::new(tokens::component::navigation_rail::CONTAINER_WIDTH).progress(),
         0.0
     );
     assert_eq!(
-        navigation_rail_expanded_progress_for_width(
-            tokens::component::navigation_rail::EXPANDED_CONTAINER_WIDTH
-        ),
+        ExpandedRailMetrics::new(tokens::component::navigation_rail::EXPANDED_CONTAINER_WIDTH)
+            .progress(),
         1.0
     );
     assert_eq!(
-        navigation_rail_expanded_progress_for_width(navigation_rail_expanded_width_for_progress(
-            0.5
-        )),
+        ExpandedRailMetrics::new(expanded_rail_width(0.5)).progress(),
         0.5
     );
     assert_eq!(
-        navigation_rail_expanded_label_alpha_for_width(
-            tokens::component::navigation_rail::CONTAINER_WIDTH
-        ),
+        ExpandedRailMetrics::new(tokens::component::navigation_rail::CONTAINER_WIDTH).label_alpha(),
         0.0
     );
     assert_eq!(
-        navigation_rail_expanded_label_alpha_for_width(
-            navigation_rail_expanded_width_for_progress(0.5)
-        ),
+        ExpandedRailMetrics::new(expanded_rail_width(0.5)).label_alpha(),
         0.0
     );
     assert_close(
-        navigation_rail_expanded_label_alpha_for_width(
-            navigation_rail_expanded_width_for_progress(0.8),
-        ),
+        ExpandedRailMetrics::new(expanded_rail_width(0.8)).label_alpha(),
         0.5,
     );
-    assert_eq!(navigation_rail_expanded_collapsed_label_alpha(1.0), 0.0);
-    assert_eq!(navigation_rail_expanded_collapsed_label_alpha(0.5), 0.5);
-    assert_eq!(navigation_rail_expanded_collapsed_label_alpha(0.0), 1.0);
+    assert_eq!(ExpandedRailMetrics::collapsed_label_alpha_for(1.0), 0.0);
+    assert_eq!(ExpandedRailMetrics::collapsed_label_alpha_for(0.5), 0.5);
+    assert_eq!(ExpandedRailMetrics::collapsed_label_alpha_for(0.0), 1.0);
     assert_eq!(
-        navigation_rail_collapsed_label_top_padding(),
-        navigation_rail_item_content_top_padding()
+        RailMetrics::collapsed_label_top_padding(),
+        RailMetrics::item_content_top_padding()
             + tokens::component::navigation_rail::ACTIVE_INDICATOR_HEIGHT
             + tokens::component::navigation_rail::ITEM_VERTICAL_PADDING
     );
     assert_eq!(
-        navigation_rail_collapsed_label_width(),
+        RailMetrics::collapsed_label_width(),
         tokens::component::navigation_rail::ACTIVE_INDICATOR_WIDTH
     );
     assert_close(
-        navigation_rail_expanded_label_alpha_for_width(
-            tokens::component::navigation_rail::EXPANDED_CONTAINER_WIDTH,
-        ),
+        ExpandedRailMetrics::new(tokens::component::navigation_rail::EXPANDED_CONTAINER_WIDTH)
+            .label_alpha(),
         1.0,
     );
-    assert!(navigation_rail_expanded_badge_uses_icon_anchor(0.0));
-    assert!(!navigation_rail_expanded_badge_uses_icon_anchor(0.01));
-    assert_eq!(navigation_rail_expanded_trailing_badge_alpha(-1.0), 0.0);
-    assert_eq!(navigation_rail_expanded_trailing_badge_alpha(0.5), 0.5);
-    assert_eq!(navigation_rail_expanded_trailing_badge_alpha(2.0), 1.0);
+    assert!(ExpandedRailMetrics::badge_uses_icon_anchor_for(0.0));
+    assert!(!ExpandedRailMetrics::badge_uses_icon_anchor_for(0.01));
+    assert_eq!(ExpandedRailMetrics::trailing_badge_alpha_for(-1.0), 0.0);
+    assert_eq!(ExpandedRailMetrics::trailing_badge_alpha_for(0.5), 0.5);
+    assert_eq!(ExpandedRailMetrics::trailing_badge_alpha_for(2.0), 1.0);
     assert_eq!(
-        navigation_rail_expanded_indicator_height_for_progress(0.0),
+        ExpandedRailMetrics::indicator_height_for(0.0),
         tokens::component::navigation_rail::ACTIVE_INDICATOR_HEIGHT
     );
     assert_eq!(
-        navigation_rail_expanded_indicator_height_for_progress(1.0),
+        ExpandedRailMetrics::indicator_height_for(1.0),
         tokens::component::navigation_rail::EXPANDED_ACTIVE_INDICATOR_HEIGHT
     );
-    assert_eq!(navigation_rail_expanded_icon_anchor_width(), 40.0);
-    assert_eq!(navigation_rail_expanded_label_leading_padding(), 48.0);
+    assert_eq!(ExpandedRailMetrics::icon_anchor_width(), 40.0);
+    assert_eq!(expanded.label_leading_padding(), 48.0);
     assert_eq!(
-        navigation_rail_expanded_icon_center_x(),
-        navigation_rail_collapsed_icon_center_x()
+        expanded.expanded_icon_center_x(),
+        RailMetrics::collapsed_icon_center_x()
     );
-    assert_eq!(navigation_rail_expanded_icon_center_x(), 48.0);
+    assert_eq!(expanded.expanded_icon_center_x(), 48.0);
 }
 
 #[test]
 fn navigation_rail_expanded_keeps_collapsed_vertical_slots() {
     assert_eq!(
-        navigation_rail_item_slot_height(),
+        RailMetrics::item_slot_height(),
         tokens::component::navigation_rail::ITEM_HEIGHT
     );
     assert_eq!(
-        navigation_rail_first_item_y_after_header(),
+        RailMetrics::first_item_y_after_header(),
         tokens::component::navigation_rail::CONTENT_TOP_MARGIN
             + tokens::component::icon_button::CONTAINER_HEIGHT
             + tokens::component::navigation_rail::HEADER_PADDING
             + tokens::component::navigation_rail::VERTICAL_PADDING
     );
-    assert_eq!(navigation_rail_first_item_y_after_header(), 128.0);
-    assert_eq!(navigation_rail_expanded_item_vertical_inset(), 4.0);
+    assert_eq!(RailMetrics::first_item_y_after_header(), 128.0);
+    assert_eq!(ExpandedRailMetrics::expanded_item_vertical_inset(), 4.0);
     assert_eq!(
-        navigation_rail_expanded_item_vertical_inset_for_progress(0.0),
-        navigation_rail_item_content_top_padding()
+        ExpandedRailMetrics::item_vertical_inset_for(0.0),
+        RailMetrics::item_content_top_padding()
     );
     assert_eq!(
-        navigation_rail_expanded_item_vertical_inset_for_progress(1.0),
-        navigation_rail_expanded_item_vertical_inset()
+        ExpandedRailMetrics::item_vertical_inset_for(1.0),
+        ExpandedRailMetrics::expanded_item_vertical_inset()
     );
     assert_eq!(
-        navigation_rail_expanded_icon_center_y_for_progress(0.0),
-        navigation_rail_collapsed_icon_center_y()
+        ExpandedRailMetrics::new(expanded_rail_width(0.0)).expanded_icon_center_y(),
+        RailMetrics::collapsed_icon_center_y()
     );
-    assert_eq!(navigation_rail_collapsed_icon_center_y(), 22.0);
+    assert_eq!(RailMetrics::collapsed_icon_center_y(), 22.0);
 }
 
 #[test]
 fn navigation_drawer_width_tracks_material_minimum_and_standard_widths() {
-    assert_eq!(navigation_drawer_width_for_progress(-1.0), 0.0);
-    assert_eq!(navigation_drawer_width_for_progress(0.0), 0.0);
+    assert_eq!(drawer_width(-1.0), 0.0);
+    assert_eq!(drawer_width(0.0), 0.0);
     assert_eq!(
-        navigation_drawer_width_for_progress(0.5),
+        drawer_width(0.5),
         (tokens::component::navigation_drawer::MINIMUM_CONTAINER_WIDTH
             + tokens::component::navigation_drawer::CONTAINER_WIDTH)
             / 2.0
     );
     assert_eq!(
-        navigation_drawer_width_for_progress(1.0),
+        drawer_width(1.0),
         tokens::component::navigation_drawer::CONTAINER_WIDTH
     );
     assert_eq!(
-        navigation_drawer_width_for_progress(2.0),
+        drawer_width(2.0),
         tokens::component::navigation_drawer::CONTAINER_WIDTH
     );
 }
@@ -554,17 +544,16 @@ fn navigation_drawer_width_tracks_material_minimum_and_standard_widths() {
 #[test]
 fn navigation_drawer_indicator_width_matches_container_padding() {
     assert_eq!(
-        navigation_drawer_container_width(0.0),
+        DrawerMetrics::new(0.0).width(),
         tokens::component::navigation_drawer::MINIMUM_CONTAINER_WIDTH
     );
     assert_eq!(
-        navigation_drawer_indicator_width(tokens::component::navigation_drawer::CONTAINER_WIDTH),
+        DrawerMetrics::new(tokens::component::navigation_drawer::CONTAINER_WIDTH).indicator_width(),
         tokens::component::navigation_drawer::ACTIVE_INDICATOR_WIDTH
     );
     assert_eq!(
-        navigation_drawer_indicator_width(
-            tokens::component::navigation_drawer::MINIMUM_CONTAINER_WIDTH
-        ),
+        DrawerMetrics::new(tokens::component::navigation_drawer::MINIMUM_CONTAINER_WIDTH)
+            .indicator_width(),
         tokens::component::navigation_drawer::MINIMUM_CONTAINER_WIDTH
             - tokens::component::navigation_drawer::ITEM_HORIZONTAL_PADDING * 2.0
     );
@@ -572,17 +561,17 @@ fn navigation_drawer_indicator_width_matches_container_padding() {
 
 #[test]
 fn navigation_drawer_menu_header_aligns_to_item_icon_and_label_columns() {
-    assert_eq!(navigation_drawer_menu_header_leading_space(), 20.0);
-    assert_eq!(navigation_drawer_menu_header_title_spacing(), 4.0);
+    assert_eq!(DrawerMetrics::menu_header_leading_space(), 20.0);
+    assert_eq!(DrawerMetrics::menu_header_title_spacing(), 4.0);
 
-    let menu_icon_center = navigation_drawer_menu_header_leading_space()
+    let menu_icon_center = DrawerMetrics::menu_header_leading_space()
         + tokens::component::icon_button::CONTAINER_WIDTH / 2.0;
     let drawer_icon_center = tokens::component::navigation_drawer::ITEM_HORIZONTAL_PADDING
         + tokens::component::navigation_drawer::ITEM_CONTENT_LEADING_SPACE
         + tokens::component::navigation_drawer::ICON_SIZE / 2.0;
-    let menu_title_start = navigation_drawer_menu_header_leading_space()
+    let menu_title_start = DrawerMetrics::menu_header_leading_space()
         + tokens::component::icon_button::CONTAINER_WIDTH
-        + navigation_drawer_menu_header_title_spacing();
+        + DrawerMetrics::menu_header_title_spacing();
     let drawer_label_start = tokens::component::navigation_drawer::ITEM_HORIZONTAL_PADDING
         + tokens::component::navigation_drawer::ITEM_CONTENT_LEADING_SPACE
         + tokens::component::navigation_drawer::ICON_SIZE
@@ -594,7 +583,7 @@ fn navigation_drawer_menu_header_aligns_to_item_icon_and_label_columns() {
 
 #[test]
 fn navigation_drawer_badge_spacing_matches_material_row_spacing() {
-    assert_eq!(navigation_drawer_badge_space(), 12.0);
+    assert_eq!(DrawerMetrics::badge_space(), 12.0);
 }
 
 #[test]
@@ -625,28 +614,34 @@ fn navigation_trailing_badge_alpha_follows_expanded_label_visibility() {
 fn navigation_press_surface_uses_material_state_opacity_on_pill_only() {
     let theme = Theme::Light;
 
-    assert_eq!(navigation_surface_state_layer_opacity(false, false), 0.0);
     assert_eq!(
-        navigation_surface_state_layer_opacity(true, false),
-        HOVERED_LAYER_OPACITY
-    );
-    assert_eq!(navigation_surface_state_layer_opacity(false, true), 0.0);
-    assert_eq!(
-        navigation_surface_state_layer_opacity(true, true),
-        HOVERED_LAYER_OPACITY
+        NavigationLayer::opacity(NavigationLayer::target(false, false)),
+        0.0
     );
     assert_eq!(
-        navigation_state_layer_color(&theme, NavigationStateLayer::BarOrRail),
+        NavigationLayer::opacity(NavigationLayer::target(true, false)),
+        HOVERED_LAYER_OPACITY
+    );
+    assert_eq!(
+        NavigationLayer::opacity(NavigationLayer::target(false, true)),
+        0.0
+    );
+    assert_eq!(
+        NavigationLayer::opacity(NavigationLayer::target(true, true)),
+        HOVERED_LAYER_OPACITY
+    );
+    assert_eq!(
+        layer_color(&theme, NavigationStateLayer::BarOrRail),
         theme.colors().surface.text
     );
     assert_eq!(
-        navigation_state_layer_color(&theme, NavigationStateLayer::Drawer { progress: 1.0 }),
+        layer_color(&theme, NavigationStateLayer::Drawer { progress: 1.0 }),
         theme.colors().secondary.container_text
     );
     assert_eq!(
         state_layer(
-            navigation_state_layer_color(&theme, NavigationStateLayer::BarOrRail),
-            navigation_surface_state_layer_opacity(true, false)
+            layer_color(&theme, NavigationStateLayer::BarOrRail),
+            NavigationLayer::opacity(NavigationLayer::target(true, false))
         ),
         state_layer(theme.colors().surface.text, HOVERED_LAYER_OPACITY)
     );
@@ -676,14 +671,22 @@ fn navigation_press_surface_click_keeps_hover_layer_independent_from_ripple() {
 fn navigation_redraw_without_cursor_does_not_resync_hover() {
     let redraw = Event::Window(window::Event::RedrawRequested(Instant::now()));
 
-    assert!(!navigation_should_sync_hover(
-        &redraw,
-        mouse::Cursor::Unavailable
-    ));
-    assert!(navigation_should_sync_hover(
-        &redraw,
-        mouse::Cursor::Available(Point::new(48.0, 160.0))
-    ));
+    assert!(
+        !NavigationInteraction {
+            event: &redraw,
+            cursor: mouse::Cursor::Unavailable,
+            is_hovered: false,
+        }
+        .should_sync_hover()
+    );
+    assert!(
+        NavigationInteraction {
+            event: &redraw,
+            cursor: mouse::Cursor::Available(Point::new(48.0, 160.0)),
+            is_hovered: false,
+        }
+        .should_sync_hover()
+    );
 }
 
 #[test]
@@ -692,9 +695,14 @@ fn navigation_initial_redraw_hover_snaps_to_hover_layer_target() {
     let redraw = Event::Window(window::Event::RedrawRequested(start));
     let mut state = NavigationPressSurfaceState::default();
 
-    assert!(navigation_should_snap_initial_redraw_hover(
-        &redraw, &state, true
-    ));
+    assert!(
+        NavigationInteraction {
+            event: &redraw,
+            cursor: mouse::Cursor::Unavailable,
+            is_hovered: true,
+        }
+        .should_snap_initial_redraw(&state)
+    );
     assert!(state.sync_hover(true, start));
 
     state.snap_to_interaction_target();
@@ -709,19 +717,21 @@ fn navigation_draw_uses_hover_layer_target_for_fresh_hovered_state() {
     let bounds = Rectangle::new(Point::new(0.0, 120.0), Size::new(80.0, 56.0));
 
     assert_eq!(
-        navigation_press_surface_opacity_for_draw(
-            &state,
-            mouse::Cursor::Available(Point::new(40.0, 148.0)),
-            bounds
-        ),
+        NavigationDrawState {
+            state: &state,
+            cursor: mouse::Cursor::Available(Point::new(40.0, 148.0)),
+            bounds,
+        }
+        .opacity(),
         HOVERED_LAYER_OPACITY
     );
     assert_eq!(
-        navigation_press_surface_opacity_for_draw(
-            &state,
-            mouse::Cursor::Available(Point::new(140.0, 148.0)),
-            bounds
-        ),
+        NavigationDrawState {
+            state: &state,
+            cursor: mouse::Cursor::Available(Point::new(140.0, 148.0)),
+            bounds,
+        }
+        .opacity(),
         0.0
     );
 }
@@ -736,11 +746,12 @@ fn navigation_draw_keeps_mouse_hover_enter_animation_after_first_frame() {
     let _ = state.advance(start);
 
     assert_eq!(
-        navigation_press_surface_opacity_for_draw(
-            &state,
-            mouse::Cursor::Available(Point::new(40.0, 148.0)),
-            bounds
-        ),
+        NavigationDrawState {
+            state: &state,
+            cursor: mouse::Cursor::Available(Point::new(40.0, 148.0)),
+            bounds,
+        }
+        .opacity(),
         0.0
     );
 }
@@ -850,6 +861,10 @@ fn navigation_ripple_matches_compose_bounded_radius_for_indicator_bounds() {
     );
 }
 
+fn pointer<'a>(event: &'a Event, cursor: mouse::Cursor) -> NavigationPointer<'a> {
+    NavigationPointer { event, cursor }
+}
+
 #[test]
 fn navigation_ripple_origin_uses_indicator_local_coordinates() {
     let indicator_bounds = Rectangle {
@@ -863,8 +878,9 @@ fn navigation_ripple_origin_uses_indicator_local_coordinates() {
         position: Point::new(20.0, 56.0),
     });
 
-    let origin =
-        navigation_press_origin(&event, indicator_bounds, mouse::Cursor::Unavailable).unwrap();
+    let origin = pointer(&event, mouse::Cursor::Unavailable)
+        .press_origin(indicator_bounds)
+        .unwrap();
 
     assert_eq!(origin, Point::new(-8.0, 44.0));
 }
@@ -877,11 +893,7 @@ fn navigation_touch_hit_test_uses_finger_position_without_cursor() {
         position: Point::new(48.0, 760.0),
     });
 
-    assert!(navigation_event_is_over(
-        &event,
-        bounds,
-        mouse::Cursor::Unavailable
-    ));
+    assert!(pointer(&event, mouse::Cursor::Unavailable).is_over(bounds));
 }
 
 #[test]
@@ -892,11 +904,7 @@ fn navigation_touch_hit_test_prefers_translated_cursor_position() {
         position: Point::new(48.0, 160.0),
     });
 
-    assert!(navigation_event_is_over(
-        &event,
-        bounds,
-        mouse::Cursor::Available(Point::new(48.0, 760.0))
-    ));
+    assert!(pointer(&event, mouse::Cursor::Available(Point::new(48.0, 760.0))).is_over(bounds));
 }
 
 #[test]
@@ -907,11 +915,7 @@ fn navigation_touch_hit_test_does_not_fallback_when_cursor_is_available() {
         position: Point::new(48.0, 760.0),
     });
 
-    assert!(!navigation_event_is_over(
-        &event,
-        bounds,
-        mouse::Cursor::Available(Point::new(48.0, 160.0))
-    ));
+    assert!(!pointer(&event, mouse::Cursor::Available(Point::new(48.0, 160.0))).is_over(bounds));
 }
 
 #[test]
@@ -922,11 +926,7 @@ fn navigation_touch_hit_test_does_not_fallback_when_cursor_is_levitating() {
         position: Point::new(48.0, 760.0),
     });
 
-    assert!(!navigation_event_is_over(
-        &event,
-        bounds,
-        mouse::Cursor::Levitating(Point::new(48.0, 160.0))
-    ));
+    assert!(!pointer(&event, mouse::Cursor::Levitating(Point::new(48.0, 160.0))).is_over(bounds));
 }
 
 #[test]
@@ -942,12 +942,9 @@ fn navigation_touch_origin_prefers_translated_cursor_position() {
         position: Point::new(20.0, 56.0),
     });
 
-    let origin = navigation_press_origin(
-        &event,
-        indicator_bounds,
-        mouse::Cursor::Available(Point::new(40.0, 736.0)),
-    )
-    .unwrap();
+    let origin = pointer(&event, mouse::Cursor::Available(Point::new(40.0, 736.0)))
+        .press_origin(indicator_bounds)
+        .unwrap();
 
     assert_eq!(origin, Point::new(12.0, 16.0));
 }
@@ -966,11 +963,8 @@ fn navigation_touch_origin_does_not_fallback_when_cursor_is_levitating() {
     });
 
     assert_eq!(
-        navigation_press_origin(
-            &event,
-            indicator_bounds,
-            mouse::Cursor::Levitating(Point::new(40.0, 160.0)),
-        ),
+        pointer(&event, mouse::Cursor::Levitating(Point::new(40.0, 160.0)))
+            .press_origin(indicator_bounds),
         None
     );
 }
@@ -983,11 +977,7 @@ fn navigation_touch_hit_test_rejects_positions_outside_bounds() {
         position: Point::new(48.0, 680.0),
     });
 
-    assert!(!navigation_event_is_over(
-        &event,
-        bounds,
-        mouse::Cursor::Unavailable
-    ));
+    assert!(!pointer(&event, mouse::Cursor::Unavailable).is_over(bounds));
 }
 
 #[test]

@@ -10,10 +10,10 @@ fn plain_tooltip_text_shrinks_under_material_max_width() {
         Widget::<(), Theme, iced_widget::Renderer>::size(&text).width,
         Length::Shrink
     );
-    assert_eq!(plain_tooltip_inner_horizontal_padding(), 4.0);
-    assert_eq!(plain_tooltip_inner_max_width(), 192.0);
+    assert_eq!(PlainTooltipMetrics::horizontal_padding(), 4.0);
+    assert_eq!(PlainTooltipMetrics::max_width(), 192.0);
     assert_eq!(
-        plain_tooltip_inner_max_width() + tokens::component::tooltip::PLAIN_VERTICAL_SPACE * 2.0,
+        PlainTooltipMetrics::max_width() + tokens::component::tooltip::PLAIN_VERTICAL_SPACE * 2.0,
         tokens::component::tooltip::PLAIN_MAX_WIDTH
     );
 }
@@ -21,7 +21,7 @@ fn plain_tooltip_text_shrinks_under_material_max_width() {
 #[test]
 fn rich_tooltip_padding_matches_androidx_material_layout_constants() {
     assert_eq!(rich_title_top_padding(), 8.0);
-    assert_eq!(rich_tooltip_shadow_padding(), 8.0);
+    assert_eq!(RichTooltipSurface::shadow_padding(), 8.0);
     assert_eq!(
         rich_supporting_text_padding(false, false),
         Padding {
@@ -50,7 +50,7 @@ fn rich_tooltip_surface_keeps_material_gap_from_anchor() {
         width: 80.0,
         height: 32.0,
     };
-    let clip_padding = rich_tooltip_shadow_padding();
+    let clip_padding = RichTooltipSurface::shadow_padding();
     let tooltip_node = layout::Node::new(Size::new(180.0, 96.0));
     let tooltip = rich_tooltip_surface_bounds(
         &tooltip_node,
@@ -65,7 +65,11 @@ fn rich_tooltip_surface_keeps_material_gap_from_anchor() {
             snap_within_viewport: true,
         },
     );
-    let surface = rich_tooltip_visual_bounds(tooltip, clip_padding);
+    let surface = RichTooltipSurface {
+        bounds: tooltip,
+        clip_padding,
+    }
+    .visual_bounds();
 
     assert_eq!(
         content.y - (surface.y + surface.height),
@@ -89,8 +93,13 @@ fn rich_tooltip_corridor_spans_anchor_surface_gap() {
         width: 180.0,
         height: 96.0,
     };
-    let corridor = rich_tooltip_corridor_bounds(content, tooltip, Position::Top)
-        .expect("top tooltip should have a corridor to its anchor");
+    let corridor = RichTooltipHitArea {
+        content,
+        tooltip,
+        position: Position::Top,
+    }
+    .corridor()
+    .expect("top tooltip should have a corridor to its anchor");
 
     assert!(corridor.contains(Point::new(160.0, 158.0)));
     assert!(!corridor.contains(Point::new(160.0, 120.0)));
@@ -112,18 +121,14 @@ fn rich_tooltip_keep_alive_does_not_cover_adjacent_anchor() {
         height: 272.0,
     };
 
-    assert!(rich_tooltip_keep_alive_contains(
-        rich_anchor,
-        rich_tooltip,
-        Position::Top,
-        mouse::Cursor::Available(Point::new(348.0, 286.0)),
-    ));
-    assert!(!rich_tooltip_keep_alive_contains(
-        rich_anchor,
-        rich_tooltip,
-        Position::Top,
-        mouse::Cursor::Available(Point::new(200.0, 322.0)),
-    ));
+    let hit_area = RichTooltipHitArea {
+        content: rich_anchor,
+        tooltip: rich_tooltip,
+        position: Position::Top,
+    };
+
+    assert!(hit_area.contains(mouse::Cursor::Available(Point::new(348.0, 286.0))));
+    assert!(!hit_area.contains(mouse::Cursor::Available(Point::new(200.0, 322.0))));
 }
 
 #[test]
@@ -133,8 +138,8 @@ fn rich_tooltip_anchor_exit_defers_dismissal_to_overlay() {
 
     state.show(start, Point::new(10.0, 20.0));
 
-    assert!(!rich_tooltip_anchor_exit_dismisses(true, &state));
-    assert!(rich_tooltip_anchor_exit_dismisses(false, &state));
+    assert!(!RichTooltipHitArea::anchor_exit_dismisses(true, &state));
+    assert!(RichTooltipHitArea::anchor_exit_dismisses(false, &state));
 }
 
 #[test]

@@ -44,7 +44,7 @@ const THEME_REVEAL_EDGE_FADE_THRESHOLD: f32 = 0.75;
 
 /// Returns the floating control bottom margin after accounting for an adaptive
 /// navigation layout.
-pub fn bottom_margin_for_navigation_layout(layout: navigation::AdaptiveLayout) -> f32 {
+pub fn bottom_margin(layout: navigation::AdaptiveLayout) -> f32 {
     FLOATING_MARGIN
         + match layout {
             navigation::AdaptiveLayout::NavigationBar => {

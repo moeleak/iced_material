@@ -1550,6 +1550,18 @@ struct PolygonCorner {
     expected_round_cut: f32,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct FlankingCurve {
+    actual_round_cut: f32,
+    actual_smoothing_value: f32,
+    corner: Point,
+    side_start: Point,
+    circle_segment_intersection: Point,
+    other_circle_segment_intersection: Point,
+    circle_center: Point,
+    actual_radius: f32,
+}
+
 impl PolygonCorner {
     fn new(p0: Point, p1: Point, p2: Point, rounding: CornerRounding) -> Self {
         let v01 = point_sub(p0, p1);
@@ -1622,27 +1634,27 @@ impl PolygonCorner {
         );
         let circle_intersection0 = point_add(self.p1, point_scale(self.d1, actual_round_cut));
         let circle_intersection2 = point_add(self.p1, point_scale(self.d2, actual_round_cut));
-        let flanking0 = self.compute_flanking_curve(
+        let flanking0 = self.compute_flanking_curve(FlankingCurve {
             actual_round_cut,
-            actual_smoothing0,
-            self.p1,
-            self.p0,
-            circle_intersection0,
-            circle_intersection2,
+            actual_smoothing_value: actual_smoothing0,
+            corner: self.p1,
+            side_start: self.p0,
+            circle_segment_intersection: circle_intersection0,
+            other_circle_segment_intersection: circle_intersection2,
             circle_center,
             actual_radius,
-        );
+        });
         let flanking2 = self
-            .compute_flanking_curve(
+            .compute_flanking_curve(FlankingCurve {
                 actual_round_cut,
-                actual_smoothing1,
-                self.p1,
-                self.p2,
-                circle_intersection2,
-                circle_intersection0,
+                actual_smoothing_value: actual_smoothing1,
+                corner: self.p1,
+                side_start: self.p2,
+                circle_segment_intersection: circle_intersection2,
+                other_circle_segment_intersection: circle_intersection0,
                 circle_center,
                 actual_radius,
-            )
+            })
             .reverse();
 
         vec![
@@ -1670,47 +1682,37 @@ impl PolygonCorner {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn compute_flanking_curve(
-        &self,
-        actual_round_cut: f32,
-        actual_smoothing_value: f32,
-        corner: Point,
-        side_start: Point,
-        circle_segment_intersection: Point,
-        other_circle_segment_intersection: Point,
-        circle_center: Point,
-        actual_radius: f32,
-    ) -> Cubic {
-        let side_direction = point_direction(point_sub(side_start, corner));
+    fn compute_flanking_curve(&self, curve: FlankingCurve) -> Cubic {
+        let side_direction = point_direction(point_sub(curve.side_start, curve.corner));
         let curve_start = point_add(
-            corner,
+            curve.corner,
             point_scale(
                 side_direction,
-                actual_round_cut * (1.0 + actual_smoothing_value),
+                curve.actual_round_cut * (1.0 + curve.actual_smoothing_value),
             ),
         );
         let p = point_lerp(
-            circle_segment_intersection,
+            curve.circle_segment_intersection,
             point_scale(
                 point_add(
-                    circle_segment_intersection,
-                    other_circle_segment_intersection,
+                    curve.circle_segment_intersection,
+                    curve.other_circle_segment_intersection,
                 ),
                 0.5,
             ),
-            actual_smoothing_value,
+            curve.actual_smoothing_value,
         );
         let curve_end = point_add(
-            circle_center,
+            curve.circle_center,
             point_scale(
-                direction_vector(p.x - circle_center.x, p.y - circle_center.y),
-                actual_radius,
+                direction_vector(p.x - curve.circle_center.x, p.y - curve.circle_center.y),
+                curve.actual_radius,
             ),
         );
-        let circle_tangent = rotate90(point_sub(curve_end, circle_center));
-        let anchor_end = line_intersection(side_start, side_direction, curve_end, circle_tangent)
-            .unwrap_or(circle_segment_intersection);
+        let circle_tangent = rotate90(point_sub(curve_end, curve.circle_center));
+        let anchor_end =
+            line_intersection(curve.side_start, side_direction, curve_end, circle_tangent)
+                .unwrap_or(curve.circle_segment_intersection);
         let anchor_start = point_scale(
             point_add(curve_start, point_scale(anchor_end, 2.0)),
             1.0 / 3.0,

@@ -187,14 +187,22 @@ fn button_hover_state_layer_animates_with_compose_default_tween() {
 fn button_redraw_without_cursor_does_not_resync_hover() {
     let redraw = Event::Window(window::Event::RedrawRequested(Instant::now()));
 
-    assert!(!button_should_sync_hover(
-        &redraw,
-        mouse::Cursor::Unavailable
-    ));
-    assert!(button_should_sync_hover(
-        &redraw,
-        mouse::Cursor::Available(Point::new(20.0, 20.0))
-    ));
+    assert!(
+        !ButtonInteraction {
+            event: &redraw,
+            cursor: mouse::Cursor::Unavailable,
+            is_hovered: false,
+        }
+        .should_sync_hover()
+    );
+    assert!(
+        ButtonInteraction {
+            event: &redraw,
+            cursor: mouse::Cursor::Available(Point::new(20.0, 20.0)),
+            is_hovered: false,
+        }
+        .should_sync_hover()
+    );
 }
 
 #[test]
@@ -203,9 +211,14 @@ fn button_initial_redraw_hover_snaps_to_hover_layer_target() {
     let redraw = Event::Window(window::Event::RedrawRequested(start));
     let mut state = ButtonState::default();
 
-    assert!(button_should_snap_initial_redraw_hover(
-        &redraw, &state, true
-    ));
+    assert!(
+        ButtonInteraction {
+            event: &redraw,
+            cursor: mouse::Cursor::Unavailable,
+            is_hovered: true,
+        }
+        .should_snap_initial_redraw(&state)
+    );
     assert!(state.sync_hover(true, start));
 
     state.snap_state_layer_to_hover_target();
@@ -222,11 +235,19 @@ fn button_draw_uses_hover_layer_target_for_fresh_hovered_state() {
     let state = ButtonState::default();
 
     assert_close(
-        button_state_layer_opacity_for_draw(&state, Status::Hovered),
+        ButtonDrawState {
+            state: &state,
+            status: Status::Hovered,
+        }
+        .layer_opacity(),
         tokens::state::HOVER_STATE_LAYER_OPACITY,
     );
     assert_eq!(
-        button_state_layer_opacity_for_draw(&state, Status::Active),
+        ButtonDrawState {
+            state: &state,
+            status: Status::Active,
+        }
+        .layer_opacity(),
         0.0
     );
 }
@@ -241,7 +262,11 @@ fn button_draw_keeps_mouse_hover_enter_animation() {
     assert!(state.sync_hover(true, start));
 
     assert_eq!(
-        button_state_layer_opacity_for_draw(&state, Status::Hovered),
+        ButtonDrawState {
+            state: &state,
+            status: Status::Hovered,
+        }
+        .layer_opacity(),
         0.0
     );
 }
@@ -541,14 +566,20 @@ fn touch_move_beyond_click_slop_cancels_click_candidate() {
         position: Point::new(25.0 + TOUCH_CLICK_SLOP + 1.0, 35.0),
     });
 
-    assert!(!touch_moved_beyond_click_slop(
-        press_position,
-        &small_move,
-        mouse::Cursor::Unavailable
-    ));
-    assert!(touch_moved_beyond_click_slop(
-        press_position,
-        &scroll_move,
-        mouse::Cursor::Unavailable
-    ));
+    assert!(
+        !TouchClick {
+            press_position,
+            event: &small_move,
+            cursor: mouse::Cursor::Unavailable,
+        }
+        .moved_beyond_slop()
+    );
+    assert!(
+        TouchClick {
+            press_position,
+            event: &scroll_move,
+            cursor: mouse::Cursor::Unavailable,
+        }
+        .moved_beyond_slop()
+    );
 }
