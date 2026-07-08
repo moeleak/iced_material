@@ -4,6 +4,18 @@ use super::*;
 
 type StyleFn<'a> = Box<dyn Fn(&Theme, iced_toggler::Status) -> iced_toggler::Style + 'a>;
 
+const SWITCH_ON_ICON_SVG: &[u8] = br##"
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <path d="M9.55 18.2 3.65 12.3 5.275 10.675 9.55 14.95 18.725 5.775 20.35 7.4Z"/>
+</svg>
+"##;
+
+const SWITCH_OFF_ICON_SVG: &[u8] = br##"
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <path d="M6.4 19.2 4.8 17.6 10.4 12 4.8 6.4 6.4 4.8 12 10.4 17.6 4.8 19.2 6.4 13.6 12 19.2 17.6 17.6 19.2 12 13.6Z"/>
+</svg>
+"##;
+
 /// A Material 3 switch with animated handle motion and color transitions.
 pub struct Toggler<'a, Message, Renderer = iced_widget::Renderer>
 where
