@@ -17,11 +17,13 @@ exclude = [
 ]
 
 [features]
-default = ["svg", "animate"]
+default = ["svg", "animate", "canvas"]
 # Provides `serde` support.
 serde = ["serde/derive"]
 # Provides support for animating with `iced_anim`.
 animate = ["dep:iced_anim"]
+# Compatibility feature for existing manifests. Canvas drawing is always enabled.
+canvas = []
 # Enables pixel snapping for crisp edges by default (can cause jitter!).
 crisp = ["iced_widget/crisp"]
 # Provides support for `iced_dialog`.

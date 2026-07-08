@@ -1,6 +1,6 @@
 # Feature Flags
 
-The crate features control optional integrations and widget backends.
+The crate features control optional integrations and compatibility flags.
 
 ## Default Features
 
@@ -16,7 +16,8 @@ The default set enables:
 
 - `serde`: enables serialization support for theme data.
 - `animate`: enables integration with `iced_anim`.
-- `canvas`: enables path-based canvas drawing in `iced_widget`.
+- `canvas`: compatibility feature for existing manifests; canvas drawing is
+  always enabled.
 - `crisp`: enables pixel snapping for crisp edges by default. This can cause
   jitter in animated layouts.
 - `dialog`: enables `iced_dialog` support.

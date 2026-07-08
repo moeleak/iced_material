@@ -82,7 +82,7 @@ The crate provides Material-sized constructors and token-backed styles for:
 - `default`: Enables SVG support, animations, and canvas drawing.
 - `serde`: Adds `serde` support for theme data.
 - `animate`: Enables integration with `iced_anim`.
-- `canvas`: Enables path-based canvas drawing.
+- `canvas`: Compatibility feature; canvas drawing is always enabled.
 - `crisp`: Enables pixel snapping for crisp edges.
 - `dialog`: Enables `iced_dialog` support.
 - `selection`: Enables `iced_selection` support.
