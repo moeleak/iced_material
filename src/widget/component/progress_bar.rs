@@ -1403,6 +1403,11 @@ impl RoundedPolygon {
         let width = bounds_width(bounds);
         let height = bounds_height(bounds);
         let side = width.max(height);
+
+        if side < DISTANCE_EPSILON {
+            return self.clone();
+        }
+
         let offset_x = (side - width) / 2.0 - bounds[0];
         let offset_y = (side - height) / 2.0 - bounds[1];
 
@@ -1581,8 +1586,8 @@ impl PolygonCorner {
         if d01 > 0.0 && d21 > 0.0 {
             let d1 = point_scale(v01, 1.0 / d01);
             let d2 = point_scale(v21, 1.0 / d21);
-            let cos_angle = point_dot(d1, d2);
-            let sin_angle = (1.0 - square(cos_angle)).sqrt();
+            let cos_angle = point_dot(d1, d2).clamp(-1.0, 1.0);
+            let sin_angle = (1.0 - square(cos_angle)).max(0.0).sqrt();
             let expected_round_cut = if sin_angle > 1e-3 {
                 rounding.radius * (cos_angle + 1.0) / sin_angle
             } else {

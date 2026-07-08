@@ -196,6 +196,32 @@ fn loading_shape_scale_accounts_for_rotation_bounds() {
     assert!(scale < tokens::component::loading_indicator::ACTIVE_INDICATOR_SCALE);
 }
 
+#[test]
+fn degenerate_polygon_normalization_does_not_emit_nan() {
+    let polygon = RoundedPolygon::from_vertices(
+        &[Point::ORIGIN, Point::ORIGIN, Point::ORIGIN],
+        &[CornerRounding::UNROUNDED; 3],
+        None,
+    );
+
+    let normalized = polygon.normalized();
+
+    assert!(normalized.cubics.iter().all(|cubic| {
+        [
+            cubic.anchor0_x(),
+            cubic.anchor0_y(),
+            cubic.control0_x(),
+            cubic.control0_y(),
+            cubic.control1_x(),
+            cubic.control1_y(),
+            cubic.anchor1_x(),
+            cubic.anchor1_y(),
+        ]
+        .into_iter()
+        .all(f32::is_finite)
+    }));
+}
+
 fn corner_count(polygon: &RoundedPolygon) -> usize {
     polygon
         .features
