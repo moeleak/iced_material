@@ -1,6 +1,6 @@
 # Bundled Fonts
 
-These font files are bundled so `iced_material` can render Material 3 Latin
+These font files are bundled so `material-ui-rs` can render Material 3 Latin
 typography and Material Symbols without depending on system-installed fonts.
 
 Sources:

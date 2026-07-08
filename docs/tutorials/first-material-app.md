@@ -12,19 +12,19 @@ cargo run --example quickstart
 ## 1. Start the Application
 
 Use `material::application` instead of `iced::application` when the whole app
-uses `iced_material::Theme`. It preloads the bundled Roboto and Material Symbols
+uses `material_ui_rs::Theme`. It preloads the bundled Roboto and Material Symbols
 Rounded fonts and sets Roboto as the default font.
 
 ```rust
 use iced::Size;
-use iced_material as material;
+use material_ui_rs as material;
 
 const WINDOW_SIZE: Size = Size::new(1080.0, 980.0);
 const MIN_WINDOW_SIZE: Size = Size::new(420.0, 720.0);
 
 pub fn main() -> iced::Result {
     material::application(boot, update, view)
-        .title("iced_material quick start")
+        .title("material-ui-rs quick start")
         .subscription(subscription)
         .window(material::window_with_min_size(WINDOW_SIZE, MIN_WINDOW_SIZE))
         .run()

@@ -1,5 +1,5 @@
 [book]
-title = "iced_material"
+title = "material-ui-rs"
 authors = ["pml68", "MoeLeak"]
 language = "en"
 src = "docs"
@@ -10,6 +10,6 @@ build-dir = "target/book"
 create-missing = false
 
 [output.html]
-git-repository-url = "https://github.com/moeleak/iced_material"
-edit-url-template = "https://github.com/moeleak/iced_material/edit/main/{path}"
+git-repository-url = "https://github.com/moeleak/material-ui-rs"
+edit-url-template = "https://github.com/moeleak/material-ui-rs/edit/main/{path}"
 site-url = "/"

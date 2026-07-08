@@ -1,6 +1,6 @@
-# iced_material
+# material-ui-rs
 
-`iced_material` provides Material 3 inspired widgets, theme defaults, typography
+`material-ui-rs` provides Material 3 inspired widgets, theme defaults, typography
 helpers, and design tokens for `iced` 0.14 applications.
 
 Use this book by the kind of work you are doing:
@@ -20,7 +20,7 @@ The crate currently targets:
 
 - Rust 1.88 or newer.
 - `iced` 0.14.
-- A Material `Theme` exported from `iced_material`.
+- A Material `Theme` exported from `material_ui_rs`.
 - A default feature set that enables SVG support, animation support, and canvas
   drawing.
 
@@ -40,9 +40,9 @@ cargo run --example showcase
 
 Most applications use these modules first:
 
-- `iced_material::application` for bootstrapping an `iced` application with
+- `material_ui_rs::application` for bootstrapping an `iced` application with
   bundled fonts and the Material theme.
-- `iced_material::widget` for Material-sized constructors and custom widgets.
-- `iced_material::text` for Material typography helpers.
-- `iced_material::tokens` for Material component metrics and motion constants.
-- `iced_material::Theme` for light, dark, and custom color schemes.
+- `material_ui_rs::widget` for Material-sized constructors and custom widgets.
+- `material_ui_rs::text` for Material typography helpers.
+- `material_ui_rs::tokens` for Material component metrics and motion constants.
+- `material_ui_rs::Theme` for light, dark, and custom color schemes.

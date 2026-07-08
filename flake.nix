@@ -48,11 +48,12 @@
         };
 
         packages = {
-          inherit (nativePackages) default iced_material;
+          inherit (nativePackages) default material_ui_rs;
+          "material-ui-rs" = nativePackages.material_ui_rs;
 
-          native = nativePackages.iced_material;
-          windows = windowsPackages.iced_material;
-          iced_material-windows = windowsPackages.iced_material;
+          native = nativePackages.material_ui_rs;
+          windows = windowsPackages.material_ui_rs;
+          "material-ui-rs-windows" = windowsPackages.material_ui_rs;
         };
       }
     );

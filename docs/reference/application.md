@@ -1,11 +1,11 @@
 # Application Helpers
 
-Application helpers live at the crate root and in `iced_material::application`.
+Application helpers live at the crate root and in `material_ui_rs::application`.
 
 ## Main Entry Points
 
 - `material::application(boot, update, view)` creates an `iced` application that
-  uses `iced_material::Theme` and preloads bundled Material fonts.
+  uses `material_ui_rs::Theme` and preloads bundled Material fonts.
 - `material::with_material_fonts(application)` adds the bundled fonts to an
   existing `iced::Application`.
 - `material::window(size)` returns centered window settings.
@@ -17,7 +17,7 @@ Application helpers live at the crate root and in `iced_material::application`.
 ## Return Types
 
 Use `material::Element<'_, Message>` when a view returns widgets themed by
-`iced_material::Theme`:
+`material_ui_rs::Theme`:
 
 ```rust
 fn view(app: &App) -> material::Element<'_, Message> {

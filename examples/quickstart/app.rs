@@ -1,15 +1,15 @@
 use iced::Size;
 use iced::time::Instant;
 use iced::widget::column;
-use iced_material as material;
 use material::widget::{button, navigation, page};
+use material_ui_rs as material;
 
 const WINDOW_SIZE: Size = Size::new(1080.0, 980.0);
 const MIN_WINDOW_SIZE: Size = Size::new(420.0, 720.0);
 
 pub fn main() -> iced::Result {
     material::application(boot, update, view)
-        .title("iced_material quick start")
+        .title("material-ui-rs quick start")
         .subscription(subscription)
         .window(material::window_with_min_size(WINDOW_SIZE, MIN_WINDOW_SIZE))
         .run()

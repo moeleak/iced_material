@@ -5,7 +5,7 @@ mod navigation;
 mod structure;
 mod surfaces;
 
-use iced_material as material;
+use material_ui_rs as material;
 
 use super::{Message, Showcase, ShowcasePage};
 
@@ -24,7 +24,7 @@ pub(super) fn view(state: &Showcase) -> material::Element<'_, Message> {
 }
 
 fn header(page: ShowcasePage) -> material::Element<'static, Message> {
-    material::widget::page::header("iced_material 0.2.0", page_label(page)).into()
+    material::widget::page::header("material-ui-rs 0.3.0", page_label(page)).into()
 }
 
 fn page_label(page: ShowcasePage) -> &'static str {

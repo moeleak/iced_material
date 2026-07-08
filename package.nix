@@ -16,12 +16,12 @@ let
   };
 in
 rec {
-  default = iced_material;
+  default = material_ui_rs;
 
-  iced_material = rustPlatform.buildRustPackage ({
+  material_ui_rs = rustPlatform.buildRustPackage ({
     inherit version src;
 
-    pname = "iced_material";
+    pname = "material-ui-rs";
 
     cargoLock = {
       lockFile = ./Cargo.lock;
@@ -58,14 +58,14 @@ rec {
         exit 1
       fi
 
-      install -Dm755 "$binary" "$out/bin/iced_material${executableSuffix}"
+      install -Dm755 "$binary" "$out/bin/material-ui-rs${executableSuffix}"
 
       runHook postInstall
     '';
 
     meta = {
       license = lib.licenses.mit;
-      mainProgram = "iced_material";
+      mainProgram = "material-ui-rs";
     };
   } // darwinHostLinkAttrs);
 }

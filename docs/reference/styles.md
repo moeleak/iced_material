@@ -1,7 +1,7 @@
 # Styles
 
 Style functions live under `material::style`. They provide `iced` catalog styles
-for `iced_material::Theme`.
+for `material_ui_rs::Theme`.
 
 Use widget constructors first. Reach for style functions when you are composing
 lower-level `iced_widget` values and need Material colors, borders, shadows, or

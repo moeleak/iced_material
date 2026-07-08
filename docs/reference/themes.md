@@ -1,6 +1,6 @@
 # Themes
 
-`iced_material::Theme` is the crate's theme type.
+`material_ui_rs::Theme` is the crate's theme type.
 
 ## Built-in Themes
 

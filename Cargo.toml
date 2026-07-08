@@ -12,7 +12,7 @@
 [package]
 edition = "2024"
 rust-version = "1.88"
-name = "iced_material"
+name = "material-ui-rs"
 version = "0.3.0"
 authors = [
     "pml68 <contact@pml68.dev>",
@@ -42,7 +42,7 @@ keywords = [
 ]
 categories = ["gui"]
 license = "MIT"
-repository = "https://github.com/moeleak/iced_material"
+repository = "https://github.com/moeleak/material-ui-rs"
 
 [features]
 animate = ["dep:iced_anim"]
@@ -58,7 +58,7 @@ svg = ["iced_widget/svg"]
 __showcase_web = []
 
 [lib]
-name = "iced_material"
+name = "material_ui_rs"
 path = "src/lib.rs"
 
 [[example]]

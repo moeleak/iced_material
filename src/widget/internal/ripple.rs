@@ -669,7 +669,7 @@ impl primitive::Pipeline for RippleShaderPipeline {
     ) -> Self {
         let bind_group_layout =
             device.create_bind_group_layout(&wgpu::wgpu::BindGroupLayoutDescriptor {
-                label: Some("iced_material.ripple_shader.bind_group_layout"),
+                label: Some("material_ui_rs.ripple_shader.bind_group_layout"),
                 entries: &[wgpu::wgpu::BindGroupLayoutEntry {
                     binding: 0,
                     visibility: wgpu::wgpu::ShaderStages::FRAGMENT,
@@ -684,20 +684,20 @@ impl primitive::Pipeline for RippleShaderPipeline {
 
         let pipeline_layout =
             device.create_pipeline_layout(&wgpu::wgpu::PipelineLayoutDescriptor {
-                label: Some("iced_material.ripple_shader.pipeline_layout"),
+                label: Some("material_ui_rs.ripple_shader.pipeline_layout"),
                 bind_group_layouts: &[&bind_group_layout],
                 push_constant_ranges: &[],
             });
 
         let shader = device.create_shader_module(wgpu::wgpu::ShaderModuleDescriptor {
-            label: Some("iced_material.ripple_shader.shader"),
+            label: Some("material_ui_rs.ripple_shader.shader"),
             source: wgpu::wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!(
                 "ripple_shader.wgsl"
             ))),
         });
 
         let pipeline = device.create_render_pipeline(&wgpu::wgpu::RenderPipelineDescriptor {
-            label: Some("iced_material.ripple_shader.pipeline"),
+            label: Some("material_ui_rs.ripple_shader.pipeline"),
             layout: Some(&pipeline_layout),
             vertex: wgpu::wgpu::VertexState {
                 module: &shader,
@@ -747,7 +747,7 @@ impl RippleShaderPipeline {
         bytes: Vec<u8>,
     ) {
         let buffer = device.create_buffer(&wgpu::wgpu::BufferDescriptor {
-            label: Some("iced_material.ripple_shader.uniform_buffer"),
+            label: Some("material_ui_rs.ripple_shader.uniform_buffer"),
             size: bytes.len() as u64,
             usage: wgpu::wgpu::BufferUsages::UNIFORM | wgpu::wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
@@ -756,7 +756,7 @@ impl RippleShaderPipeline {
         queue.write_buffer(&buffer, 0, &bytes);
 
         let bind_group = device.create_bind_group(&wgpu::wgpu::BindGroupDescriptor {
-            label: Some("iced_material.ripple_shader.bind_group"),
+            label: Some("material_ui_rs.ripple_shader.bind_group"),
             layout: &self.bind_group_layout,
             entries: &[wgpu::wgpu::BindGroupEntry {
                 binding: 0,

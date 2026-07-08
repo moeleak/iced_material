@@ -1,6 +1,6 @@
 # Architecture
 
-`iced_material` is shaped around a simple split:
+`material-ui-rs` is shaped around a simple split:
 
 - constructors choose Material layout metrics;
 - styles choose Material colors and state visuals;

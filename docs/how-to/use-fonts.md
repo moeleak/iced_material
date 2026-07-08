@@ -1,6 +1,6 @@
 # Use Bundled and CJK Fonts
 
-`iced_material` bundles Roboto and Material Symbols Rounded font files. The
+`material-ui-rs` bundles Roboto and Material Symbols Rounded font files. The
 application helper loads them for you.
 
 ## Use the Default Path
@@ -8,7 +8,7 @@ application helper loads them for you.
 For a Material-themed app, use `material::application`:
 
 ```rust
-use iced_material as material;
+use material_ui_rs as material;
 
 material::application(boot, update, view)
     .title("My app")

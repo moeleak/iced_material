@@ -5,15 +5,15 @@ mod pages;
 
 use iced::time::Instant;
 use iced::{Size, Subscription, Task};
-use iced_material as material;
 use material::Theme;
 use material::widget::{navigation, theme_picker};
+use material_ui_rs as material;
 
 pub fn main() -> iced::Result {
     let window_size = Size::new(1080.0, 980.0);
 
     material::application(Showcase::default, update, view)
-        .title("iced_material showcase")
+        .title("material-ui-rs showcase")
         .subscription(subscription)
         .theme(theme)
         .window(material::window_with_min_size(

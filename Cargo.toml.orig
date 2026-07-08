@@ -1,11 +1,11 @@
 [package]
-name = "iced_material"
+name = "material-ui-rs"
 description = "A Material3 inspired theme for `iced`"
 authors = ["pml68 <contact@pml68.dev>", "MoeLeak <i@leak.moe>"]
 version = "0.3.0"
 edition = "2024"
 license = "MIT"
-repository = "https://github.com/moeleak/iced_material"
+repository = "https://github.com/moeleak/material-ui-rs"
 categories = ["gui"]
 keywords = ["gui", "ui", "graphics", "interface", "widgets"]
 rust-version = "1.88"

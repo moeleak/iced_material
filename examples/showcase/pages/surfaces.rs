@@ -1,5 +1,5 @@
-use iced_material as material;
 use material::widget::page;
+use material_ui_rs as material;
 
 use super::super::{INVENTORY_ROWS, InventoryRow, Message};
 
