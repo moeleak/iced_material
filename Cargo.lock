@@ -1364,22 +1364,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "material-ui-rs"
-version = "0.3.0"
-dependencies = [
- "iced",
- "iced_anim",
- "iced_dialog",
- "iced_selection",
- "iced_widget",
- "iced_winit",
- "js-sys",
- "num-traits",
- "serde",
- "wasm-bindgen",
-]
-
-[[package]]
 name = "iced_program"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1809,6 +1793,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "62bb907fe88d54d8d9ce32a3cceab4218ed2f6b7d35617cafe9adf84e43919cb"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "material-ui-rs"
+version = "0.3.0"
+dependencies = [
+ "iced",
+ "iced_anim",
+ "iced_dialog",
+ "iced_selection",
+ "iced_widget",
+ "iced_winit",
+ "js-sys",
+ "num-traits",
+ "serde",
+ "wasm-bindgen",
 ]
 
 [[package]]
