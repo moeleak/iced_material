@@ -127,6 +127,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          fetch-depth: 0
 
       - name: Resolve release tag
         id: release
@@ -140,6 +141,50 @@ jobs:
 
           echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
 
+      - name: Generate release notes
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        shell: bash
+        run: |
+          git fetch --force --tags
+
+          previous_tag="$(
+            git tag --merged "${TAG}" --sort=-version:refname |
+              grep -E '^[0-9]+\.[0-9]+\.[0-9]+([.-].*)?$' |
+              grep -v -F -x "${TAG}" |
+              head -n 1 || true
+          )"
+
+          if [[ -n "${previous_tag}" ]]; then
+            changelog_range="${previous_tag}..${TAG}"
+            changelog_title="Changes since ${previous_tag}:"
+          else
+            changelog_range="${TAG}"
+            changelog_title="Changes in this release:"
+          fi
+
+          commit_log="$(git log --no-merges --pretty=format:'- %s (%h)' "${changelog_range}")"
+
+          {
+            echo "material-ui-rs ${TAG} is published on crates.io."
+            echo
+            echo "Crate package: material-ui-rs"
+            echo "Rust crate name: material_ui_rs"
+            echo
+            echo "This release includes optimized showcase binaries for Linux, macOS, and Windows."
+            echo
+            echo "## Changelog"
+            echo
+            echo "${changelog_title}"
+            echo
+
+            if [[ -n "${commit_log}" ]]; then
+              printf '%s\n' "${commit_log}"
+            else
+              echo "- No commit changes found."
+            fi
+          } > release-notes.md
+
       - name: Download binaries
         uses: actions/download-artifact@v6
         with:
@@ -152,15 +197,6 @@ jobs:
           TAG: ${{ steps.release.outputs.tag }}
         shell: bash
         run: |
-          cat > release-notes.md <<EOF
-          material-ui-rs ${TAG} is published on crates.io.
-
-          Crate package: material-ui-rs
-          Rust crate name: material_ui_rs
-
-          This release includes optimized showcase binaries for Linux, macOS, and Windows.
-          EOF
-
           if gh release view "${TAG}" >/dev/null 2>&1; then
             gh release edit "${TAG}" --notes-file release-notes.md
             gh release upload "${TAG}" release-assets/* --clobber
