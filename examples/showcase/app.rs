@@ -436,23 +436,26 @@ fn view(state: &Showcase) -> material::Element<'_, Message> {
 }
 
 fn alert_dialog(alpha: f32) -> material::Element<'static, Message> {
-    material::widget::dialog::alert_with_icon_alpha(
-        "info",
+    let action_options = material::widget::dialog::AlphaOptions::default().alpha(alpha);
+
+    material::widget::dialog::alert_with(
         "Discard draft?",
         "Your current changes will be removed from this device.",
         material::widget::dialog::actions([
-            material::widget::dialog::action_button_alpha(
+            material::widget::dialog::action_button_with(
                 "Cancel",
                 Message::DialogDismissed,
-                alpha,
+                action_options,
             ),
-            material::widget::dialog::action_button_alpha(
+            material::widget::dialog::action_button_with(
                 "Discard",
                 Message::DialogConfirmed,
-                alpha,
+                action_options,
             ),
         ]),
-        alpha,
+        material::widget::dialog::AlertOptions::default()
+            .icon("info")
+            .alpha(alpha),
     )
     .into()
 }

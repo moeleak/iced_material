@@ -783,20 +783,31 @@ fn material_dialog_constructors_compile_to_elements() {
         dialog::alert("Title", "Supporting text", dialog::actions(actions)).into();
 
     let actions: [TestElement<'_>; 1] = [dialog::action("Done").on_press(Message::Pressed).into()];
-    let _: TestElement<'_> =
-        dialog::alert_with_icon("info", "Title", "Supporting text", dialog::actions(actions))
-            .into();
-
-    let actions: [TestElement<'_>; 2] = [
-        dialog::action_button_alpha("Cancel", Message::Pressed, 0.5),
-        dialog::action_button_alpha("OK", Message::Pressed, 0.5),
-    ];
-    let _: TestElement<'_> = dialog::alert_with_icon_alpha(
-        "info",
+    let _: TestElement<'_> = dialog::alert_with(
         "Title",
         "Supporting text",
         dialog::actions(actions),
-        0.5,
+        dialog::AlertOptions::default().icon("info"),
+    )
+    .into();
+
+    let actions: [TestElement<'_>; 2] = [
+        dialog::action_button_with(
+            "Cancel",
+            Message::Pressed,
+            dialog::AlphaOptions::default().alpha(0.5),
+        ),
+        dialog::action_button_with(
+            "OK",
+            Message::Pressed,
+            dialog::AlphaOptions::default().alpha(0.5),
+        ),
+    ];
+    let _: TestElement<'_> = dialog::alert_with(
+        "Title",
+        "Supporting text",
+        dialog::actions(actions),
+        dialog::AlertOptions::default().icon("info").alpha(0.5),
     )
     .into();
 
@@ -804,7 +815,8 @@ fn material_dialog_constructors_compile_to_elements() {
     let _: TestElement<'_> = dialog::scrim(content).into();
 
     let content: TestElement<'_> = Text::new("Animated scrim content").into();
-    let _: TestElement<'_> = dialog::scrim_alpha(content, 0.5).into();
+    let _: TestElement<'_> =
+        dialog::scrim_with(content, dialog::AlphaOptions::default().alpha(0.5)).into();
 
     let content: TestElement<'_> = Text::new("Modal dialog").into();
     let _: TestElement<'_> = dialog::modal_overlay(content).into();

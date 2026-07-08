@@ -182,6 +182,56 @@ impl Transition {
     }
 }
 
+/// Visual options for dialog pieces that only need an alpha override.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AlphaOptions {
+    pub alpha: f32,
+}
+
+impl Default for AlphaOptions {
+    fn default() -> Self {
+        Self { alpha: 1.0 }
+    }
+}
+
+impl AlphaOptions {
+    /// Sets the Android window alpha applied to the dialog piece.
+    pub fn alpha(mut self, alpha: f32) -> Self {
+        self.alpha = alpha;
+        self
+    }
+}
+
+/// Visual options for alert dialog content.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AlertOptions<'a> {
+    pub icon: Option<text::Fragment<'a>>,
+    pub alpha: f32,
+}
+
+impl Default for AlertOptions<'_> {
+    fn default() -> Self {
+        Self {
+            icon: None,
+            alpha: 1.0,
+        }
+    }
+}
+
+impl<'a> AlertOptions<'a> {
+    /// Sets the optional hero icon slot.
+    pub fn icon(mut self, icon: impl text::IntoFragment<'a>) -> Self {
+        self.icon = Some(icon.into_fragment());
+        self
+    }
+
+    /// Sets the Android window alpha applied to the alert content.
+    pub fn alpha(mut self, alpha: f32) -> Self {
+        self.alpha = alpha;
+        self
+    }
+}
+
 /// Creates a Material 3 basic dialog surface around custom content.
 pub fn basic<'a, Message, Renderer>(
     content: impl Into<Element<'a, Message, Theme, Renderer>>,
@@ -190,13 +240,13 @@ where
     Message: 'a,
     Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
 {
-    basic_alpha(content, 1.0)
+    basic_with(content, AlphaOptions::default())
 }
 
-/// Creates a Material 3 basic dialog surface with Android window alpha applied.
-pub fn basic_alpha<'a, Message, Renderer>(
+/// Creates a Material 3 basic dialog surface with custom visual options.
+pub fn basic_with<'a, Message, Renderer>(
     content: impl Into<Element<'a, Message, Theme, Renderer>>,
-    alpha: f32,
+    options: AlphaOptions,
 ) -> Container<'a, Message, Theme, Renderer>
 where
     Message: 'a,
@@ -206,7 +256,7 @@ where
         .width(Length::Fill)
         .max_width(tokens::component::dialog::CONTAINER_MAX_WIDTH)
         .padding(tokens::component::dialog::CONTAINER_PADDING)
-        .style(move |theme| container_style_alpha(theme, alpha))
+        .style(move |theme| container_style_alpha(theme, options.alpha))
 }
 
 /// Creates a Material 3 alert dialog with title, supporting text, and actions.
@@ -220,59 +270,22 @@ where
     Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
-    alert_alpha(title, supporting_text, actions, 1.0)
+    alert_with(title, supporting_text, actions, AlertOptions::default())
 }
 
-/// Creates a Material 3 alert dialog with Android window alpha applied.
-pub fn alert_alpha<'a, Message, Renderer>(
+/// Creates a Material 3 alert dialog with custom visual options.
+pub fn alert_with<'a, Message, Renderer>(
     title: impl text::IntoFragment<'a>,
     supporting_text: impl text::IntoFragment<'a>,
     actions: impl Into<Element<'a, Message, Theme, Renderer>>,
-    alpha: f32,
+    options: AlertOptions<'a>,
 ) -> Container<'a, Message, Theme, Renderer>
 where
     Message: 'a,
     Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
-    alert_content(None, title, supporting_text, actions, alpha)
-}
-
-/// Creates a Material 3 alert dialog with the optional hero icon slot populated.
-pub fn alert_with_icon<'a, Message, Renderer>(
-    icon: impl text::IntoFragment<'a>,
-    title: impl text::IntoFragment<'a>,
-    supporting_text: impl text::IntoFragment<'a>,
-    actions: impl Into<Element<'a, Message, Theme, Renderer>>,
-) -> Container<'a, Message, Theme, Renderer>
-where
-    Message: 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
-    iced_widget::core::Font: Into<Renderer::Font>,
-{
-    alert_with_icon_alpha(icon, title, supporting_text, actions, 1.0)
-}
-
-/// Creates a Material 3 alert dialog with an icon and Android window alpha applied.
-pub fn alert_with_icon_alpha<'a, Message, Renderer>(
-    icon: impl text::IntoFragment<'a>,
-    title: impl text::IntoFragment<'a>,
-    supporting_text: impl text::IntoFragment<'a>,
-    actions: impl Into<Element<'a, Message, Theme, Renderer>>,
-    alpha: f32,
-) -> Container<'a, Message, Theme, Renderer>
-where
-    Message: 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
-    iced_widget::core::Font: Into<Renderer::Font>,
-{
-    alert_content(
-        Some(icon.into_fragment()),
-        title,
-        supporting_text,
-        actions,
-        alpha,
-    )
+    alert_content(title, supporting_text, actions, options)
 }
 
 /// Creates a right-aligned Material 3 dialog actions row.
@@ -300,7 +313,7 @@ where
     Message: Clone + 'a,
     Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
 {
-    super::button::button(label, super::button::ButtonVariant::Text)
+    action_with(label, AlphaOptions::default())
 }
 
 /// Creates a Material 3 dialog text action with an on-press message.
@@ -312,32 +325,33 @@ where
     Message: Clone + 'a,
     Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
 {
-    action(label).on_press(on_press).into()
+    action_button_with(label, on_press, AlphaOptions::default())
 }
 
-/// Creates a Material 3 dialog text action with Android window alpha applied.
-pub fn action_alpha<'a, Message, Renderer>(
+/// Creates a Material 3 dialog text action with custom visual options.
+pub fn action_with<'a, Message, Renderer>(
     label: impl text::IntoFragment<'a>,
-    alpha: f32,
+    options: AlphaOptions,
 ) -> super::button::Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
     Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
 {
-    action(label).style(move |theme, status| action_style_alpha(theme, status, alpha))
+    super::button::button(label, super::button::ButtonVariant::Text)
+        .style(move |theme, status| action_style_alpha(theme, status, options.alpha))
 }
 
-/// Creates a Material 3 dialog text action button with Android window alpha applied.
-pub fn action_button_alpha<'a, Message, Renderer>(
+/// Creates a Material 3 dialog text action button with custom visual options.
+pub fn action_button_with<'a, Message, Renderer>(
     label: impl text::IntoFragment<'a>,
     on_press: Message,
-    alpha: f32,
+    options: AlphaOptions,
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
     Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
 {
-    action_alpha(label, alpha).on_press(on_press).into()
+    action_with(label, options).on_press(on_press).into()
 }
 
 /// Creates a Material 3 modal dialog scrim behind overlay content.
@@ -348,13 +362,13 @@ where
     Message: 'a,
     Renderer: iced_widget::core::Renderer + 'a,
 {
-    scrim_alpha(content, 1.0)
+    scrim_with(content, AlphaOptions::default())
 }
 
-/// Creates a Material 3 modal dialog scrim with Android dim fade alpha applied.
-pub fn scrim_alpha<'a, Message, Renderer>(
+/// Creates a Material 3 modal dialog scrim with custom visual options.
+pub fn scrim_with<'a, Message, Renderer>(
     content: impl Into<Element<'a, Message, Theme, Renderer>>,
-    alpha: f32,
+    options: AlphaOptions,
 ) -> Container<'a, Message, Theme, Renderer>
 where
     Message: 'a,
@@ -363,7 +377,7 @@ where
     Container::new(content)
         .width(Length::Fill)
         .height(Length::Fill)
-        .style(move |theme| scrim_style_alpha(theme, alpha))
+        .style(move |theme| scrim_style_alpha(theme, options.alpha))
 }
 
 /// Centers a Material 3 dialog surface over a modal scrim.
@@ -414,9 +428,9 @@ where
     Message: 'a,
     Renderer: iced_widget::core::Renderer + 'a,
 {
-    let scrim = opaque(scrim_alpha(
+    let scrim = opaque(scrim_with(
         Space::new().width(Length::Fill).height(Length::Fill),
-        transition.scrim_alpha(now),
+        AlphaOptions::default().alpha(transition.scrim_alpha(now)),
     ));
     let dialog = opaque(
         Container::new(scaled(
@@ -472,21 +486,21 @@ where
 }
 
 fn alert_content<'a, Message, Renderer>(
-    icon: Option<text::Fragment<'a>>,
     title: impl text::IntoFragment<'a>,
     supporting_text: impl text::IntoFragment<'a>,
     actions: impl Into<Element<'a, Message, Theme, Renderer>>,
-    alpha: f32,
+    options: AlertOptions<'a>,
 ) -> Container<'a, Message, Theme, Renderer>
 where
     Message: 'a,
     Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
-    let title_alignment = title_alignment(icon.is_some());
+    let alpha = options.alpha;
+    let title_alignment = title_alignment(options.icon.is_some());
     let mut content = Column::new().width(Length::Fill);
 
-    if let Some(icon) = icon {
+    if let Some(icon) = options.icon {
         content = content.push(
             Container::new(icon_text(icon, alpha))
                 .width(Length::Fill)
@@ -524,7 +538,7 @@ where
 
     content = content.push(actions.into());
 
-    basic_alpha(content, alpha)
+    basic_with(content, AlphaOptions::default().alpha(alpha))
 }
 
 fn icon_text<'a, Renderer>(icon: text::Fragment<'a>, alpha: f32) -> Text<'a, Theme, Renderer>
