@@ -36,37 +36,39 @@ pub(super) fn view(state: &Showcase) -> material::Element<'_, Message> {
 
 fn tabs(state: &Showcase) -> material::Element<'_, Message> {
     page::component_stack([
-        material::widget::tabs::animated_primary_icon_label_bar(
+        material::widget::tabs::animated_tabs(
+            material::widget::tabs::Variant::Primary,
             &state.primary_tab_state,
             [
                 (
-                    "input",
-                    "Inputs",
+                    material::widget::tabs::Content::stacked_icon_label("input", "Inputs"),
                     Message::PrimaryTabSelected(TabChoice::Inputs),
                 ),
                 (
-                    "tune",
-                    "Controls",
+                    material::widget::tabs::Content::stacked_icon_label("tune", "Controls"),
                     Message::PrimaryTabSelected(TabChoice::Controls),
                 ),
                 (
-                    "info",
-                    "Feedback",
+                    material::widget::tabs::Content::stacked_icon_label("info", "Feedback"),
                     Message::PrimaryTabSelected(TabChoice::Feedback),
                 ),
             ],
         )
         .into(),
-        material::widget::tabs::animated_secondary_label_bar(
+        material::widget::tabs::animated_tabs(
+            material::widget::tabs::Variant::Secondary,
             &state.secondary_tab_state,
             [
-                ("Overview", Message::SecondaryTabSelected(TabChoice::Inputs)),
                 (
-                    "Details",
+                    material::widget::tabs::Content::label("Overview"),
+                    Message::SecondaryTabSelected(TabChoice::Inputs),
+                ),
+                (
+                    material::widget::tabs::Content::label("Details"),
                     Message::SecondaryTabSelected(TabChoice::Controls),
                 ),
                 (
-                    "History",
+                    material::widget::tabs::Content::label("History"),
                     Message::SecondaryTabSelected(TabChoice::Feedback),
                 ),
             ],

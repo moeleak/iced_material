@@ -121,6 +121,67 @@ impl Variant {
     }
 }
 
+/// How a tab renders its active indicator.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IndicatorMode {
+    /// The tab paints its own indicator. Use with [`bar`].
+    Fixed,
+    /// The tab reserves room for a shared indicator. Use with [`animated_bar`]
+    /// or [`animated_tabs`].
+    Shared,
+}
+
+/// How an icon-label tab arranges the icon and label.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IconLabelLayout {
+    /// Icon above label. Material defines this layout for primary tabs.
+    Stacked,
+    /// Icon and label in one row.
+    Inline,
+}
+
+/// The content shown inside a tab.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Content<'a> {
+    Label(text::Fragment<'a>),
+    IconLabel {
+        icon: text::Fragment<'a>,
+        label: text::Fragment<'a>,
+        layout: IconLabelLayout,
+    },
+}
+
+impl<'a> Content<'a> {
+    /// Creates label-only tab content.
+    pub fn label(label: impl text::IntoFragment<'a>) -> Self {
+        Self::Label(label.into_fragment())
+    }
+
+    /// Creates stacked icon-label tab content.
+    pub fn stacked_icon_label(
+        icon: impl text::IntoFragment<'a>,
+        label: impl text::IntoFragment<'a>,
+    ) -> Self {
+        Self::IconLabel {
+            icon: icon.into_fragment(),
+            label: label.into_fragment(),
+            layout: IconLabelLayout::Stacked,
+        }
+    }
+
+    /// Creates inline icon-label tab content.
+    pub fn inline_icon_label(
+        icon: impl text::IntoFragment<'a>,
+        label: impl text::IntoFragment<'a>,
+    ) -> Self {
+        Self::IconLabel {
+            icon: icon.into_fragment(),
+            label: label.into_fragment(),
+            layout: IconLabelLayout::Inline,
+        }
+    }
+}
+
 /// Creates an equal-width Material tab bar.
 pub fn bar<'a, Message, Renderer>(
     tabs: impl IntoIterator<Item = Element<'a, Message, Theme, Renderer>>,
@@ -157,14 +218,35 @@ where
         .width(Length::Fill)
 }
 
-/// Creates a primary animated tab bar from icon-label action items.
-pub fn animated_primary_icon_label_bar<'a, Message, Renderer, Icon, Label>(
+/// Creates a Material tab.
+pub fn tab<'a, Message, Renderer>(
+    variant: Variant,
+    content: Content<'a>,
+    active: bool,
+    indicator_mode: IndicatorMode,
+) -> Button<'a, Message, Renderer>
+where
+    Message: Clone + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    iced_widget::core::Font: Into<Renderer::Font>,
+{
+    match content {
+        Content::Label(label) => label_tab(variant, label, active, indicator_mode),
+        Content::IconLabel {
+            icon,
+            label,
+            layout,
+        } => icon_label_tab(variant, icon, label, active, indicator_mode, layout),
+    }
+}
+
+/// Creates an animated Material tab bar from action items.
+pub fn animated_tabs<'a, Message, Renderer>(
+    variant: Variant,
     state: &State,
-    tabs: impl IntoIterator<Item = (Icon, Label, Message)>,
+    tabs: impl IntoIterator<Item = (Content<'a>, Message)>,
 ) -> Column<'a, Message, Theme, Renderer>
 where
-    Icon: text::IntoFragment<'a>,
-    Label: text::IntoFragment<'a>,
     Message: Clone + 'a,
     Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
@@ -172,303 +254,33 @@ where
     let tabs: Vec<_> = tabs
         .into_iter()
         .enumerate()
-        .map(|(index, (icon, label, on_press))| {
-            primary_icon_label_action_for_animated_bar(
-                icon,
-                label,
+        .map(|(index, (content, on_press))| {
+            tab(
+                variant,
+                content,
                 state.selected_index() == index,
-                on_press,
+                IndicatorMode::Shared,
             )
+            .on_press(on_press)
+            .into()
         })
         .collect();
 
-    animated_bar(Variant::Primary, tabs.len(), state, tabs)
-}
-
-/// Creates a secondary animated tab bar from label action items.
-pub fn animated_secondary_label_bar<'a, Message, Renderer, Label>(
-    state: &State,
-    tabs: impl IntoIterator<Item = (Label, Message)>,
-) -> Column<'a, Message, Theme, Renderer>
-where
-    Label: text::IntoFragment<'a>,
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
-{
-    let tabs: Vec<_> = tabs
-        .into_iter()
-        .enumerate()
-        .map(|(index, (label, on_press))| {
-            secondary_label_action_for_animated_bar(
-                label,
-                state.selected_index() == index,
-                on_press,
-            )
-        })
-        .collect();
-
-    animated_bar(Variant::Secondary, tabs.len(), state, tabs)
-}
-
-/// Creates a primary label tab.
-pub fn primary_label<'a, Message, Renderer>(
-    label: impl text::IntoFragment<'a>,
-    active: bool,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-{
-    label_tab(Variant::Primary, label, active)
-}
-
-/// Creates a stacked primary tab with icon and label.
-pub fn primary_icon_label<'a, Message, Renderer>(
-    icon_name: impl text::IntoFragment<'a>,
-    label: impl text::IntoFragment<'a>,
-    active: bool,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-    iced_widget::core::Font: Into<Renderer::Font>,
-{
-    let variant = Variant::Primary;
-    let label_text = variant.label_text();
-    let content = Column::<Message, Theme, Renderer>::new()
-        .push(fonts::filled_icon(icon_name, variant.icon_size()))
-        .push(
-            Text::new(label)
-                .size(label_text.size)
-                .line_height(absolute_line_height(label_text.line_height)),
-        )
-        .spacing(tokens::component::primary_tab::STACKED_ICON_LABEL_SPACE)
-        .align_x(alignment::Horizontal::Center);
-
-    tab_button(
-        variant,
-        content.into(),
-        active,
-        tokens::component::primary_tab::WITH_ICON_AND_LABEL_TEXT_CONTAINER_HEIGHT,
-    )
-}
-
-/// Creates a stacked primary tab for an [`animated_bar`].
-pub fn primary_icon_label_for_animated_bar<'a, Message, Renderer>(
-    icon_name: impl text::IntoFragment<'a>,
-    label: impl text::IntoFragment<'a>,
-    active: bool,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-    iced_widget::core::Font: Into<Renderer::Font>,
-{
-    let variant = Variant::Primary;
-    let label_text = variant.label_text();
-    let content = Column::<Message, Theme, Renderer>::new()
-        .push(fonts::filled_icon(icon_name, variant.icon_size()))
-        .push(
-            Text::new(label)
-                .size(label_text.size)
-                .line_height(absolute_line_height(label_text.line_height)),
-        )
-        .spacing(tokens::component::primary_tab::STACKED_ICON_LABEL_SPACE)
-        .align_x(alignment::Horizontal::Center);
-
-    animated_tab_button(
-        variant,
-        content.into(),
-        active,
-        tokens::component::primary_tab::WITH_ICON_AND_LABEL_TEXT_CONTAINER_HEIGHT,
-    )
-}
-
-/// Creates a stacked primary tab with an action message for an [`animated_bar`].
-pub fn primary_icon_label_action_for_animated_bar<'a, Message, Renderer>(
-    icon_name: impl text::IntoFragment<'a>,
-    label: impl text::IntoFragment<'a>,
-    active: bool,
-    on_press: Message,
-) -> Element<'a, Message, Theme, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
-    iced_widget::core::Font: Into<Renderer::Font>,
-{
-    primary_icon_label_for_animated_bar(icon_name, label, active)
-        .on_press(on_press)
-        .into()
-}
-
-/// Creates an inline primary tab with icon and label.
-pub fn primary_inline_icon_label<'a, Message, Renderer>(
-    icon_name: impl text::IntoFragment<'a>,
-    label: impl text::IntoFragment<'a>,
-    active: bool,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-    iced_widget::core::Font: Into<Renderer::Font>,
-{
-    inline_icon_label_tab(Variant::Primary, icon_name, label, active)
-}
-
-/// Creates a secondary label tab.
-pub fn secondary_label<'a, Message, Renderer>(
-    label: impl text::IntoFragment<'a>,
-    active: bool,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-{
-    label_tab(Variant::Secondary, label, active)
-}
-
-/// Creates a primary label tab for an [`animated_bar`].
-pub fn primary_label_for_animated_bar<'a, Message, Renderer>(
-    label: impl text::IntoFragment<'a>,
-    active: bool,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-{
-    animated_label_tab(Variant::Primary, label, active)
-}
-
-/// Creates an inline primary tab with icon and label for an [`animated_bar`].
-pub fn primary_inline_icon_label_for_animated_bar<'a, Message, Renderer>(
-    icon_name: impl text::IntoFragment<'a>,
-    label: impl text::IntoFragment<'a>,
-    active: bool,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-    iced_widget::core::Font: Into<Renderer::Font>,
-{
-    animated_inline_icon_label_tab(Variant::Primary, icon_name, label, active)
-}
-
-/// Creates a secondary label tab for an [`animated_bar`].
-pub fn secondary_label_for_animated_bar<'a, Message, Renderer>(
-    label: impl text::IntoFragment<'a>,
-    active: bool,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-{
-    animated_label_tab(Variant::Secondary, label, active)
-}
-
-/// Creates a secondary label tab with an action message for an [`animated_bar`].
-pub fn secondary_label_action_for_animated_bar<'a, Message, Renderer>(
-    label: impl text::IntoFragment<'a>,
-    active: bool,
-    on_press: Message,
-) -> Element<'a, Message, Theme, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
-{
-    secondary_label_for_animated_bar(label, active)
-        .on_press(on_press)
-        .into()
-}
-
-/// Creates an inline secondary tab with icon and label.
-pub fn secondary_icon_label<'a, Message, Renderer>(
-    icon_name: impl text::IntoFragment<'a>,
-    label: impl text::IntoFragment<'a>,
-    active: bool,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-    iced_widget::core::Font: Into<Renderer::Font>,
-{
-    inline_icon_label_tab(Variant::Secondary, icon_name, label, active)
-}
-
-/// Creates an inline secondary tab with icon and label for an [`animated_bar`].
-pub fn secondary_icon_label_for_animated_bar<'a, Message, Renderer>(
-    icon_name: impl text::IntoFragment<'a>,
-    label: impl text::IntoFragment<'a>,
-    active: bool,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-    iced_widget::core::Font: Into<Renderer::Font>,
-{
-    animated_inline_icon_label_tab(Variant::Secondary, icon_name, label, active)
-}
-
-fn animated_label_tab<'a, Message, Renderer>(
-    variant: Variant,
-    label: impl text::IntoFragment<'a>,
-    active: bool,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-{
-    let label_text = variant.label_text();
-    animated_tab_button(
-        variant,
-        Text::new(label)
-            .size(label_text.size)
-            .line_height(absolute_line_height(label_text.line_height))
-            .into(),
-        active,
-        variant.container_height(),
-    )
-}
-
-fn animated_inline_icon_label_tab<'a, Message, Renderer>(
-    variant: Variant,
-    icon_name: impl text::IntoFragment<'a>,
-    label: impl text::IntoFragment<'a>,
-    active: bool,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-    iced_widget::core::Font: Into<Renderer::Font>,
-{
-    let label_text = variant.label_text();
-    let gap = match variant {
-        Variant::Primary => tokens::component::primary_tab::INLINE_ICON_LABEL_SPACE,
-        Variant::Secondary => tokens::component::secondary_tab::ICON_LABEL_SPACE,
-    };
-    let content = Row::<Message, Theme, Renderer>::new()
-        .push(fonts::filled_icon(icon_name, variant.icon_size()))
-        .push(
-            Text::new(label)
-                .size(label_text.size)
-                .line_height(absolute_line_height(label_text.line_height)),
-        )
-        .spacing(gap)
-        .align_y(alignment::Vertical::Center);
-
-    animated_tab_button(variant, content.into(), active, variant.container_height())
+    animated_bar(variant, tabs.len(), state, tabs)
 }
 
 fn label_tab<'a, Message, Renderer>(
     variant: Variant,
-    label: impl text::IntoFragment<'a>,
+    label: text::Fragment<'a>,
     active: bool,
+    indicator_mode: IndicatorMode,
 ) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
     Renderer: geometry::Renderer + core_text::Renderer + 'a,
 {
     let label_text = variant.label_text();
-    tab_button(
+    tab_button_for_mode(
         variant,
         Text::new(label)
             .size(label_text.size)
@@ -476,14 +288,69 @@ where
             .into(),
         active,
         variant.container_height(),
+        indicator_mode,
+    )
+}
+
+fn icon_label_tab<'a, Message, Renderer>(
+    variant: Variant,
+    icon: text::Fragment<'a>,
+    label: text::Fragment<'a>,
+    active: bool,
+    indicator_mode: IndicatorMode,
+    layout: IconLabelLayout,
+) -> Button<'a, Message, Renderer>
+where
+    Message: Clone + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    iced_widget::core::Font: Into<Renderer::Font>,
+{
+    match (variant, layout) {
+        (Variant::Primary, IconLabelLayout::Stacked) => {
+            stacked_icon_label_tab(variant, icon, label, active, indicator_mode)
+        }
+        _ => inline_icon_label_tab(variant, icon, label, active, indicator_mode),
+    }
+}
+
+fn stacked_icon_label_tab<'a, Message, Renderer>(
+    variant: Variant,
+    icon: text::Fragment<'a>,
+    label: text::Fragment<'a>,
+    active: bool,
+    indicator_mode: IndicatorMode,
+) -> Button<'a, Message, Renderer>
+where
+    Message: Clone + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+    iced_widget::core::Font: Into<Renderer::Font>,
+{
+    let label_text = variant.label_text();
+    let content = Column::<Message, Theme, Renderer>::new()
+        .push(fonts::filled_icon(icon, variant.icon_size()))
+        .push(
+            Text::new(label)
+                .size(label_text.size)
+                .line_height(absolute_line_height(label_text.line_height)),
+        )
+        .spacing(tokens::component::primary_tab::STACKED_ICON_LABEL_SPACE)
+        .align_x(alignment::Horizontal::Center);
+
+    tab_button_for_mode(
+        variant,
+        content.into(),
+        active,
+        tokens::component::primary_tab::WITH_ICON_AND_LABEL_TEXT_CONTAINER_HEIGHT,
+        indicator_mode,
     )
 }
 
 fn inline_icon_label_tab<'a, Message, Renderer>(
     variant: Variant,
-    icon_name: impl text::IntoFragment<'a>,
-    label: impl text::IntoFragment<'a>,
+    icon: text::Fragment<'a>,
+    label: text::Fragment<'a>,
     active: bool,
+    indicator_mode: IndicatorMode,
 ) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
@@ -496,7 +363,7 @@ where
         Variant::Secondary => tokens::component::secondary_tab::ICON_LABEL_SPACE,
     };
     let content = Row::<Message, Theme, Renderer>::new()
-        .push(fonts::filled_icon(icon_name, variant.icon_size()))
+        .push(fonts::filled_icon(icon, variant.icon_size()))
         .push(
             Text::new(label)
                 .size(label_text.size)
@@ -505,7 +372,30 @@ where
         .spacing(gap)
         .align_y(alignment::Vertical::Center);
 
-    tab_button(variant, content.into(), active, variant.container_height())
+    tab_button_for_mode(
+        variant,
+        content.into(),
+        active,
+        variant.container_height(),
+        indicator_mode,
+    )
+}
+
+fn tab_button_for_mode<'a, Message, Renderer>(
+    variant: Variant,
+    content: Element<'a, Message, Theme, Renderer>,
+    active: bool,
+    height: f32,
+    indicator_mode: IndicatorMode,
+) -> Button<'a, Message, Renderer>
+where
+    Message: Clone + 'a,
+    Renderer: geometry::Renderer + core_text::Renderer + 'a,
+{
+    match indicator_mode {
+        IndicatorMode::Fixed => tab_button(variant, content, active, height),
+        IndicatorMode::Shared => animated_tab_button(variant, content, active, height),
+    }
 }
 
 fn tab_button<'a, Message, Renderer>(

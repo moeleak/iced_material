@@ -996,25 +996,50 @@ fn material_navigation_constructors_compile_to_elements() {
 #[test]
 fn material_tabs_constructors_compile_to_elements() {
     let _: TestElement<'_> = tabs::bar([
-        tabs::primary_icon_label("input", "Inputs", true)
-            .on_press(Message::Pressed)
-            .into(),
-        tabs::primary_inline_icon_label("tune", "Controls", false)
-            .on_press(Message::Pressed)
-            .into(),
-        tabs::primary_label("Feedback", false)
-            .on_press(Message::Pressed)
-            .into(),
+        tabs::tab(
+            tabs::Variant::Primary,
+            tabs::Content::stacked_icon_label("input", "Inputs"),
+            true,
+            tabs::IndicatorMode::Fixed,
+        )
+        .on_press(Message::Pressed)
+        .into(),
+        tabs::tab(
+            tabs::Variant::Primary,
+            tabs::Content::inline_icon_label("tune", "Controls"),
+            false,
+            tabs::IndicatorMode::Fixed,
+        )
+        .on_press(Message::Pressed)
+        .into(),
+        tabs::tab(
+            tabs::Variant::Primary,
+            tabs::Content::label("Feedback"),
+            false,
+            tabs::IndicatorMode::Fixed,
+        )
+        .on_press(Message::Pressed)
+        .into(),
     ])
     .into();
 
     let _: TestElement<'_> = tabs::bar([
-        tabs::secondary_icon_label("info", "Overview", true)
-            .on_press(Message::Pressed)
-            .into(),
-        tabs::secondary_label("Details", false)
-            .on_press(Message::Pressed)
-            .into(),
+        tabs::tab(
+            tabs::Variant::Secondary,
+            tabs::Content::inline_icon_label("info", "Overview"),
+            true,
+            tabs::IndicatorMode::Fixed,
+        )
+        .on_press(Message::Pressed)
+        .into(),
+        tabs::tab(
+            tabs::Variant::Secondary,
+            tabs::Content::label("Details"),
+            false,
+            tabs::IndicatorMode::Fixed,
+        )
+        .on_press(Message::Pressed)
+        .into(),
     ])
     .into();
 
@@ -1024,27 +1049,46 @@ fn material_tabs_constructors_compile_to_elements() {
         3,
         &tab_state,
         [
-            tabs::primary_label_for_animated_bar("Inputs", true)
-                .on_press(Message::Pressed)
-                .into(),
-            tabs::primary_inline_icon_label_for_animated_bar("tune", "Controls", false)
-                .on_press(Message::Pressed)
-                .into(),
-            tabs::primary_icon_label_action_for_animated_bar(
-                "info",
-                "Feedback",
+            tabs::tab(
+                tabs::Variant::Primary,
+                tabs::Content::label("Inputs"),
+                true,
+                tabs::IndicatorMode::Shared,
+            )
+            .on_press(Message::Pressed)
+            .into(),
+            tabs::tab(
+                tabs::Variant::Primary,
+                tabs::Content::inline_icon_label("tune", "Controls"),
                 false,
-                Message::Pressed,
-            ),
+                tabs::IndicatorMode::Shared,
+            )
+            .on_press(Message::Pressed)
+            .into(),
+            tabs::tab(
+                tabs::Variant::Primary,
+                tabs::Content::stacked_icon_label("info", "Feedback"),
+                false,
+                tabs::IndicatorMode::Shared,
+            )
+            .on_press(Message::Pressed)
+            .into(),
         ],
     )
     .into();
 
-    let _: TestElement<'_> = tabs::animated_primary_icon_label_bar(
+    let _: TestElement<'_> = tabs::animated_tabs(
+        tabs::Variant::Primary,
         &tab_state,
         [
-            ("input", "Inputs", Message::Pressed),
-            ("tune", "Controls", Message::Pressed),
+            (
+                tabs::Content::stacked_icon_label("input", "Inputs"),
+                Message::Pressed,
+            ),
+            (
+                tabs::Content::stacked_icon_label("tune", "Controls"),
+                Message::Pressed,
+            ),
         ],
     )
     .into();
@@ -1053,17 +1097,24 @@ fn material_tabs_constructors_compile_to_elements() {
         tabs::Variant::Secondary,
         1,
         &tab_state,
-        [tabs::secondary_label_action_for_animated_bar(
-            "Details",
+        [tabs::tab(
+            tabs::Variant::Secondary,
+            tabs::Content::label("Details"),
             true,
-            Message::Pressed,
-        )],
+            tabs::IndicatorMode::Shared,
+        )
+        .on_press(Message::Pressed)
+        .into()],
     )
     .into();
 
-    let _: TestElement<'_> = tabs::animated_secondary_label_bar(
+    let _: TestElement<'_> = tabs::animated_tabs(
+        tabs::Variant::Secondary,
         &tab_state,
-        [("Details", Message::Pressed), ("History", Message::Pressed)],
+        [
+            (tabs::Content::label("Details"), Message::Pressed),
+            (tabs::Content::label("History"), Message::Pressed),
+        ],
     )
     .into();
 }
