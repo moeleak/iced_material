@@ -28,6 +28,7 @@
           [
             rustc
             rustfmt
+            clippy
             rust-analyzer
             cargo
             lld
