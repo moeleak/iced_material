@@ -2,7 +2,7 @@
 name = "iced_material"
 description = "A Material3 inspired theme for `iced`"
 authors = ["pml68 <contact@pml68.dev>", "MoeLeak <i@leak.moe>"]
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/moeleak/iced_material"

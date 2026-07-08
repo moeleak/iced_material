@@ -13,7 +13,7 @@
 edition = "2024"
 rust-version = "1.88"
 name = "iced_material"
-version = "0.2.0"
+version = "0.3.0"
 authors = [
     "pml68 <contact@pml68.dev>",
     "MoeLeak <i@leak.moe>",
