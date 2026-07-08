@@ -569,59 +569,118 @@ fn ime_caret_suppression_is_disabled_on_platform_owned_ime_caret() {
 
 #[test]
 fn material_button_constructors_compile_to_elements() {
-    let _: TestElement<'_> = button::filled("Filled").on_press(Message::Pressed).into();
-    let _: TestElement<'_> = button::filled_action("Filled", Message::Pressed);
-    let _: TestElement<'_> = button::maybe_action(button::filled("Maybe"), true, Message::Pressed);
+    use button::{ButtonVariant, ChipVariant, FabSize, FabVariant, IconButtonVariant};
+
+    let _: TestElement<'_> = button::button("Filled", ButtonVariant::Filled)
+        .on_press(Message::Pressed)
+        .into();
+    let _: TestElement<'_> = button::action(
+        button::button("Filled", ButtonVariant::Filled),
+        Message::Pressed,
+    );
+    let _: TestElement<'_> = button::optional_action(
+        button::button("Maybe", ButtonVariant::Filled),
+        Some(Message::Pressed),
+    );
     let _: Vec<TestElement<'_>> = button::enabled_actions(
         true,
         Message::Pressed,
-        [button::filled("One"), button::text("Two")],
+        [
+            button::button("One", ButtonVariant::Filled),
+            button::button("Two", ButtonVariant::Text),
+        ],
     );
-    let _: TestElement<'_> = button::filled_tonal("Tonal")
+    let _: TestElement<'_> = button::button("Elevated", ButtonVariant::Elevated)
         .on_press(Message::Pressed)
         .into();
-    let _: TestElement<'_> = button::outlined_action("Outlined", Message::Pressed);
-    let _: TestElement<'_> = button::text_action("Text", Message::Pressed);
-    let _: TestElement<'_> = button::outlined_icon("add")
+    let _: TestElement<'_> = button::button("Tonal", ButtonVariant::FilledTonal)
         .on_press(Message::Pressed)
         .into();
-    let _: TestElement<'_> = button::primary_fab("add").on_press(Message::Pressed).into();
-    let _: TestElement<'_> = button::primary_fab_action("add", Message::Pressed);
-    let _: TestElement<'_> = button::primary_small_fab("add")
+    let _: TestElement<'_> = button::action(
+        button::button("Outlined", ButtonVariant::Outlined),
+        Message::Pressed,
+    );
+    let _: TestElement<'_> = button::action(
+        button::button("Text", ButtonVariant::Text),
+        Message::Pressed,
+    );
+    let _: TestElement<'_> = button::icon_button("add", IconButtonVariant::Standard)
         .on_press(Message::Pressed)
         .into();
-    let _: TestElement<'_> = button::primary_large_fab("add")
+    let _: TestElement<'_> = button::icon_button("add", IconButtonVariant::Filled)
         .on_press(Message::Pressed)
         .into();
-    let _: TestElement<'_> = button::secondary_fab("add")
+    let _: TestElement<'_> = button::icon_button("add", IconButtonVariant::FilledTonal)
         .on_press(Message::Pressed)
         .into();
-    let _: TestElement<'_> = button::tertiary_fab("add")
+    let _: TestElement<'_> = button::icon_button("add", IconButtonVariant::Outlined)
         .on_press(Message::Pressed)
         .into();
-    let _: TestElement<'_> = button::surface_fab("add").on_press(Message::Pressed).into();
-    let _: TestElement<'_> = button::surface_small_fab("add")
+    let _: TestElement<'_> = button::fab("add", FabVariant::Primary, FabSize::Standard)
         .on_press(Message::Pressed)
         .into();
-    let _: TestElement<'_> = button::surface_large_fab("add")
+    let _: TestElement<'_> = button::action(
+        button::fab("add", FabVariant::Primary, FabSize::Standard),
+        Message::Pressed,
+    );
+    let _: TestElement<'_> = button::fab("add", FabVariant::Primary, FabSize::Small)
         .on_press(Message::Pressed)
         .into();
-    let _: TestElement<'_> = button::primary_extended_fab("Create")
+    let _: TestElement<'_> = button::fab("add", FabVariant::Primary, FabSize::Large)
         .on_press(Message::Pressed)
         .into();
-    let _: TestElement<'_> = button::primary_extended_fab_with_icon("add", "Create")
+    let _: TestElement<'_> = button::fab("add", FabVariant::Secondary, FabSize::Standard)
         .on_press(Message::Pressed)
         .into();
-    let _: TestElement<'_> = button::secondary_extended_fab("Share")
+    let _: TestElement<'_> = button::fab("add", FabVariant::Tertiary, FabSize::Standard)
         .on_press(Message::Pressed)
         .into();
-    let _: TestElement<'_> = button::tertiary_extended_fab_with_icon("add", "Add")
+    let _: TestElement<'_> = button::fab("add", FabVariant::Surface, FabSize::Standard)
         .on_press(Message::Pressed)
         .into();
-    let _: TestElement<'_> = button::surface_extended_fab("Reroute")
+    let _: TestElement<'_> = button::fab("add", FabVariant::Surface, FabSize::Small)
         .on_press(Message::Pressed)
         .into();
-    let _: TestElement<'_> = button::assist_chip("Assist")
+    let _: TestElement<'_> = button::fab("add", FabVariant::Surface, FabSize::Large)
+        .on_press(Message::Pressed)
+        .into();
+    let _: TestElement<'_> = button::extended_fab("Create", FabVariant::Primary)
+        .on_press(Message::Pressed)
+        .into();
+    let _: TestElement<'_> = button::extended_fab_with_icon("add", "Create", FabVariant::Primary)
+        .on_press(Message::Pressed)
+        .into();
+    let _: TestElement<'_> = button::extended_fab("Share", FabVariant::Secondary)
+        .on_press(Message::Pressed)
+        .into();
+    let _: TestElement<'_> = button::extended_fab_with_icon("add", "Add", FabVariant::Tertiary)
+        .on_press(Message::Pressed)
+        .into();
+    let _: TestElement<'_> = button::extended_fab("Reroute", FabVariant::Surface)
+        .on_press(Message::Pressed)
+        .into();
+    let _: TestElement<'_> = button::chip("Assist", ChipVariant::Assist)
+        .on_press(Message::Pressed)
+        .into();
+    let _: TestElement<'_> = button::chip("Elevated assist", ChipVariant::ElevatedAssist)
+        .on_press(Message::Pressed)
+        .into();
+    let _: TestElement<'_> = button::chip("Suggestion", ChipVariant::Suggestion)
+        .on_press(Message::Pressed)
+        .into();
+    let _: TestElement<'_> = button::chip("Elevated suggestion", ChipVariant::ElevatedSuggestion)
+        .on_press(Message::Pressed)
+        .into();
+    let _: TestElement<'_> = button::chip("Filter", ChipVariant::Filter)
+        .on_press(Message::Pressed)
+        .into();
+    let _: TestElement<'_> = button::chip("Selected filter", ChipVariant::SelectedFilter)
+        .on_press(Message::Pressed)
+        .into();
+    let _: TestElement<'_> = button::chip("Input", ChipVariant::Input)
+        .on_press(Message::Pressed)
+        .into();
+    let _: TestElement<'_> = button::chip("Selected input", ChipVariant::SelectedInput)
         .on_press(Message::Pressed)
         .into();
 }
@@ -669,7 +728,12 @@ fn material_toolbar_constructors_compile_to_elements() {
     )]))
     .into();
     let floating = toolbar::floating(toolbar::icon_actions([("share", Message::Pressed)]));
-    let fab = button::primary_fab("add").on_press(Message::Pressed);
+    let fab = button::fab(
+        "add",
+        button::FabVariant::Primary,
+        button::FabSize::Standard,
+    )
+    .on_press(Message::Pressed);
     let _: TestElement<'_> = toolbar::floating_with_fab(floating, fab).into();
 
     let picker_state = theme_picker::State::new();
@@ -789,7 +853,13 @@ fn material_app_bar_constructors_compile_to_elements() {
     let actions = [app_bar::icon_button("info")
         .on_press(Message::Pressed)
         .into()];
-    let fab = button::primary_fab("add").on_press(Message::Pressed).into();
+    let fab = button::fab(
+        "add",
+        button::FabVariant::Primary,
+        button::FabSize::Standard,
+    )
+    .on_press(Message::Pressed)
+    .into();
     let _: TestElement<'_> = app_bar::bottom(actions, Some(fab)).into();
 }
 
@@ -1229,15 +1299,16 @@ fn material_rule_constructors_compile_to_elements() {
 
 #[test]
 fn material_tooltip_constructor_compiles_to_element() {
-    let content = button::assist_chip("Hint").on_press(Message::Pressed);
+    let content = button::chip("Hint", button::ChipVariant::Assist).on_press(Message::Pressed);
     let _: TestElement<'_> =
         tooltip::plain(content, "Material 3 plain tooltip", tooltip::Position::Top).into();
 
-    let content = button::assist_chip("Rich").on_press(Message::Pressed);
+    let content = button::chip("Rich", button::ChipVariant::Assist).on_press(Message::Pressed);
     let _: TestElement<'_> =
         tooltip::rich(content, "Material 3 rich tooltip", tooltip::Position::Top).into();
 
-    let content = button::assist_chip("Rich title").on_press(Message::Pressed);
+    let content =
+        button::chip("Rich title", button::ChipVariant::Assist).on_press(Message::Pressed);
     let _: TestElement<'_> = tooltip::rich_with_title(
         content,
         "Rich tooltip",
@@ -1246,7 +1317,8 @@ fn material_tooltip_constructor_compiles_to_element() {
     )
     .into();
 
-    let content = button::assist_chip("Rich action").on_press(Message::Pressed);
+    let content =
+        button::chip("Rich action", button::ChipVariant::Assist).on_press(Message::Pressed);
     let action = tooltip::rich_action_button("Action", Message::Pressed);
     let _: TestElement<'_> = tooltip::rich_with_title_action(
         content,
@@ -1285,7 +1357,7 @@ fn material_search_constructors_compile_to_elements() {
         "query",
         |_| Message::Pressed,
         Some(
-            button::icon_button("close")
+            button::icon_button("close", button::IconButtonVariant::Standard)
                 .on_press(Message::Pressed)
                 .into(),
         ),

@@ -2590,7 +2590,11 @@ where
     Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
-    super::button::icon_button(display_mode.toggle_icon()).on_press(on_press)
+    super::button::icon_button(
+        display_mode.toggle_icon(),
+        super::button::IconButtonVariant::Standard,
+    )
+    .on_press(on_press)
 }
 
 fn date_header<'a, Message, Renderer>(
@@ -2634,8 +2638,9 @@ where
         } else {
             "calendar_today"
         };
-        let toggle = super::button::icon_button(toggle_icon)
-            .on_press(on_action(DatePickerAction::SetDisplayMode(toggle_mode)));
+        let toggle =
+            super::button::icon_button(toggle_icon, super::button::IconButtonVariant::Standard)
+                .on_press(on_action(DatePickerAction::SetDisplayMode(toggle_mode)));
         headline_row = headline_row.push(toggle);
     }
 
@@ -2725,9 +2730,11 @@ where
         } else {
             "calendar_today"
         };
-        let toggle = super::button::icon_button(toggle_icon).on_press(on_action(
-            DateRangePickerAction::SetDisplayMode(toggle_mode),
-        ));
+        let toggle =
+            super::button::icon_button(toggle_icon, super::button::IconButtonVariant::Standard)
+                .on_press(on_action(DateRangePickerAction::SetDisplayMode(
+                    toggle_mode,
+                )));
         headline_row = headline_row.push(toggle);
     }
 
@@ -3029,13 +3036,20 @@ where
     if !state.year_picker_visible {
         row = row
             .push(
-                super::button::icon_button("keyboard_arrow_left").on_press_maybe(
+                super::button::icon_button(
+                    "keyboard_arrow_left",
+                    super::button::IconButtonVariant::Standard,
+                )
+                .on_press_maybe(
                     can_previous.then(|| on_action.clone()(DatePickerAction::PreviousMonth)),
                 ),
             )
             .push(
-                super::button::icon_button("keyboard_arrow_right")
-                    .on_press_maybe(can_next.then(|| on_action(DatePickerAction::NextMonth))),
+                super::button::icon_button(
+                    "keyboard_arrow_right",
+                    super::button::IconButtonVariant::Standard,
+                )
+                .on_press_maybe(can_next.then(|| on_action(DatePickerAction::NextMonth))),
             );
     }
 

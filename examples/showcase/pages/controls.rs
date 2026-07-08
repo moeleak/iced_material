@@ -16,43 +16,51 @@ pub(super) fn view(state: &Showcase) -> material::Element<'_, Message> {
 }
 
 fn counter_controls(state: &Showcase) -> material::Element<'_, Message> {
+    use material::widget::button::{self, ButtonVariant};
+
     page::row([
-        material::widget::button::outlined_action("Minus", Message::Decrement),
+        button::action(
+            button::button("Minus", ButtonVariant::Outlined),
+            Message::Decrement,
+        ),
         material::text::headline_medium(state.count.to_string()).into(),
-        material::widget::button::filled_action("Plus", Message::Increment),
+        button::action(
+            button::button("Plus", ButtonVariant::Filled),
+            Message::Increment,
+        ),
     ])
     .into()
 }
 
 fn action_buttons(state: &Showcase) -> material::Element<'_, Message> {
-    use material::widget::button;
+    use material::widget::button::{self, ButtonVariant};
 
     page::row(button::enabled_actions(
         state.enabled,
         Message::Increment,
         [
-            button::filled("Filled"),
-            button::filled_tonal("Tonal"),
-            button::text("Text"),
+            button::button("Filled", ButtonVariant::Filled),
+            button::button("Tonal", ButtonVariant::FilledTonal),
+            button::button("Text", ButtonVariant::Text),
         ],
     ))
     .into()
 }
 
 fn fabs(state: &Showcase) -> material::Element<'_, Message> {
-    use material::widget::button;
+    use material::widget::button::{self, FabSize, FabVariant};
 
     page::stack([
         page::row(button::enabled_actions(
             state.enabled,
             Message::Increment,
             [
-                button::surface_small_fab("add"),
-                button::surface_fab("add"),
-                button::surface_large_fab("add"),
-                button::primary_fab("add"),
-                button::secondary_fab("add"),
-                button::tertiary_fab("add"),
+                button::fab("add", FabVariant::Surface, FabSize::Small),
+                button::fab("add", FabVariant::Surface, FabSize::Standard),
+                button::fab("add", FabVariant::Surface, FabSize::Large),
+                button::fab("add", FabVariant::Primary, FabSize::Standard),
+                button::fab("add", FabVariant::Secondary, FabSize::Standard),
+                button::fab("add", FabVariant::Tertiary, FabSize::Standard),
             ],
         ))
         .into(),
@@ -60,10 +68,10 @@ fn fabs(state: &Showcase) -> material::Element<'_, Message> {
             state.enabled,
             Message::Increment,
             [
-                button::primary_extended_fab_with_icon("add", "Create"),
-                button::secondary_extended_fab_with_icon("share", "Share"),
-                button::tertiary_extended_fab_with_icon("add", "Add"),
-                button::surface_extended_fab("Reroute"),
+                button::extended_fab_with_icon("add", "Create", FabVariant::Primary),
+                button::extended_fab_with_icon("share", "Share", FabVariant::Secondary),
+                button::extended_fab_with_icon("add", "Add", FabVariant::Tertiary),
+                button::extended_fab("Reroute", FabVariant::Surface),
             ],
         ))
         .into(),
@@ -72,16 +80,16 @@ fn fabs(state: &Showcase) -> material::Element<'_, Message> {
 }
 
 fn chips(state: &Showcase) -> material::Element<'_, Message> {
-    use material::widget::button;
+    use material::widget::button::{self, ChipVariant};
 
     page::compact_row(button::enabled_actions(
         state.enabled,
         Message::Increment,
         [
-            button::assist_chip("Assist"),
-            button::suggestion_chip("Suggestion"),
-            button::filter_chip("Filter"),
-            button::selected_filter_chip("Selected"),
+            button::chip("Assist", ChipVariant::Assist),
+            button::chip("Suggestion", ChipVariant::Suggestion),
+            button::chip("Filter", ChipVariant::Filter),
+            button::chip("Selected", ChipVariant::SelectedFilter),
         ],
     ))
     .into()

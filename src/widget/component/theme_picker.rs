@@ -704,7 +704,12 @@ where
     Renderer: iced_widget::core::Renderer + core_text::Renderer + geometry::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
-    super::button::surface_fab("palette").on_press(on_press)
+    super::button::fab(
+        "palette",
+        super::button::FabVariant::Surface,
+        super::button::FabSize::Standard,
+    )
+    .on_press(on_press)
 }
 
 fn swatch_button<'a, Message, Renderer>(

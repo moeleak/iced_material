@@ -300,7 +300,7 @@ where
     Message: Clone + 'a,
     Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
 {
-    super::button::text(label)
+    super::button::button(label, super::button::ButtonVariant::Text)
 }
 
 /// Creates a Material 3 dialog text action with an on-press message.

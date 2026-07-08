@@ -96,7 +96,7 @@ where
     Renderer:
         iced_widget::graphics::geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
 {
-    button::text(label)
+    button::button(label, button::ButtonVariant::Text)
 }
 
 pub fn rich_action_button<'a, Message, Renderer>(

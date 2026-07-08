@@ -60,6 +60,7 @@ fn search_view(state: &Showcase) -> material::Element<'_, Message> {
 
 fn bottom_app_bar() -> material::Element<'static, Message> {
     use material::widget::app_bar;
+    use material::widget::button::{self, FabSize, FabVariant};
 
     app_bar::bottom(
         app_bar::icon_actions([
@@ -67,8 +68,8 @@ fn bottom_app_bar() -> material::Element<'static, Message> {
             ("search", Message::Increment),
             ("info", Message::Increment),
         ]),
-        Some(material::widget::button::primary_fab_action(
-            "add",
+        Some(button::action(
+            button::fab("add", FabVariant::Primary, FabSize::Standard),
             Message::Increment,
         )),
     )
@@ -76,6 +77,7 @@ fn bottom_app_bar() -> material::Element<'static, Message> {
 }
 
 fn toolbars() -> material::Element<'static, Message> {
+    use material::widget::button::{self, FabSize, FabVariant};
     use material::widget::toolbar;
 
     let docked = toolbar::docked(toolbar::icon_actions([
@@ -107,7 +109,7 @@ fn toolbars() -> material::Element<'static, Message> {
             ("add", Message::Increment),
             ("edit", Message::Increment),
         ])),
-        material::widget::button::primary_fab("search").on_press(Message::Increment),
+        button::fab("search", FabVariant::Primary, FabSize::Standard).on_press(Message::Increment),
     );
 
     let vertical = toolbar::vertical_floating([
@@ -173,12 +175,20 @@ fn sheet_content(
     title: &'static str,
     supporting: &'static str,
 ) -> material::Element<'static, Message> {
+    use material::widget::button::{self, ButtonVariant};
+
     material::widget::sheet::bottom_content(page::compact_stack([
         material::text::title_medium(title).into(),
         material::text::body_medium(supporting).into(),
         page::row([
-            material::widget::button::text_action("Dismiss", Message::Decrement),
-            material::widget::button::filled_action("Apply", Message::Increment),
+            button::action(
+                button::button("Dismiss", ButtonVariant::Text),
+                Message::Decrement,
+            ),
+            button::action(
+                button::button("Apply", ButtonVariant::Filled),
+                Message::Increment,
+            ),
         ])
         .into(),
     ]))
@@ -189,12 +199,20 @@ fn side_sheet_content(
     title: &'static str,
     supporting: &'static str,
 ) -> material::Element<'static, Message> {
+    use material::widget::button::{self, ButtonVariant};
+
     material::widget::sheet::side_content(page::compact_stack([
         material::text::title_medium(title).into(),
         material::text::body_medium(supporting).into(),
         page::row([
-            material::widget::button::text_action("Dismiss", Message::Decrement),
-            material::widget::button::filled_action("Apply", Message::Increment),
+            button::action(
+                button::button("Dismiss", ButtonVariant::Text),
+                Message::Decrement,
+            ),
+            button::action(
+                button::button("Apply", ButtonVariant::Filled),
+                Message::Increment,
+            ),
         ])
         .into(),
     ]))

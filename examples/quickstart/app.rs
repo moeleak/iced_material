@@ -75,8 +75,10 @@ impl Page {
                 page::header("Home", "A small Material app"),
                 column![
                     material::text::headline_medium(app.count.to_string()),
-                    button::filled("Increment").on_press(Message::Increment),
-                    button::outlined("Decrement").on_press(Message::Decrement),
+                    button::button("Increment", button::ButtonVariant::Filled)
+                        .on_press(Message::Increment),
+                    button::button("Decrement", button::ButtonVariant::Outlined)
+                        .on_press(Message::Decrement),
                 ]
                 .spacing(12),
             )

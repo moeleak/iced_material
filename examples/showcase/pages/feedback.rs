@@ -46,40 +46,42 @@ fn badges() -> material::Element<'static, Message> {
 }
 
 fn snackbars() -> material::Element<'static, Message> {
-    page::row([material::widget::button::filled_action(
-        "Show snackbar",
+    use material::widget::button::{self, ButtonVariant};
+
+    page::row([button::action(
+        button::button("Show snackbar", ButtonVariant::Filled),
         Message::ShowSnackbar,
     )])
     .into()
 }
 
 fn dialogs() -> material::Element<'static, Message> {
-    page::row([material::widget::button::filled_action(
-        "Open alert dialog",
+    use material::widget::button::{self, ButtonVariant};
+
+    page::row([button::action(
+        button::button("Open alert dialog", ButtonVariant::Filled),
         Message::DialogOpened,
     )])
     .into()
 }
 
 fn tooltips(state: &Showcase) -> material::Element<'_, Message> {
-    use material::widget::button;
+    use material::widget::button::{self, ChipVariant};
 
     page::row([
         material::widget::tooltip::plain(
-            button::maybe_action(
-                button::assist_chip("Plain"),
-                state.enabled,
-                Message::Increment,
+            button::optional_action(
+                button::chip("Plain", ChipVariant::Assist),
+                state.enabled.then_some(Message::Increment),
             ),
             "Material 3 plain tooltip",
             material::widget::tooltip::Position::Top,
         )
         .into(),
         material::widget::tooltip::rich_with_title_action(
-            button::maybe_action(
-                button::assist_chip("Rich"),
-                state.enabled,
-                Message::Increment,
+            button::optional_action(
+                button::chip("Rich", ChipVariant::Assist),
+                state.enabled.then_some(Message::Increment),
             ),
             "Rich tooltip",
             "Additional context and a related action can be shown together.",

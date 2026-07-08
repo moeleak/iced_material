@@ -691,9 +691,131 @@ fn relative_position(position: Point, bounds: Rectangle) -> Option<Point> {
 #[path = "../../../tests/widget/component/button.rs"]
 mod tests;
 
-fn standard<'a, Message, Renderer>(
+type ButtonStyle = fn(&Theme, Status) -> Style;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ButtonVariant {
+    Elevated,
+    Filled,
+    FilledTonal,
+    Outlined,
+    Text,
+}
+
+impl ButtonVariant {
+    const fn style(self) -> ButtonStyle {
+        match self {
+            Self::Elevated => button_style::elevated,
+            Self::Filled => button_style::filled,
+            Self::FilledTonal => button_style::filled_tonal,
+            Self::Outlined => button_style::outlined,
+            Self::Text => button_style::text,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IconButtonVariant {
+    Standard,
+    Filled,
+    FilledTonal,
+    Outlined,
+}
+
+impl IconButtonVariant {
+    const fn style(self) -> ButtonStyle {
+        match self {
+            Self::Standard => button_style::icon,
+            Self::Filled => button_style::filled_icon,
+            Self::FilledTonal => button_style::filled_tonal_icon,
+            Self::Outlined => button_style::outlined_icon,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FabVariant {
+    Primary,
+    Secondary,
+    Tertiary,
+    Surface,
+}
+
+impl FabVariant {
+    const fn standard_style(self) -> ButtonStyle {
+        match self {
+            Self::Primary => button_style::fab_primary,
+            Self::Secondary => button_style::fab_secondary,
+            Self::Tertiary => button_style::fab_tertiary,
+            Self::Surface => button_style::fab_surface,
+        }
+    }
+
+    const fn small_style(self) -> ButtonStyle {
+        match self {
+            Self::Primary => button_style::fab_primary_small,
+            Self::Secondary => button_style::fab_secondary_small,
+            Self::Tertiary => button_style::fab_tertiary_small,
+            Self::Surface => button_style::fab_surface_small,
+        }
+    }
+
+    const fn large_style(self) -> ButtonStyle {
+        match self {
+            Self::Primary => button_style::fab_primary_large,
+            Self::Secondary => button_style::fab_secondary_large,
+            Self::Tertiary => button_style::fab_tertiary_large,
+            Self::Surface => button_style::fab_surface_large,
+        }
+    }
+
+    const fn extended_style(self) -> ButtonStyle {
+        match self {
+            Self::Primary => button_style::extended_fab_primary,
+            Self::Secondary => button_style::extended_fab_secondary,
+            Self::Tertiary => button_style::extended_fab_tertiary,
+            Self::Surface => button_style::extended_fab_surface,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FabSize {
+    Small,
+    Standard,
+    Large,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChipVariant {
+    Assist,
+    ElevatedAssist,
+    Suggestion,
+    ElevatedSuggestion,
+    Filter,
+    SelectedFilter,
+    Input,
+    SelectedInput,
+}
+
+impl ChipVariant {
+    const fn style(self) -> ButtonStyle {
+        match self {
+            Self::Assist => button_style::assist_chip,
+            Self::ElevatedAssist => button_style::elevated_assist_chip,
+            Self::Suggestion => button_style::suggestion_chip,
+            Self::ElevatedSuggestion => button_style::elevated_suggestion_chip,
+            Self::Filter => button_style::filter_chip,
+            Self::SelectedFilter => button_style::selected_filter_chip,
+            Self::Input => button_style::input_chip,
+            Self::SelectedInput => button_style::selected_input_chip,
+        }
+    }
+}
+
+fn standard_button<'a, Message, Renderer>(
     label: impl text::IntoFragment<'a>,
-    style: fn(&Theme, iced_widget::button::Status) -> iced_widget::button::Style,
+    style: ButtonStyle,
 ) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
@@ -711,9 +833,9 @@ where
     .style(style)
 }
 
-fn chip<'a, Message, Renderer>(
+fn chip_button<'a, Message, Renderer>(
     label: impl text::IntoFragment<'a>,
-    style: fn(&Theme, iced_widget::button::Status) -> iced_widget::button::Style,
+    style: ButtonStyle,
 ) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
@@ -731,9 +853,9 @@ where
     .style(style)
 }
 
-fn icon<'a, Message, Renderer>(
+fn icon_button_with_style<'a, Message, Renderer>(
     icon: impl text::IntoFragment<'a>,
-    style: fn(&Theme, iced_widget::button::Status) -> iced_widget::button::Style,
+    style: ButtonStyle,
 ) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
@@ -756,7 +878,7 @@ fn sized_fab<'a, Message, Renderer>(
     width: f32,
     height: f32,
     icon_size: f32,
-    style: fn(&Theme, iced_widget::button::Status) -> iced_widget::button::Style,
+    style: ButtonStyle,
 ) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
@@ -770,9 +892,9 @@ where
         .style(style)
 }
 
-fn fab<'a, Message, Renderer>(
+fn standard_fab<'a, Message, Renderer>(
     icon_content: impl text::IntoFragment<'a>,
-    style: fn(&Theme, iced_widget::button::Status) -> iced_widget::button::Style,
+    style: ButtonStyle,
 ) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
@@ -788,7 +910,7 @@ where
 
 fn small_fab<'a, Message, Renderer>(
     icon_content: impl text::IntoFragment<'a>,
-    style: fn(&Theme, iced_widget::button::Status) -> iced_widget::button::Style,
+    style: ButtonStyle,
 ) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
@@ -806,7 +928,7 @@ where
 
 fn large_fab<'a, Message, Renderer>(
     icon_content: impl text::IntoFragment<'a>,
-    style: fn(&Theme, iced_widget::button::Status) -> iced_widget::button::Style,
+    style: ButtonStyle,
 ) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
@@ -822,9 +944,9 @@ where
     )
 }
 
-fn extended_fab<'a, Message, Renderer>(
+fn extended_fab_button<'a, Message, Renderer>(
     label: impl text::IntoFragment<'a>,
-    style: fn(&Theme, iced_widget::button::Status) -> iced_widget::button::Style,
+    style: ButtonStyle,
 ) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
@@ -838,10 +960,10 @@ where
         .style(style)
 }
 
-fn extended_fab_with_icon<'a, Message, Renderer>(
+fn extended_fab_button_with_icon<'a, Message, Renderer>(
     icon_content: impl text::IntoFragment<'a>,
     label: impl text::IntoFragment<'a>,
-    style: fn(&Theme, iced_widget::button::Status) -> iced_widget::button::Style,
+    style: ButtonStyle,
 ) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
@@ -856,51 +978,39 @@ where
         .style(style)
 }
 
-pub fn elevated<'a, Message, Renderer>(
+pub fn button<'a, Message, Renderer>(
     label: impl text::IntoFragment<'a>,
+    variant: ButtonVariant,
 ) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
     Renderer: geometry::Renderer + core_text::Renderer + 'a,
 {
-    standard(label, button_style::elevated)
+    standard_button(label, variant.style())
 }
 
-pub fn filled<'a, Message, Renderer>(
-    label: impl text::IntoFragment<'a>,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-{
-    standard(label, button_style::filled)
-}
-
-pub fn filled_action<'a, Message, Renderer>(
-    label: impl text::IntoFragment<'a>,
-    on_press: Message,
-) -> Element<'a, Message, Theme, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
-{
-    filled(label).on_press(on_press).into()
-}
-
-/// Converts a Material button into an element with an optional action.
-pub fn maybe_action<'a, Message, Renderer>(
+pub fn action<'a, Message, Renderer>(
     button: Button<'a, Message, Renderer>,
-    enabled: bool,
     on_press: Message,
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
     Renderer: geometry::Renderer + primitive::Renderer + 'a,
 {
-    button.on_press_maybe(enabled.then_some(on_press)).into()
+    button.on_press(on_press).into()
 }
 
-/// Converts a group of Material buttons into elements sharing an enabled action.
+pub fn optional_action<'a, Message, Renderer>(
+    button: Button<'a, Message, Renderer>,
+    on_press: Option<Message>,
+) -> Element<'a, Message, Theme, Renderer>
+where
+    Message: Clone + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + 'a,
+{
+    button.on_press_maybe(on_press).into()
+}
+
 pub fn enabled_actions<'a, Message, Renderer>(
     enabled: bool,
     on_press: Message,
@@ -912,414 +1022,70 @@ where
 {
     buttons
         .into_iter()
-        .map(|button| maybe_action(button, enabled, on_press.clone()))
+        .map(|button| optional_action(button, enabled.then_some(on_press.clone())))
         .collect()
-}
-
-pub fn filled_tonal<'a, Message, Renderer>(
-    label: impl text::IntoFragment<'a>,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-{
-    standard(label, button_style::filled_tonal)
-}
-
-pub fn outlined<'a, Message, Renderer>(
-    label: impl text::IntoFragment<'a>,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-{
-    standard(label, button_style::outlined)
-}
-
-pub fn outlined_action<'a, Message, Renderer>(
-    label: impl text::IntoFragment<'a>,
-    on_press: Message,
-) -> Element<'a, Message, Theme, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
-{
-    outlined(label).on_press(on_press).into()
-}
-
-pub fn text<'a, Message, Renderer>(
-    label: impl text::IntoFragment<'a>,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-{
-    standard(label, button_style::text)
-}
-
-pub fn text_action<'a, Message, Renderer>(
-    label: impl text::IntoFragment<'a>,
-    on_press: Message,
-) -> Element<'a, Message, Theme, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
-{
-    text(label).on_press(on_press).into()
 }
 
 pub fn icon_button<'a, Message, Renderer>(
     icon_content: impl text::IntoFragment<'a>,
+    variant: IconButtonVariant,
 ) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
     Renderer: geometry::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
-    icon(icon_content, button_style::icon)
+    icon_button_with_style(icon_content, variant.style())
 }
 
-pub fn filled_icon<'a, Message, Renderer>(
+pub fn fab<'a, Message, Renderer>(
     icon_content: impl text::IntoFragment<'a>,
+    variant: FabVariant,
+    size: FabSize,
 ) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
     Renderer: geometry::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
-    icon(icon_content, button_style::filled_icon)
+    match size {
+        FabSize::Small => small_fab(icon_content, variant.small_style()),
+        FabSize::Standard => standard_fab(icon_content, variant.standard_style()),
+        FabSize::Large => large_fab(icon_content, variant.large_style()),
+    }
 }
 
-pub fn filled_tonal_icon<'a, Message, Renderer>(
-    icon_content: impl text::IntoFragment<'a>,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-    iced_widget::core::Font: Into<Renderer::Font>,
-{
-    icon(icon_content, button_style::filled_tonal_icon)
-}
-
-pub fn outlined_icon<'a, Message, Renderer>(
-    icon_content: impl text::IntoFragment<'a>,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-    iced_widget::core::Font: Into<Renderer::Font>,
-{
-    icon(icon_content, button_style::outlined_icon)
-}
-
-pub fn primary_fab<'a, Message, Renderer>(
-    icon_content: impl text::IntoFragment<'a>,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-    iced_widget::core::Font: Into<Renderer::Font>,
-{
-    fab(icon_content, button_style::fab_primary)
-}
-
-pub fn primary_fab_action<'a, Message, Renderer>(
-    icon_content: impl text::IntoFragment<'a>,
-    on_press: Message,
-) -> Element<'a, Message, Theme, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
-    iced_widget::core::Font: Into<Renderer::Font>,
-{
-    primary_fab(icon_content).on_press(on_press).into()
-}
-
-pub fn primary_small_fab<'a, Message, Renderer>(
-    icon_content: impl text::IntoFragment<'a>,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-    iced_widget::core::Font: Into<Renderer::Font>,
-{
-    small_fab(icon_content, button_style::fab_primary_small)
-}
-
-pub fn primary_large_fab<'a, Message, Renderer>(
-    icon_content: impl text::IntoFragment<'a>,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-    iced_widget::core::Font: Into<Renderer::Font>,
-{
-    large_fab(icon_content, button_style::fab_primary_large)
-}
-
-pub fn secondary_fab<'a, Message, Renderer>(
-    icon_content: impl text::IntoFragment<'a>,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-    iced_widget::core::Font: Into<Renderer::Font>,
-{
-    fab(icon_content, button_style::fab_secondary)
-}
-
-pub fn secondary_small_fab<'a, Message, Renderer>(
-    icon_content: impl text::IntoFragment<'a>,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-    iced_widget::core::Font: Into<Renderer::Font>,
-{
-    small_fab(icon_content, button_style::fab_secondary_small)
-}
-
-pub fn secondary_large_fab<'a, Message, Renderer>(
-    icon_content: impl text::IntoFragment<'a>,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-    iced_widget::core::Font: Into<Renderer::Font>,
-{
-    large_fab(icon_content, button_style::fab_secondary_large)
-}
-
-pub fn tertiary_fab<'a, Message, Renderer>(
-    icon_content: impl text::IntoFragment<'a>,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-    iced_widget::core::Font: Into<Renderer::Font>,
-{
-    fab(icon_content, button_style::fab_tertiary)
-}
-
-pub fn tertiary_small_fab<'a, Message, Renderer>(
-    icon_content: impl text::IntoFragment<'a>,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-    iced_widget::core::Font: Into<Renderer::Font>,
-{
-    small_fab(icon_content, button_style::fab_tertiary_small)
-}
-
-pub fn tertiary_large_fab<'a, Message, Renderer>(
-    icon_content: impl text::IntoFragment<'a>,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-    iced_widget::core::Font: Into<Renderer::Font>,
-{
-    large_fab(icon_content, button_style::fab_tertiary_large)
-}
-
-pub fn surface_fab<'a, Message, Renderer>(
-    icon_content: impl text::IntoFragment<'a>,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-    iced_widget::core::Font: Into<Renderer::Font>,
-{
-    fab(icon_content, button_style::fab_surface)
-}
-
-pub fn surface_small_fab<'a, Message, Renderer>(
-    icon_content: impl text::IntoFragment<'a>,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-    iced_widget::core::Font: Into<Renderer::Font>,
-{
-    small_fab(icon_content, button_style::fab_surface_small)
-}
-
-pub fn surface_large_fab<'a, Message, Renderer>(
-    icon_content: impl text::IntoFragment<'a>,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-    iced_widget::core::Font: Into<Renderer::Font>,
-{
-    large_fab(icon_content, button_style::fab_surface_large)
-}
-
-pub fn primary_extended_fab<'a, Message, Renderer>(
+pub fn extended_fab<'a, Message, Renderer>(
     label: impl text::IntoFragment<'a>,
+    variant: FabVariant,
 ) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
     Renderer: geometry::Renderer + core_text::Renderer + 'a,
 {
-    extended_fab(label, button_style::extended_fab_primary)
+    extended_fab_button(label, variant.extended_style())
 }
 
-pub fn primary_extended_fab_with_icon<'a, Message, Renderer>(
+pub fn extended_fab_with_icon<'a, Message, Renderer>(
     icon_content: impl text::IntoFragment<'a>,
     label: impl text::IntoFragment<'a>,
+    variant: FabVariant,
 ) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
     Renderer: geometry::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
-    extended_fab_with_icon(icon_content, label, button_style::extended_fab_primary)
+    extended_fab_button_with_icon(icon_content, label, variant.extended_style())
 }
 
-pub fn secondary_extended_fab<'a, Message, Renderer>(
+pub fn chip<'a, Message, Renderer>(
     label: impl text::IntoFragment<'a>,
+    variant: ChipVariant,
 ) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
     Renderer: geometry::Renderer + core_text::Renderer + 'a,
 {
-    extended_fab(label, button_style::extended_fab_secondary)
-}
-
-pub fn secondary_extended_fab_with_icon<'a, Message, Renderer>(
-    icon_content: impl text::IntoFragment<'a>,
-    label: impl text::IntoFragment<'a>,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-    iced_widget::core::Font: Into<Renderer::Font>,
-{
-    extended_fab_with_icon(icon_content, label, button_style::extended_fab_secondary)
-}
-
-pub fn tertiary_extended_fab<'a, Message, Renderer>(
-    label: impl text::IntoFragment<'a>,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-{
-    extended_fab(label, button_style::extended_fab_tertiary)
-}
-
-pub fn tertiary_extended_fab_with_icon<'a, Message, Renderer>(
-    icon_content: impl text::IntoFragment<'a>,
-    label: impl text::IntoFragment<'a>,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-    iced_widget::core::Font: Into<Renderer::Font>,
-{
-    extended_fab_with_icon(icon_content, label, button_style::extended_fab_tertiary)
-}
-
-pub fn surface_extended_fab<'a, Message, Renderer>(
-    label: impl text::IntoFragment<'a>,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-{
-    extended_fab(label, button_style::extended_fab_surface)
-}
-
-pub fn surface_extended_fab_with_icon<'a, Message, Renderer>(
-    icon_content: impl text::IntoFragment<'a>,
-    label: impl text::IntoFragment<'a>,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-    iced_widget::core::Font: Into<Renderer::Font>,
-{
-    extended_fab_with_icon(icon_content, label, button_style::extended_fab_surface)
-}
-
-pub fn assist_chip<'a, Message, Renderer>(
-    label: impl text::IntoFragment<'a>,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-{
-    chip(label, button_style::assist_chip)
-}
-
-pub fn elevated_assist_chip<'a, Message, Renderer>(
-    label: impl text::IntoFragment<'a>,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-{
-    chip(label, button_style::elevated_assist_chip)
-}
-
-pub fn suggestion_chip<'a, Message, Renderer>(
-    label: impl text::IntoFragment<'a>,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-{
-    chip(label, button_style::suggestion_chip)
-}
-
-pub fn elevated_suggestion_chip<'a, Message, Renderer>(
-    label: impl text::IntoFragment<'a>,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-{
-    chip(label, button_style::elevated_suggestion_chip)
-}
-
-pub fn filter_chip<'a, Message, Renderer>(
-    label: impl text::IntoFragment<'a>,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-{
-    chip(label, button_style::filter_chip)
-}
-
-pub fn selected_filter_chip<'a, Message, Renderer>(
-    label: impl text::IntoFragment<'a>,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-{
-    chip(label, button_style::selected_filter_chip)
-}
-
-pub fn input_chip<'a, Message, Renderer>(
-    label: impl text::IntoFragment<'a>,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-{
-    chip(label, button_style::input_chip)
-}
-
-pub fn selected_input_chip<'a, Message, Renderer>(
-    label: impl text::IntoFragment<'a>,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + core_text::Renderer + 'a,
-{
-    chip(label, button_style::selected_input_chip)
+    chip_button(label, variant.style())
 }
