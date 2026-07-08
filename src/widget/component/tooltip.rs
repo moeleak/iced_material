@@ -278,7 +278,7 @@ where
     where
         <Theme as iced_container::Catalog>::Class<'a>: From<iced_container::StyleFn<'a, Theme>>,
     {
-        self.class = (Box::new(style) as iced_container::StyleFn<'a, Theme>).into();
+        self.class = Box::new(style) as iced_container::StyleFn<'a, Theme>;
         self
     }
 }

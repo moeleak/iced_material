@@ -2181,7 +2181,7 @@ where
     Renderer: iced_widget::core::Renderer + 'a,
 {
     Container::new(
-        Row::with_children(buttons.into_iter())
+        Row::with_children(buttons)
             .spacing(tokens::component::date_picker::DIALOG_ACTIONS_MAIN_AXIS_SPACE)
             .align_y(alignment::Vertical::Center),
     )
@@ -3927,22 +3927,22 @@ where
         let connector_progress =
             range_endpoint_connector_progress(self.range_background_progress, selected_progress);
 
-        if connector_progress > 0.0 {
-            if let Some(rect) = range_endpoint_connector_rect(self.range_position, self.weekday) {
-                let path = Path::rounded_rectangle(
-                    Point::new(rect.x, rect.y),
-                    Size::new(rect.width, rect.height),
-                    border::Radius::from(range_background_corner_radius(rect)),
-                );
+        if connector_progress > 0.0
+            && let Some(rect) = range_endpoint_connector_rect(self.range_position, self.weekday)
+        {
+            let path = Path::rounded_rectangle(
+                Point::new(rect.x, rect.y),
+                Size::new(rect.width, rect.height),
+                border::Radius::from(range_background_corner_radius(rect)),
+            );
 
-                frame.fill(
-                    &path,
-                    alpha_color(
-                        colors.secondary.container,
-                        connector_progress * self.content_alpha,
-                    ),
-                );
-            }
+            frame.fill(
+                &path,
+                alpha_color(
+                    colors.secondary.container,
+                    connector_progress * self.content_alpha,
+                ),
+            );
         }
 
         let indicator_radius =

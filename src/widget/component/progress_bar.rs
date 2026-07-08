@@ -613,7 +613,7 @@ fn four_color_indicator(
         && !(0.65..0.75).contains(&phase)
         && !(0.90..1.0).contains(&phase)
     {
-        if phase < 0.25 || phase >= 0.90 {
+        if !(0.25..0.90).contains(&phase) {
             return primary;
         }
         if phase < 0.50 {

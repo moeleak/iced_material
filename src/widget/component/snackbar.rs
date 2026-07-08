@@ -6,7 +6,7 @@ use iced_widget::core::time::{Duration, Instant};
 use iced_widget::core::widget::{self, Tree, tree};
 use iced_widget::core::{
     Background, Border, Clipboard, Color, Element, Event, Layout, Length, Padding, Rectangle,
-    Shell, Size, Vector, Widget, alignment, border, layout, mouse, overlay, renderer,
+    Shadow, Shell, Size, Vector, Widget, alignment, border, layout, mouse, overlay, renderer,
 };
 use iced_widget::graphics::geometry;
 use iced_widget::renderer::wgpu::primitive;
@@ -708,7 +708,7 @@ fn action_style_alpha(theme: &Theme, status: Status, content_alpha: f32) -> Styl
         background: None,
         text_color: foreground,
         border: border::rounded(tokens::component::button::CONTAINER_SHAPE),
-        shadow: Default::default(),
+        shadow: Shadow::default(),
         snap: cfg!(feature = "crisp"),
     };
 
@@ -749,7 +749,7 @@ fn icon_action_style(theme: &Theme, status: Status) -> Style {
             width: 0.0,
             radius: tokens::component::icon_button::CONTAINER_SHAPE.into(),
         },
-        shadow: Default::default(),
+        shadow: Shadow::default(),
         snap: cfg!(feature = "crisp"),
     };
 

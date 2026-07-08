@@ -498,7 +498,7 @@ where
     where
         <Theme as overlay_menu::Catalog>::Class<'a>: From<overlay_menu::StyleFn<'a, Theme>>,
     {
-        self.menu_class = (Box::new(style) as overlay_menu::StyleFn<'a, Theme>).into();
+        self.menu_class = Box::new(style) as overlay_menu::StyleFn<'a, Theme>;
         self
     }
 

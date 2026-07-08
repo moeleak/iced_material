@@ -247,13 +247,13 @@ fn text_field_keyboard_activation(
             false
         }
         Event::Touch(touch::Event::FingerMoved { id, position }) => {
-            if let Some(position) = text_field_touch_position(*position, cursor) {
-                if touch_activation.is_some_and(|activation| {
+            if let Some(position) = text_field_touch_position(*position, cursor)
+                && touch_activation.is_some_and(|activation| {
                     activation.matches(*id)
                         && activation.moved_beyond_slop(position, TEXT_FIELD_TOUCH_SLOP)
-                }) {
-                    *touch_activation = None;
-                }
+                })
+            {
+                *touch_activation = None;
             }
 
             false

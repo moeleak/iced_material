@@ -199,7 +199,7 @@ where
     Message: 'a,
     Renderer: iced_widget::core::Renderer + 'a,
 {
-    Column::with_children(children.into_iter())
+    Column::with_children(children)
         .spacing(STACK_SPACING)
         .width(Length::Fill)
 }
@@ -256,7 +256,7 @@ where
     Message: 'a,
     Renderer: iced_widget::core::Renderer + 'a,
 {
-    Row::with_children(children.into_iter())
+    Row::with_children(children)
         .spacing(ROW_SPACING)
         .align_y(alignment::Vertical::Center)
 }
@@ -280,7 +280,7 @@ where
     Message: 'a,
     Renderer: iced_widget::core::Renderer + 'a,
 {
-    Row::with_children(children.into_iter())
+    Row::with_children(children)
         .spacing(COMPACT_ROW_SPACING)
         .align_y(alignment::Vertical::Center)
 }

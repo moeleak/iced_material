@@ -190,7 +190,7 @@ where
     Message: 'a,
     Renderer: iced_widget::core::Renderer + 'a,
 {
-    Row::with_children(tabs.into_iter())
+    Row::with_children(tabs)
         .spacing(0)
         .align_y(alignment::Vertical::Bottom)
         .width(Length::Fill)

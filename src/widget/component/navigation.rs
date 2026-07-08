@@ -2175,14 +2175,14 @@ where
         let should_snap_initial_redraw_hover =
             navigation_should_snap_initial_redraw_hover(event, state, is_hovered);
 
-        if navigation_should_sync_hover(event, cursor) {
-            if state.sync_hover(is_hovered, now.unwrap_or_else(Instant::now)) {
-                if should_snap_initial_redraw_hover {
-                    state.snap_to_interaction_target();
-                }
-
-                shell.request_redraw();
+        if navigation_should_sync_hover(event, cursor)
+            && state.sync_hover(is_hovered, now.unwrap_or_else(Instant::now))
+        {
+            if should_snap_initial_redraw_hover {
+                state.snap_to_interaction_target();
             }
+
+            shell.request_redraw();
         }
 
         match event {
@@ -2231,10 +2231,10 @@ where
             _ => {}
         }
 
-        if let Some(now) = now {
-            if state.advance(now) {
-                shell.request_redraw();
-            }
+        if let Some(now) = now
+            && state.advance(now)
+        {
+            shell.request_redraw();
         }
     }
 

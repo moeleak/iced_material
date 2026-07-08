@@ -234,9 +234,10 @@ fn button_draw_uses_hover_layer_target_for_fresh_hovered_state() {
 #[test]
 fn button_draw_keeps_mouse_hover_enter_animation() {
     let start = Instant::now();
-    let mut state = ButtonState::default();
-
-    state.last_status = Some(Status::Active);
+    let mut state = ButtonState {
+        last_status: Some(Status::Active),
+        ..ButtonState::default()
+    };
     assert!(state.sync_hover(true, start));
 
     assert_eq!(

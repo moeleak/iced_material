@@ -4,7 +4,7 @@ use iced_widget::button::{Status, Style};
 use iced_widget::core::border::Radius;
 use iced_widget::core::text as core_text;
 use iced_widget::core::time::Instant;
-use iced_widget::core::{Background, Border, Color, Element, Length, Padding, alignment};
+use iced_widget::core::{Background, Border, Color, Element, Length, Padding, Shadow, alignment};
 use iced_widget::graphics::geometry;
 use iced_widget::renderer::wgpu::primitive;
 use iced_widget::text;
@@ -137,7 +137,7 @@ where
     Message: 'a,
     Renderer: iced_widget::core::Renderer + 'a,
 {
-    Row::with_children(segments.into_iter())
+    Row::with_children(segments)
         .spacing(segment_overlap_spacing())
         .align_y(alignment::Vertical::Center)
 }
@@ -175,7 +175,7 @@ where
     Renderer: geometry::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
-    animated_selectable_label(label_text, selected.then_some(1.0).unwrap_or(0.0), position)
+    animated_selectable_label(label_text, if selected { 1.0 } else { 0.0 }, position)
 }
 
 /// Creates a label segment with animated selected check icon and fill progress.
@@ -249,12 +249,7 @@ where
     Renderer: geometry::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
-    leading_icon_progress(
-        icon_name,
-        label,
-        selected.then_some(1.0).unwrap_or(0.0),
-        position,
-    )
+    leading_icon_progress(icon_name, label, if selected { 1.0 } else { 0.0 }, position)
 }
 
 fn leading_icon_progress<'a, Message, Renderer>(
@@ -303,7 +298,7 @@ where
     Message: Clone + 'a,
     Renderer: geometry::Renderer + core_text::Renderer + 'a,
 {
-    segment_button_progress(content, selected.then_some(1.0).unwrap_or(0.0), position)
+    segment_button_progress(content, if selected { 1.0 } else { 0.0 }, position)
 }
 
 fn segment_button_progress<'a, Message, Renderer>(
@@ -344,12 +339,7 @@ pub fn segmented_style(
     selected: bool,
     position: SegmentPosition,
 ) -> Style {
-    segmented_style_progress(
-        theme,
-        status,
-        selected.then_some(1.0).unwrap_or(0.0),
-        position,
-    )
+    segmented_style_progress(theme, status, if selected { 1.0 } else { 0.0 }, position)
 }
 
 /// Returns the style for an outlined segmented button at a selected-state progress.
@@ -392,7 +382,7 @@ pub fn segmented_style_progress(
         background: container.map(Background::Color),
         text_color: content,
         border,
-        shadow: Default::default(),
+        shadow: Shadow::default(),
         snap: cfg!(feature = "crisp"),
     };
 

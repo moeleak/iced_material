@@ -236,7 +236,7 @@ where
 fn toggler_event_origin(event: &Event, bounds: Rectangle, cursor: mouse::Cursor) -> Point {
     cursor
         .position()
-        .or_else(|| match event {
+        .or(match event {
             Event::Touch(
                 touch::Event::FingerPressed { position, .. }
                 | touch::Event::FingerLifted { position, .. },

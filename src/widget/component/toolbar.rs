@@ -61,7 +61,7 @@ where
 {
     let content = actions
         .into_iter()
-        .fold(Row::new(), |row, action| row.push(action))
+        .fold(Row::new(), Row::push)
         .spacing(tokens::component::toolbar::ACTION_SPACE)
         .align_y(alignment::Vertical::Center)
         .width(Length::Fill);
@@ -138,13 +138,13 @@ where
     let content: Element<'a, Message, Theme, Renderer> = match orientation {
         Orientation::Horizontal => actions
             .into_iter()
-            .fold(Row::new(), |row, action| row.push(action))
+            .fold(Row::new(), Row::push)
             .spacing(tokens::component::toolbar::ACTION_SPACE)
             .align_y(alignment::Vertical::Center)
             .into(),
         Orientation::Vertical => actions
             .into_iter()
-            .fold(Column::new(), |column, action| column.push(action))
+            .fold(Column::new(), Column::push)
             .spacing(tokens::component::toolbar::ACTION_SPACE)
             .align_x(alignment::Horizontal::Center)
             .into(),

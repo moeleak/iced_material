@@ -48,7 +48,7 @@ fn normalize_date_input(input: String) -> String {
 
     let digits: String = input
         .chars()
-        .filter(|digit| digit.is_ascii_digit())
+        .filter(char::is_ascii_digit)
         .take(8)
         .collect();
     let mut formatted = String::with_capacity(10);
@@ -64,7 +64,7 @@ fn normalize_date_input(input: String) -> String {
 }
 
 fn date_input_digit_count(input: &str) -> usize {
-    input.chars().filter(|digit| digit.is_ascii_digit()).count()
+    input.chars().filter(char::is_ascii_digit).count()
 }
 
 fn date_input_error(

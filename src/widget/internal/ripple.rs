@@ -75,19 +75,10 @@ impl RippleConfig {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub(super) struct PressRippleState {
     active_ripple: Option<PressRipple>,
     exiting_ripples: Vec<PressRipple>,
-}
-
-impl Default for PressRippleState {
-    fn default() -> Self {
-        Self {
-            active_ripple: None,
-            exiting_ripples: Vec::new(),
-        }
-    }
 }
 
 impl PressRippleState {
@@ -368,7 +359,7 @@ pub(super) fn draw_ripples<Renderer>(
 
     match config.style {
         RippleStyle::Solid => {
-            draw_solid_ripples(renderer, bounds, state, ripple_color, config, now)
+            draw_solid_ripples(renderer, bounds, state, ripple_color, config, now);
         }
         RippleStyle::Patterned { effect_color } => {
             draw_patterned_ripples(

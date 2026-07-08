@@ -297,7 +297,7 @@ where
     Renderer: iced_widget::core::Renderer + 'a,
 {
     Container::new(
-        Row::with_children(buttons.into_iter())
+        Row::with_children(buttons)
             .spacing(tokens::component::dialog::ACTIONS_HORIZONTAL_SPACING)
             .align_y(alignment::Vertical::Center),
     )
@@ -797,13 +797,13 @@ where
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
     ) {
-        if !self.interactive {
-            if !matches!(
+        if !self.interactive
+            && !matches!(
                 event,
                 Event::Window(iced_widget::core::window::Event::RedrawRequested(_))
-            ) {
-                return;
-            }
+            )
+        {
+            return;
         }
 
         let inverse = self.transformation(layout.bounds()).inverse();

@@ -120,9 +120,7 @@ where
     Message: 'a,
     Renderer: iced_widget::core::Renderer + 'a,
 {
-    Column::with_children(items.into_iter())
-        .spacing(0)
-        .width(Length::Fill)
+    Column::with_children(items).spacing(0).width(Length::Fill)
 }
 
 fn item<'a, Message, Renderer>(

@@ -233,7 +233,7 @@ where
     where
         <Theme as iced_select::Catalog>::Class<'a>: From<iced_select::StyleFn<'a, Theme>>,
     {
-        self.class = (Box::new(style) as iced_select::StyleFn<'a, Theme>).into();
+        self.class = Box::new(style) as iced_select::StyleFn<'a, Theme>;
         self
     }
 
@@ -242,7 +242,7 @@ where
     where
         <Theme as menu::Catalog>::Class<'a>: From<menu::StyleFn<'a, Theme>>,
     {
-        self.menu_class = (Box::new(style) as menu::StyleFn<'a, Theme>).into();
+        self.menu_class = Box::new(style) as menu::StyleFn<'a, Theme>;
         self
     }
 

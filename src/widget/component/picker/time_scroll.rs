@@ -179,9 +179,7 @@ where
                 touch::Event::FingerLifted { id, .. } | touch::Event::FingerLost { id, .. },
             ) => self.release(state, event, bounds, cursor, TimeScrollPointer::Touch(*id)),
             event::Event::Mouse(mouse::Event::WheelScrolled { delta }) => {
-                if cursor.position_over(bounds).is_none() {
-                    return None;
-                }
+                let _ = cursor.position_over(bounds)?;
 
                 state.velocity_y = 0.0;
                 state.last_frame = None;
@@ -344,9 +342,7 @@ impl<F> TimeScrollField<F> {
     {
         let position = event_position(event, bounds, cursor)?;
         let now = Instant::now();
-        let Some(drag) = state.drag.as_mut() else {
-            return None;
-        };
+        let drag = state.drag.as_mut()?;
 
         if drag.pointer != pointer {
             return None;
