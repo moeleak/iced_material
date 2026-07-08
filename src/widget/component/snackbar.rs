@@ -198,93 +198,117 @@ impl Transition {
     }
 }
 
-/// Creates a single-line snackbar.
-pub fn single_line<'a, Message, Renderer>(
-    message: impl text::IntoFragment<'a>,
-) -> Container<'a, Message, Theme, Renderer>
-where
-    Message: 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
-{
-    surface(
-        message,
-        None,
-        tokens::component::snackbar::WITH_SINGLE_LINE_CONTAINER_HEIGHT,
-        1.0,
-    )
+/// Snackbar text layout.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Lines {
+    Single,
+    Two,
 }
 
-/// Creates a single-line snackbar with one action.
-pub fn single_line_with_action<'a, Message, Renderer>(
-    message: impl text::IntoFragment<'a>,
-    action: impl Into<Element<'a, Message, Theme, Renderer>>,
-) -> Container<'a, Message, Theme, Renderer>
-where
-    Message: 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
-{
-    surface(
-        message,
-        Some(action.into()),
-        tokens::component::snackbar::WITH_SINGLE_LINE_CONTAINER_HEIGHT,
-        1.0,
-    )
+impl Lines {
+    const fn container_height(self) -> f32 {
+        match self {
+            Self::Single => tokens::component::snackbar::WITH_SINGLE_LINE_CONTAINER_HEIGHT,
+            Self::Two => tokens::component::snackbar::WITH_TWO_LINES_CONTAINER_HEIGHT,
+        }
+    }
 }
 
-/// Creates a single-line snackbar with one action and Android content fade alpha.
-pub fn single_line_with_action_alpha<'a, Message, Renderer>(
-    message: impl text::IntoFragment<'a>,
-    action: impl Into<Element<'a, Message, Theme, Renderer>>,
-    content_alpha: f32,
-) -> Container<'a, Message, Theme, Renderer>
-where
-    Message: 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
-{
-    surface(
-        message,
-        Some(action.into()),
-        tokens::component::snackbar::WITH_SINGLE_LINE_CONTAINER_HEIGHT,
-        content_alpha,
-    )
+/// Visual options for snackbar content.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Options {
+    pub lines: Lines,
+    pub content_alpha: f32,
 }
 
-/// Creates a two-line snackbar with text wrapping enabled.
-pub fn two_line<'a, Message, Renderer>(
-    message: impl text::IntoFragment<'a>,
-) -> Container<'a, Message, Theme, Renderer>
-where
-    Message: 'a,
-    Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
-{
-    surface(
-        message,
-        None,
-        tokens::component::snackbar::WITH_TWO_LINES_CONTAINER_HEIGHT,
-        1.0,
-    )
+impl Default for Options {
+    fn default() -> Self {
+        Self {
+            lines: Lines::Single,
+            content_alpha: 1.0,
+        }
+    }
 }
 
-/// Creates a two-line snackbar with one action.
-pub fn two_line_with_action<'a, Message, Renderer>(
+impl Options {
+    /// Sets the snackbar text layout.
+    pub fn lines(mut self, lines: Lines) -> Self {
+        self.lines = lines;
+        self
+    }
+
+    /// Sets the Android content fade alpha.
+    pub fn content_alpha(mut self, content_alpha: f32) -> Self {
+        self.content_alpha = content_alpha;
+        self
+    }
+}
+
+/// Visual options for snackbar action buttons.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ActionOptions {
+    pub content_alpha: f32,
+}
+
+impl Default for ActionOptions {
+    fn default() -> Self {
+        Self { content_alpha: 1.0 }
+    }
+}
+
+impl ActionOptions {
+    /// Sets the Android content fade alpha.
+    pub fn content_alpha(mut self, content_alpha: f32) -> Self {
+        self.content_alpha = content_alpha;
+        self
+    }
+}
+
+/// Creates a snackbar surface.
+pub fn surface<'a, Message, Renderer>(
     message: impl text::IntoFragment<'a>,
-    action: impl Into<Element<'a, Message, Theme, Renderer>>,
+    action: Option<Element<'a, Message, Theme, Renderer>>,
+    options: Options,
 ) -> Container<'a, Message, Theme, Renderer>
 where
     Message: 'a,
     Renderer: iced_widget::core::Renderer + core_text::Renderer + 'a,
 {
-    surface(
+    surface_container(
         message,
-        Some(action.into()),
-        tokens::component::snackbar::WITH_TWO_LINES_CONTAINER_HEIGHT,
-        1.0,
+        action,
+        options.lines.container_height(),
+        options.content_alpha,
     )
 }
 
 /// Creates a snackbar text action button.
 pub fn action<'a, Message, Renderer>(
     label: impl text::IntoFragment<'a>,
+) -> Button<'a, Message, Renderer>
+where
+    Message: Clone + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
+{
+    action_with(label, ActionOptions::default())
+}
+
+/// Creates a snackbar text action with an on-press message.
+pub fn action_button<'a, Message, Renderer>(
+    label: impl text::IntoFragment<'a>,
+    on_press: Message,
+) -> Element<'a, Message, Theme, Renderer>
+where
+    Message: Clone + 'a,
+    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
+{
+    action_button_with(label, on_press, ActionOptions::default())
+}
+
+/// Creates a snackbar text action button with custom visual options.
+pub fn action_with<'a, Message, Renderer>(
+    label: impl text::IntoFragment<'a>,
+    options: ActionOptions,
 ) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
@@ -309,44 +333,20 @@ where
     )
     .height(Length::Fixed(tokens::component::button::CONTAINER_HEIGHT))
     .padding(Padding::ZERO)
-    .style(action_style)
+    .style(move |theme, status| action_style_alpha(theme, status, options.content_alpha))
 }
 
-/// Creates a snackbar text action with an on-press message.
-pub fn action_button<'a, Message, Renderer>(
+/// Creates a snackbar text action button with custom visual options.
+pub fn action_button_with<'a, Message, Renderer>(
     label: impl text::IntoFragment<'a>,
     on_press: Message,
+    options: ActionOptions,
 ) -> Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
     Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
 {
-    action(label).on_press(on_press).into()
-}
-
-/// Creates a snackbar text action with Android content fade alpha.
-pub fn action_alpha<'a, Message, Renderer>(
-    label: impl text::IntoFragment<'a>,
-    content_alpha: f32,
-) -> Button<'a, Message, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
-{
-    action(label).style(move |theme, status| action_style_alpha(theme, status, content_alpha))
-}
-
-/// Creates a snackbar text action button with Android content fade alpha.
-pub fn action_button_alpha<'a, Message, Renderer>(
-    label: impl text::IntoFragment<'a>,
-    on_press: Message,
-    content_alpha: f32,
-) -> Element<'a, Message, Theme, Renderer>
-where
-    Message: Clone + 'a,
-    Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
-{
-    action_alpha(label, content_alpha).on_press(on_press).into()
+    action_with(label, options).on_press(on_press).into()
 }
 
 /// Creates a snackbar icon action, typically used for dismiss.
@@ -433,16 +433,20 @@ where
     let hidden_distance = tokens::component::snackbar::WITH_SINGLE_LINE_CONTAINER_HEIGHT
         + tokens::component::snackbar::BOTTOM_MARGIN;
     let translation_y = transition.translation_y(now, hidden_distance);
-    let snackbar = single_line_with_action_alpha(
+    let snackbar = surface(
         message,
-        action_button_alpha(action_label, on_action, alpha),
-        alpha,
+        Some(action_button_with(
+            action_label,
+            on_action,
+            ActionOptions::default().content_alpha(alpha),
+        )),
+        Options::default().content_alpha(alpha),
     );
 
     overlay(content, snackbar, translation_y)
 }
 
-fn surface<'a, Message, Renderer>(
+fn surface_container<'a, Message, Renderer>(
     message: impl text::IntoFragment<'a>,
     action: Option<Element<'a, Message, Theme, Renderer>>,
     height: f32,
@@ -695,10 +699,6 @@ fn container_style(theme: &Theme) -> iced_widget::container::Style {
         ),
         snap: cfg!(feature = "crisp"),
     }
-}
-
-fn action_style(theme: &Theme, status: Status) -> Style {
-    action_style_alpha(theme, status, 1.0)
 }
 
 fn action_style_alpha(theme: &Theme, status: Status, content_alpha: f32) -> Style {

@@ -1272,16 +1272,34 @@ fn material_sheet_constructors_compile_to_elements() {
 
 #[test]
 fn material_snackbar_constructors_compile_to_elements() {
-    let _: TestElement<'_> = snackbar::single_line("Archived").into();
-    let _: TestElement<'_> = snackbar::single_line_with_action(
+    let _: TestElement<'_> =
+        snackbar::surface("Archived", None, snackbar::Options::default()).into();
+    let _: TestElement<'_> = snackbar::surface(
         "Archived",
-        snackbar::action_button("Undo", Message::Pressed),
+        Some(snackbar::action_button("Undo", Message::Pressed)),
+        snackbar::Options::default(),
     )
     .into();
-    let _: TestElement<'_> = snackbar::two_line("Longer message").into();
-    let _: TestElement<'_> = snackbar::two_line_with_action(
+    let _: TestElement<'_> = snackbar::surface(
         "Longer message",
-        snackbar::icon_action_button("close", Message::Pressed),
+        None,
+        snackbar::Options::default().lines(snackbar::Lines::Two),
+    )
+    .into();
+    let _: TestElement<'_> = snackbar::surface(
+        "Longer message",
+        Some(snackbar::icon_action_button("close", Message::Pressed)),
+        snackbar::Options::default().lines(snackbar::Lines::Two),
+    )
+    .into();
+    let _: TestElement<'_> = snackbar::surface(
+        "Archived",
+        Some(snackbar::action_button_with(
+            "Undo",
+            Message::Pressed,
+            snackbar::ActionOptions::default().content_alpha(0.5),
+        )),
+        snackbar::Options::default().content_alpha(0.5),
     )
     .into();
 

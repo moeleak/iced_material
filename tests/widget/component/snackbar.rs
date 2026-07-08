@@ -97,7 +97,7 @@ fn snackbar_container_uses_inverse_surface_tokens_in_light_and_dark() {
 fn snackbar_actions_use_inverse_tokens_in_light_and_dark() {
     for theme in [Theme::Light, Theme::Dark] {
         let colors = theme.colors();
-        let action = action_style(&theme, Status::Active);
+        let action = action_style_alpha(&theme, Status::Active, 1.0);
         let icon = icon_action_style(&theme, Status::Active);
 
         assert_eq!(action.text_color, colors.inverse.inverse_primary);
