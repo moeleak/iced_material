@@ -379,12 +379,13 @@ where
     ) where
         Renderer: geometry::Renderer,
     {
+        let geometry = ClockFaceGeometry { center, radius };
+
         if self.previous_selection != self.selected_selection && self.selection_progress < 1.0 {
             self.draw_labels_for_selection(
                 frame,
                 theme,
-                center,
-                radius,
+                geometry,
                 self.previous_selection,
                 1.0 - self.selection_progress,
                 pass,
@@ -392,14 +393,13 @@ where
             self.draw_labels_for_selection(
                 frame,
                 theme,
-                center,
-                radius,
+                geometry,
                 self.selected_selection,
                 self.selection_progress,
                 pass,
             );
         } else {
-            self.draw_labels_for_selection(frame, theme, center, radius, self.selection, 1.0, pass);
+            self.draw_labels_for_selection(frame, theme, geometry, self.selection, 1.0, pass);
         }
     }
 
@@ -407,8 +407,7 @@ where
         &self,
         frame: &mut Frame<Renderer>,
         theme: &Theme,
-        center: Point,
-        radius: f32,
+        geometry: ClockFaceGeometry,
         selection: TimePickerSelectionMode,
         alpha: f32,
         pass: ClockLabelPass,
@@ -419,7 +418,8 @@ where
             return;
         }
 
-        let label_radius = radius * 2.0 * tokens::component::time_picker::OUTER_CIRCLE_RADIUS_RATIO;
+        let label_radius =
+            geometry.radius * 2.0 * tokens::component::time_picker::OUTER_CIRCLE_RADIUS_RATIO;
         let scale = tokens::component::time_picker::CLOCK_DIAL_LABEL_TEXT;
 
         match selection {
@@ -430,32 +430,39 @@ where
                     self.draw_clock_label_for_pass(
                         frame,
                         theme,
-                        center,
-                        radius,
-                        label_radius,
-                        angle,
-                        &value.to_string(),
-                        scale,
-                        alpha,
+                        geometry,
+                        ClockLabelSpec {
+                            center: geometry.center,
+                            radius: label_radius,
+                            angle,
+                            label: &value.to_string(),
+                            selected: false,
+                            scale,
+                            alpha,
+                        },
                         pass,
                     );
                 }
 
                 if self.is_24_hour {
-                    let inner_radius =
-                        radius * 2.0 * tokens::component::time_picker::INNER_CIRCLE_RADIUS_RATIO;
+                    let inner_radius = geometry.radius
+                        * 2.0
+                        * tokens::component::time_picker::INNER_CIRCLE_RADIUS_RATIO;
                     for hour in EXTRA_HOURS {
                         let angle = hour_angle(hour);
                         self.draw_clock_label_for_pass(
                             frame,
                             theme,
-                            center,
-                            radius,
-                            inner_radius,
-                            angle,
-                            &hour.to_string(),
-                            scale,
-                            alpha,
+                            geometry,
+                            ClockLabelSpec {
+                                center: geometry.center,
+                                radius: inner_radius,
+                                angle,
+                                label: &hour.to_string(),
+                                selected: false,
+                                scale,
+                                alpha,
+                            },
                             pass,
                         );
                     }
@@ -467,13 +474,16 @@ where
                     self.draw_clock_label_for_pass(
                         frame,
                         theme,
-                        center,
-                        radius,
-                        label_radius,
-                        angle,
-                        &two_digit(minute),
-                        scale,
-                        alpha,
+                        geometry,
+                        ClockLabelSpec {
+                            center: geometry.center,
+                            radius: label_radius,
+                            angle,
+                            label: &two_digit(minute),
+                            selected: false,
+                            scale,
+                            alpha,
+                        },
                         pass,
                     );
                 }
@@ -485,56 +495,37 @@ where
         &self,
         frame: &mut Frame<Renderer>,
         theme: &Theme,
-        center: Point,
-        clock_radius: f32,
-        label_radius: f32,
-        angle: f32,
-        label: &str,
-        scale: tokens::typography::TypeScale,
-        alpha: f32,
+        geometry: ClockFaceGeometry,
+        label: ClockLabelSpec<'_>,
         pass: ClockLabelPass,
     ) where
         Renderer: geometry::Renderer,
     {
         match pass {
             ClockLabelPass::Background => {
-                draw_clock_label(
-                    frame,
-                    theme,
-                    center,
-                    label_radius,
-                    angle,
-                    label,
-                    false,
-                    scale,
-                    alpha,
-                );
+                draw_clock_label(frame, theme, label.selected(false));
             }
             ClockLabelPass::SelectedForeground => {
                 if !self.label_uses_selector_foreground(
-                    center,
-                    clock_radius,
-                    label_radius,
-                    angle,
-                    scale,
+                    geometry.center,
+                    geometry.radius,
+                    label.radius,
+                    label.angle,
+                    label.scale,
                 ) {
                     return;
                 }
 
                 let (handle_center, handle_radius, _) =
-                    self.selector_handle_geometry(center, clock_radius);
+                    self.selector_handle_geometry(geometry.center, geometry.radius);
                 draw_clock_label_clipped_to_circle(
                     frame,
                     theme,
-                    center,
-                    label_radius,
-                    angle,
-                    label,
-                    true,
-                    scale,
-                    alpha,
-                    handle_center,
-                    handle_radius,
+                    label.selected(true),
+                    ClockLabelClip {
+                        center: handle_center,
+                        radius: handle_radius,
+                    },
                 );
             }
         }
@@ -634,46 +625,63 @@ fn local_point_is_in_bounds(position: Point, size: Size) -> bool {
     position.x >= 0.0 && position.y >= 0.0 && position.x <= size.width && position.y <= size.height
 }
 
-fn draw_clock_label<Renderer>(
-    frame: &mut Frame<Renderer>,
-    theme: &Theme,
+#[derive(Debug, Clone, Copy)]
+struct ClockFaceGeometry {
+    center: Point,
+    radius: f32,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ClockLabelSpec<'a> {
     center: Point,
     radius: f32,
     angle: f32,
-    label: &str,
+    label: &'a str,
     selected: bool,
     scale: tokens::typography::TypeScale,
     alpha: f32,
+}
+
+impl ClockLabelSpec<'_> {
+    fn selected(mut self, selected: bool) -> Self {
+        self.selected = selected;
+        self
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ClockLabelClip {
+    center: Point,
+    radius: f32,
+}
+
+fn draw_clock_label<Renderer>(
+    frame: &mut Frame<Renderer>,
+    theme: &Theme,
+    label: ClockLabelSpec<'_>,
 ) where
     Renderer: geometry::Renderer,
 {
-    let text = clock_label_text(theme, center, radius, angle, label, selected, scale, alpha);
+    let text = clock_label_text(theme, label);
     frame.fill_text(text);
 }
 
 fn draw_clock_label_clipped_to_circle<Renderer>(
     frame: &mut Frame<Renderer>,
     theme: &Theme,
-    center: Point,
-    radius: f32,
-    angle: f32,
-    label: &str,
-    selected: bool,
-    scale: tokens::typography::TypeScale,
-    alpha: f32,
-    clip_center: Point,
-    clip_radius: f32,
+    label: ClockLabelSpec<'_>,
+    clip: ClockLabelClip,
 ) where
     Renderer: geometry::Renderer,
 {
-    let text = clock_label_text(theme, center, radius, angle, label, selected, scale, alpha);
-    let strip_height = clip_radius * 2.0 / CLOCK_LABEL_CLIP_STRIPS as f32;
+    let text = clock_label_text(theme, label);
+    let strip_height = clip.radius * 2.0 / CLOCK_LABEL_CLIP_STRIPS as f32;
 
     for index in 0..CLOCK_LABEL_CLIP_STRIPS {
-        let top = clip_center.y - clip_radius + index as f32 * strip_height;
+        let top = clip.center.y - clip.radius + index as f32 * strip_height;
         let middle = top + strip_height / 2.0;
-        let dy = middle - clip_center.y;
-        let half_width = (clip_radius * clip_radius - dy * dy).max(0.0).sqrt();
+        let dy = middle - clip.center.y;
+        let half_width = (clip.radius * clip.radius - dy * dy).max(0.0).sqrt();
 
         if half_width <= 0.0 {
             continue;
@@ -681,7 +689,7 @@ fn draw_clock_label_clipped_to_circle<Renderer>(
 
         frame.with_clip(
             Rectangle {
-                x: clip_center.x - half_width,
+                x: clip.center.x - half_width,
                 y: top,
                 width: half_width * 2.0,
                 height: strip_height,
@@ -691,32 +699,23 @@ fn draw_clock_label_clipped_to_circle<Renderer>(
     }
 }
 
-fn clock_label_text(
-    theme: &Theme,
-    center: Point,
-    radius: f32,
-    angle: f32,
-    label: &str,
-    selected: bool,
-    scale: tokens::typography::TypeScale,
-    alpha: f32,
-) -> CanvasText {
+fn clock_label_text(theme: &Theme, label: ClockLabelSpec<'_>) -> CanvasText {
     let colors = theme.colors();
-    let color = if selected {
+    let color = if label.selected {
         colors.primary.text
     } else {
         colors.surface.text
     };
-    let position = clock_label_position(center, radius, angle);
+    let position = clock_label_position(label.center, label.radius, label.angle);
 
     CanvasText {
-        content: label.to_owned(),
+        content: label.label.to_owned(),
         position,
         max_width: 48.0,
-        color: alpha_color(color, alpha),
-        size: scale.size.into(),
-        line_height: absolute_line_height(scale.line_height),
-        font: fonts::roboto_for_type_scale(scale),
+        color: alpha_color(color, label.alpha),
+        size: label.scale.size.into(),
+        line_height: absolute_line_height(label.scale.line_height),
+        font: fonts::roboto_for_type_scale(label.scale),
         align_x: core_text::Alignment::Center,
         align_y: alignment::Vertical::Center,
         shaping: text::Shaping::Advanced,

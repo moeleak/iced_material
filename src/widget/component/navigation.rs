@@ -697,8 +697,7 @@ where
 
 pub fn navigation_suite_with_menu<'a, Id, Message, Renderer, F>(
     headline: &'static str,
-    width: f32,
-    height: f32,
+    window_size: Size,
     destinations: &'a [Destination<Id>],
     state: &NavigationState<Id>,
     on_select: F,
@@ -714,7 +713,7 @@ where
 {
     navigation_suite_for_layout_with_menu(
         headline,
-        adaptive_layout(width, height),
+        adaptive_layout(window_size.width, window_size.height),
         destinations,
         state,
         on_select,
@@ -1282,16 +1281,18 @@ where
     let alpha_progress = selection.alpha_progress(destination.id);
     let scale = tokens::component::navigation_bar::LABEL_TEXT;
     let message = on_select(destination.id);
-    let indicator = indicator_icon_stack(
-        destination.icon,
-        tokens::component::navigation_bar::ICON_SIZE,
-        tokens::component::navigation_bar::ACTIVE_INDICATOR_WIDTH,
-        tokens::component::navigation_bar::ACTIVE_INDICATOR_HEIGHT,
+    let indicator = indicator_icon_stack(IndicatorIconSpec {
+        icon: destination.icon,
+        icon_size: tokens::component::navigation_bar::ICON_SIZE,
+        indicator_size: Size::new(
+            tokens::component::navigation_bar::ACTIVE_INDICATOR_WIDTH,
+            tokens::component::navigation_bar::ACTIVE_INDICATOR_HEIGHT,
+        ),
         size_progress,
         alpha_progress,
-        destination.badge,
-        false,
-    );
+        badge: destination.badge,
+        drawer: false,
+    });
     let label = type_text(destination.label, scale).style(move |theme| text::Style {
         color: Some(bar_or_rail_label_color(theme, alpha_progress)),
     });
@@ -1342,16 +1343,18 @@ where
     let alpha_progress = selection.alpha_progress(destination.id);
     let scale = tokens::component::navigation_rail::LABEL_TEXT;
     let message = on_select(destination.id);
-    let indicator = indicator_icon_stack(
-        destination.icon,
-        tokens::component::navigation_rail::ICON_SIZE,
-        tokens::component::navigation_rail::ACTIVE_INDICATOR_WIDTH,
-        tokens::component::navigation_rail::ACTIVE_INDICATOR_HEIGHT,
+    let indicator = indicator_icon_stack(IndicatorIconSpec {
+        icon: destination.icon,
+        icon_size: tokens::component::navigation_rail::ICON_SIZE,
+        indicator_size: Size::new(
+            tokens::component::navigation_rail::ACTIVE_INDICATOR_WIDTH,
+            tokens::component::navigation_rail::ACTIVE_INDICATOR_HEIGHT,
+        ),
         size_progress,
         alpha_progress,
-        destination.badge,
-        false,
-    );
+        badge: destination.badge,
+        drawer: false,
+    });
     let label = type_text(destination.label, scale).style(move |theme| text::Style {
         color: Some(bar_or_rail_label_color(theme, alpha_progress)),
     });
@@ -1855,21 +1858,28 @@ where
     .into()
 }
 
-fn indicator_icon_stack<'a, Message, Renderer>(
+#[derive(Debug, Clone, Copy)]
+struct IndicatorIconSpec {
     icon: &'static str,
     icon_size: f32,
-    indicator_width: f32,
-    indicator_height: f32,
+    indicator_size: Size,
     size_progress: f32,
     alpha_progress: f32,
     badge: Option<Badge>,
     drawer: bool,
+}
+
+fn indicator_icon_stack<'a, Message, Renderer>(
+    spec: IndicatorIconSpec,
 ) -> Stack<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
     Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     Font: Into<Renderer::Font>,
 {
+    let indicator_width = spec.indicator_size.width;
+    let indicator_height = spec.indicator_size.height;
+
     Stack::new()
         .width(Length::Fixed(indicator_width))
         .height(Length::Fixed(indicator_height))
@@ -1881,16 +1891,16 @@ where
         .push(indicator_layer(
             indicator_width,
             indicator_height,
-            size_progress,
-            alpha_progress,
+            spec.size_progress,
+            spec.alpha_progress,
         ))
         .push(
             destination_icon_anchor::<Message, Renderer>(
-                icon,
-                icon_size,
-                alpha_progress,
-                badge,
-                drawer,
+                spec.icon,
+                spec.icon_size,
+                spec.alpha_progress,
+                spec.badge,
+                spec.drawer,
             )
             .width(Length::Fixed(indicator_width))
             .height(Length::Fixed(indicator_height)),

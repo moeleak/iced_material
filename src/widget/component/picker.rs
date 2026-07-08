@@ -3236,17 +3236,17 @@ where
                 let action = on_action.clone()(DatePickerAction::SelectDate(date));
 
                 row = row.push(
-                    day_button(
+                    day_button(DayCell {
                         day,
                         selected,
                         selected_progress,
-                        is_today,
+                        today: is_today,
                         enabled,
                         weekday,
-                        DateRangePosition::None,
-                        0.0,
+                        range_position: DateRangePosition::None,
+                        range_background_progress: 0.0,
                         content_alpha,
-                    )
+                    })
                     .on_press_maybe(enabled.then_some(action)),
                 );
                 day += 1;
@@ -3664,17 +3664,17 @@ where
                 let action = on_action.clone()(DateRangePickerAction::SelectDate(date));
 
                 row = row.push(
-                    day_button(
+                    day_button(DayCell {
                         day,
                         selected,
                         selected_progress,
-                        is_today,
+                        today: is_today,
                         enabled,
                         weekday,
                         range_position,
                         range_background_progress,
                         content_alpha,
-                    )
+                    })
                     .on_press_maybe(enabled.then_some(action)),
                 );
                 day += 1;
@@ -3784,39 +3784,19 @@ where
     .into()
 }
 
-fn day_button<'a, Message, Renderer>(
-    day: u8,
-    selected: bool,
-    selected_progress: f32,
-    today: bool,
-    enabled: bool,
-    weekday: usize,
-    range_position: DateRangePosition,
-    range_background_progress: f32,
-    content_alpha: f32,
-) -> Button<'a, Message, Renderer>
+fn day_button<'a, Message, Renderer>(cell: DayCell) -> Button<'a, Message, Renderer>
 where
     Message: Clone + 'a,
     Renderer: geometry::Renderer + primitive::Renderer + core_text::Renderer + 'a,
     iced_widget::core::Font: Into<Renderer::Font>,
 {
-    let label = Canvas::new(DayCell {
-        day,
-        selected,
-        selected_progress,
-        today,
-        enabled,
-        weekday,
-        range_position,
-        range_background_progress,
-        content_alpha,
-    })
-    .width(Length::Fixed(
-        tokens::component::date_picker::CALENDAR_CELL_SIZE,
-    ))
-    .height(Length::Fixed(
-        tokens::component::date_picker::CALENDAR_CELL_SIZE,
-    ));
+    let label = Canvas::new(cell)
+        .width(Length::Fixed(
+            tokens::component::date_picker::CALENDAR_CELL_SIZE,
+        ))
+        .height(Length::Fixed(
+            tokens::component::date_picker::CALENDAR_CELL_SIZE,
+        ));
 
     Button::new(label)
         .width(Length::Fixed(
@@ -3830,11 +3810,11 @@ where
             day_button_style(
                 theme,
                 status,
-                selected,
-                selected_progress,
-                enabled,
-                range_position,
-                content_alpha,
+                cell.selected,
+                cell.selected_progress,
+                cell.enabled,
+                cell.range_position,
+                cell.content_alpha,
             )
         })
 }

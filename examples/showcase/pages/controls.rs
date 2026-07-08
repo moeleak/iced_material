@@ -115,12 +115,10 @@ fn selection_controls(state: &Showcase) -> material::Element<'_, Message> {
             state.enabled,
             "Enable actions",
             Message::EnabledChanged,
-        )
-        .into(),
+        ),
         state
             .theme_controller
-            .dark_mode_switch("Dark theme", Message::ThemeChanged)
-            .into(),
+            .dark_mode_switch("Dark theme", Message::ThemeChanged),
     ]);
 
     let radios = page::row([
@@ -129,22 +127,19 @@ fn selection_controls(state: &Showcase) -> material::Element<'_, Message> {
             RadioChoice::Standard,
             state.radio_choice,
             Message::ChoiceSelected,
-        )
-        .into(),
+        ),
         material::widget::radio::standard(
             "Expressive",
             RadioChoice::Expressive,
             state.radio_choice,
             Message::ChoiceSelected,
-        )
-        .into(),
+        ),
         material::widget::radio::standard(
             "Dense",
             RadioChoice::Dense,
             state.radio_choice,
             Message::ChoiceSelected,
-        )
-        .into(),
+        ),
     ]);
 
     page::spacious_stack([switches.into(), radios.into()]).into()

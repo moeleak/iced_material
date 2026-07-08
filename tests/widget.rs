@@ -990,8 +990,7 @@ fn material_navigation_constructors_compile_to_elements() {
     let state = navigation::NavigationState::new(Page::First);
     let _: TestElement<'_> = navigation::navigation_suite_with_menu(
         "Navigation",
-        1080.0,
-        980.0,
+        Size::new(1080.0, 980.0),
         &destinations,
         &state,
         |_| Message::Pressed,

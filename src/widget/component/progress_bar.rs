@@ -1018,41 +1018,25 @@ struct Cubic {
 }
 
 impl Cubic {
-    fn new(
-        anchor0_x: f32,
-        anchor0_y: f32,
-        control0_x: f32,
-        control0_y: f32,
-        control1_x: f32,
-        control1_y: f32,
-        anchor1_x: f32,
-        anchor1_y: f32,
-    ) -> Self {
+    fn new(anchor0: Point, control0: Point, control1: Point, anchor1: Point) -> Self {
         Self {
             points: [
-                anchor0_x, anchor0_y, control0_x, control0_y, control1_x, control1_y, anchor1_x,
-                anchor1_y,
+                anchor0.x, anchor0.y, control0.x, control0.y, control1.x, control1.y, anchor1.x,
+                anchor1.y,
             ],
         }
     }
 
     fn from_points(anchor0: Point, control0: Point, control1: Point, anchor1: Point) -> Self {
-        Self::new(
-            anchor0.x, anchor0.y, control0.x, control0.y, control1.x, control1.y, anchor1.x,
-            anchor1.y,
-        )
+        Self::new(anchor0, control0, control1, anchor1)
     }
 
     fn straight_line(x0: f32, y0: f32, x1: f32, y1: f32) -> Self {
         Self::new(
-            x0,
-            y0,
-            lerp(x0, x1, 1.0 / 3.0),
-            lerp(y0, y1, 1.0 / 3.0),
-            lerp(x0, x1, 2.0 / 3.0),
-            lerp(y0, y1, 2.0 / 3.0),
-            x1,
-            y1,
+            Point::new(x0, y0),
+            Point::new(lerp(x0, x1, 1.0 / 3.0), lerp(y0, y1, 1.0 / 3.0)),
+            Point::new(lerp(x0, x1, 2.0 / 3.0), lerp(y0, y1, 2.0 / 3.0)),
+            Point::new(x1, y1),
         )
     }
 
@@ -1074,14 +1058,10 @@ impl Cubic {
             * if clockwise { 1.0 } else { -1.0 };
 
         Self::new(
-            x0,
-            y0,
-            x0 + rotated_p0.x * k,
-            y0 + rotated_p0.y * k,
-            x1 - rotated_p1.x * k,
-            y1 - rotated_p1.y * k,
-            x1,
-            y1,
+            Point::new(x0, y0),
+            Point::new(x0 + rotated_p0.x * k, y0 + rotated_p0.y * k),
+            Point::new(x1 - rotated_p1.x * k, y1 - rotated_p1.y * k),
+            Point::new(x1, y1),
         )
     }
 
@@ -1138,46 +1118,46 @@ impl Cubic {
 
         (
             Self::new(
-                self.anchor0_x(),
-                self.anchor0_y(),
-                self.anchor0_x() * u + self.control0_x() * t,
-                self.anchor0_y() * u + self.control0_y() * t,
-                self.anchor0_x() * (u * u)
-                    + self.control0_x() * (2.0 * u * t)
-                    + self.control1_x() * (t * t),
-                self.anchor0_y() * (u * u)
-                    + self.control0_y() * (2.0 * u * t)
-                    + self.control1_y() * (t * t),
-                point_on_curve.x,
-                point_on_curve.y,
+                Point::new(self.anchor0_x(), self.anchor0_y()),
+                Point::new(
+                    self.anchor0_x() * u + self.control0_x() * t,
+                    self.anchor0_y() * u + self.control0_y() * t,
+                ),
+                Point::new(
+                    self.anchor0_x() * (u * u)
+                        + self.control0_x() * (2.0 * u * t)
+                        + self.control1_x() * (t * t),
+                    self.anchor0_y() * (u * u)
+                        + self.control0_y() * (2.0 * u * t)
+                        + self.control1_y() * (t * t),
+                ),
+                point_on_curve,
             ),
             Self::new(
-                point_on_curve.x,
-                point_on_curve.y,
-                self.control0_x() * (u * u)
-                    + self.control1_x() * (2.0 * u * t)
-                    + self.anchor1_x() * (t * t),
-                self.control0_y() * (u * u)
-                    + self.control1_y() * (2.0 * u * t)
-                    + self.anchor1_y() * (t * t),
-                self.control1_x() * u + self.anchor1_x() * t,
-                self.control1_y() * u + self.anchor1_y() * t,
-                self.anchor1_x(),
-                self.anchor1_y(),
+                point_on_curve,
+                Point::new(
+                    self.control0_x() * (u * u)
+                        + self.control1_x() * (2.0 * u * t)
+                        + self.anchor1_x() * (t * t),
+                    self.control0_y() * (u * u)
+                        + self.control1_y() * (2.0 * u * t)
+                        + self.anchor1_y() * (t * t),
+                ),
+                Point::new(
+                    self.control1_x() * u + self.anchor1_x() * t,
+                    self.control1_y() * u + self.anchor1_y() * t,
+                ),
+                Point::new(self.anchor1_x(), self.anchor1_y()),
             ),
         )
     }
 
     fn reverse(&self) -> Self {
         Self::new(
-            self.anchor1_x(),
-            self.anchor1_y(),
-            self.control1_x(),
-            self.control1_y(),
-            self.control0_x(),
-            self.control0_y(),
-            self.anchor0_x(),
-            self.anchor0_y(),
+            Point::new(self.anchor1_x(), self.anchor1_y()),
+            Point::new(self.control1_x(), self.control1_y()),
+            Point::new(self.control0_x(), self.control0_y()),
+            Point::new(self.anchor0_x(), self.anchor0_y()),
         )
     }
 
@@ -1546,19 +1526,13 @@ fn polygon_cubics(features: &[Feature], center: Point) -> Vec<Cubic> {
 
     if let (Some(last), Some(first)) = (last_cubic, first_cubic) {
         cubics.push(Cubic::new(
-            last.anchor0_x(),
-            last.anchor0_y(),
-            last.control0_x(),
-            last.control0_y(),
-            last.control1_x(),
-            last.control1_y(),
-            first.anchor0_x(),
-            first.anchor0_y(),
+            Point::new(last.anchor0_x(), last.anchor0_y()),
+            Point::new(last.control0_x(), last.control0_y()),
+            Point::new(last.control1_x(), last.control1_y()),
+            Point::new(first.anchor0_x(), first.anchor0_y()),
         ));
     } else {
-        cubics.push(Cubic::new(
-            center.x, center.y, center.x, center.y, center.x, center.y, center.x, center.y,
-        ));
+        cubics.push(Cubic::new(center, center, center, center));
     }
 
     cubics
@@ -1796,14 +1770,10 @@ impl Morph {
 
         if let (Some(last), Some(first)) = (last_cubic, first_cubic) {
             cubics.push(Cubic::new(
-                last.anchor0_x(),
-                last.anchor0_y(),
-                last.control0_x(),
-                last.control0_y(),
-                last.control1_x(),
-                last.control1_y(),
-                first.anchor0_x(),
-                first.anchor0_y(),
+                Point::new(last.anchor0_x(), last.anchor0_y()),
+                Point::new(last.control0_x(), last.control0_y()),
+                Point::new(last.control1_x(), last.control1_y()),
+                Point::new(first.anchor0_x(), first.anchor0_y()),
             ));
         }
 
