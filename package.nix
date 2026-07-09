@@ -7,7 +7,7 @@
   writableTmpDirAsHomeHook,
 }:
 let
-  version = "0.4.1";
+  version = "0.4.2";
   src = lib.cleanSource ./.;
   executableSuffix = stdenv.hostPlatform.extensions.executable or "";
   darwinHostLinkAttrs = lib.optionalAttrs stdenv.buildPlatform.isDarwin {
