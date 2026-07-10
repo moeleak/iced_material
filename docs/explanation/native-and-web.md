@@ -42,6 +42,12 @@ native to the browser. Composition-owned keys also stay inside the IME. The
 pointer-region gesture bridge that opens a soft keyboard remains limited to
 touch or coarse-pointer environments.
 
+Because a WASM binary cannot infer the desktop host through Rust target cfgs,
+the adapter also maps macOS Command to iced's WASM Control command while
+preserving the original Meta modifier. Standard shortcuts such as Command+A,
+Command+C, Command+X, and Command+V therefore behave like their native macOS
+counterparts without affecting Meta keys on Windows or Linux.
+
 On desktop browsers, the adapter moves its DOM input to iced's current caret
 rectangle before focusing it. It also reapplies the canvas offset and CSS scale
 when the caret, page, or viewport moves, so the native IME candidate window

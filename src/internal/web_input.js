@@ -149,6 +149,14 @@ function mobileInput() {
       return;
     }
 
+    // iced is compiled for wasm32-unknown-unknown, so its platform-level
+    // `command` modifier resolves to Control even when the browser is running
+    // on macOS. Preserve Meta for physical-key semantics and expose it as
+    // Control as well so Command shortcuts reach iced's WASM bindings.
+    const ctrlKey =
+      Boolean(source.ctrlKey) ||
+      (!touchKeyboard() && macOS() && Boolean(source.metaKey));
+
     target.dispatchEvent(
       new KeyboardEvent(type, {
         key,
@@ -156,7 +164,7 @@ function mobileInput() {
         location: source.location || 0,
         repeat: Boolean(source.repeat),
         altKey: Boolean(source.altKey),
-        ctrlKey: Boolean(source.ctrlKey),
+        ctrlKey,
         metaKey: Boolean(source.metaKey),
         shiftKey: Boolean(source.shiftKey),
         bubbles: true,

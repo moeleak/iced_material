@@ -58,6 +58,13 @@ class FakeCanvas extends FakeEventTarget {
     super();
     this.keys = [];
     this.keyboardEvents = [];
+    this.winitKeyboardEvents = [];
+    this.winitModifiers = {
+      altKey: false,
+      ctrlKey: false,
+      metaKey: false,
+      shiftKey: false,
+    };
     this.focusEvents = [];
     this.clientWidth = clientWidth;
     this.clientHeight = clientHeight;
@@ -66,6 +73,14 @@ class FakeCanvas extends FakeEventTarget {
 
   dispatchEvent(event) {
     if (event.type === "keydown" || event.type === "keyup") {
+      // winit delivers KeyboardInput before the ModifiersChanged produced by
+      // the same DOM event. Keep that ordering here so shortcut tests verify
+      // the modifier state iced actually sees for each key press.
+      this.winitKeyboardEvents.push({
+        key: event.key,
+        modifiers: { ...this.winitModifiers },
+        type: event.type,
+      });
       this.keyboardEvents.push({
         altKey: Boolean(event.altKey),
         code: event.code,
@@ -77,6 +92,12 @@ class FakeCanvas extends FakeEventTarget {
         shiftKey: Boolean(event.shiftKey),
         type: event.type,
       });
+      this.winitModifiers = {
+        altKey: Boolean(event.altKey),
+        ctrlKey: Boolean(event.ctrlKey),
+        metaKey: Boolean(event.metaKey),
+        shiftKey: Boolean(event.shiftKey),
+      };
 
       if (event.type === "keydown") {
         this.keys.push(event.key);
@@ -442,7 +463,7 @@ test("desktop IME owns candidate keys and commits composition exactly once", asy
   assert.equal(bridge.input.value, SENTINEL);
 });
 
-test("desktop text and command keys use one path and preserve metadata", () => {
+test("desktop text and macOS command keys use one path", () => {
   const bridge = createBridge({ touch: false });
   bridge.showMobileKeyboard();
 
@@ -461,51 +482,94 @@ test("desktop text and command keys use one path and preserve metadata", () => {
   assert.equal(plain.defaultPrevented, false);
   assert.deepEqual(bridge.canvas.keys, ["a"]);
 
+  const metaDown = fakeEvent("keydown", {
+    cancelable: true,
+    code: "MetaLeft",
+    key: "Meta",
+    metaKey: true,
+  });
+  bridge.input.dispatchEvent(metaDown);
+
   const command = fakeEvent("keydown", {
     cancelable: true,
     code: "KeyA",
     key: "a",
-    location: 1,
     metaKey: true,
-    repeat: true,
-    shiftKey: true,
   });
   bridge.input.dispatchEvent(command);
   bridge.input.dispatchEvent(
     fakeEvent("keyup", {
       code: "KeyA",
       key: "a",
-      location: 1,
       metaKey: true,
-      shiftKey: true,
+    }),
+  );
+  bridge.input.dispatchEvent(
+    fakeEvent("keyup", {
+      code: "MetaLeft",
+      key: "Meta",
     }),
   );
 
+  assert.equal(metaDown.defaultPrevented, false);
   assert.equal(command.defaultPrevented, true);
-  assert.deepEqual(bridge.canvas.keyboardEvents.slice(-2), [
+  assert.deepEqual(bridge.canvas.keyboardEvents.slice(-4), [
     {
       altKey: false,
-      code: "KeyA",
-      ctrlKey: false,
-      key: "a",
-      location: 1,
+      code: "MetaLeft",
+      ctrlKey: true,
+      key: "Meta",
+      location: 0,
       metaKey: true,
-      repeat: true,
-      shiftKey: true,
+      repeat: false,
+      shiftKey: false,
       type: "keydown",
     },
     {
       altKey: false,
       code: "KeyA",
-      ctrlKey: false,
+      ctrlKey: true,
       key: "a",
-      location: 1,
+      location: 0,
       metaKey: true,
       repeat: false,
-      shiftKey: true,
+      shiftKey: false,
+      type: "keydown",
+    },
+    {
+      altKey: false,
+      code: "KeyA",
+      ctrlKey: true,
+      key: "a",
+      location: 0,
+      metaKey: true,
+      repeat: false,
+      shiftKey: false,
+      type: "keyup",
+    },
+    {
+      altKey: false,
+      code: "MetaLeft",
+      ctrlKey: false,
+      key: "Meta",
+      location: 0,
+      metaKey: false,
+      repeat: false,
+      shiftKey: false,
       type: "keyup",
     },
   ]);
+  const winitCommand = bridge.canvas.winitKeyboardEvents
+    .filter((event) => event.type === "keydown" && event.key === "a")
+    .at(-1);
+  assert.equal(winitCommand.modifiers.ctrlKey, true);
+  assert.equal(winitCommand.modifiers.metaKey, true);
+  assert.deepEqual(bridge.canvas.winitModifiers, {
+    altKey: false,
+    ctrlKey: false,
+    metaKey: false,
+    shiftKey: false,
+  });
 
   const eventCount = bridge.canvas.keyboardEvents.length;
   const controlSpace = fakeEvent("keydown", {
@@ -525,6 +589,32 @@ test("desktop text and command keys use one path and preserve metadata", () => {
   assert.equal(controlSpace.defaultPrevented, false);
   assert.equal(capsLock.defaultPrevented, false);
   assert.equal(bridge.canvas.keyboardEvents.length, eventCount);
+});
+
+test("non-macOS Meta remains distinct from iced's Control command", () => {
+  const bridge = createBridge({ platform: "Win32", touch: false });
+  bridge.showMobileKeyboard();
+
+  bridge.input.dispatchEvent(
+    fakeEvent("keydown", {
+      cancelable: true,
+      code: "MetaLeft",
+      key: "Meta",
+      metaKey: true,
+    }),
+  );
+
+  assert.deepEqual(bridge.canvas.keyboardEvents.at(-1), {
+    altKey: false,
+    code: "MetaLeft",
+    ctrlKey: false,
+    key: "Meta",
+    location: 0,
+    metaKey: true,
+    repeat: false,
+    shiftKey: false,
+    type: "keydown",
+  });
 });
 
 test("macOS Chinese input-method shortcuts remain native", () => {
