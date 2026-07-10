@@ -37,6 +37,7 @@ fn boot() -> (Showcase, Task<Message>) {
 
 #[derive(Debug, Clone)]
 enum Message {
+    #[cfg(any(target_arch = "wasm32", test))]
     CjkFontLoaded(Result<(), material::fonts::WebFontError>),
     Navigate(ShowcasePage),
     Increment,
@@ -247,6 +248,7 @@ impl Showcase {
 
 fn update(state: &mut Showcase, message: Message) -> Task<Message> {
     match message {
+        #[cfg(any(target_arch = "wasm32", test))]
         Message::CjkFontLoaded(result) => {
             state.cjk_font_loaded = result.is_ok();
             Task::none()
