@@ -31,8 +31,11 @@
         let input = null;
         let active = false;
         let composing = false;
-        let pendingDelete = null;
-        let pendingDeleteHandle = 0;
+        let deactivating = false;
+        let pendingAction = null;
+        let pendingActionHandle = 0;
+        let suppressInput = false;
+        let suppressInputHandle = 0;
         let refocusFrame = 0;
         let lastShowAt = 0;
         let textRegions = [];
@@ -113,13 +116,31 @@
           );
         };
 
-        const clearPendingDelete = () => {
-          if (pendingDeleteHandle) {
-            window.clearTimeout(pendingDeleteHandle);
-            pendingDeleteHandle = 0;
+        const clearPendingAction = () => {
+          if (pendingActionHandle) {
+            window.clearTimeout(pendingActionHandle);
+            pendingActionHandle = 0;
           }
 
-          pendingDelete = null;
+          pendingAction = null;
+        };
+
+        const clearSuppressedInput = () => {
+          if (suppressInputHandle) {
+            window.clearTimeout(suppressInputHandle);
+            suppressInputHandle = 0;
+          }
+
+          suppressInput = false;
+        };
+
+        const suppressFollowingInput = () => {
+          clearSuppressedInput();
+          suppressInput = true;
+          suppressInputHandle = window.setTimeout(() => {
+            suppressInput = false;
+            suppressInputHandle = 0;
+          }, 0);
         };
 
         const clearRefocus = () => {
@@ -130,7 +151,7 @@
         };
 
         const resetInput = () => {
-          if (!input) {
+          if (!input || composing) {
             return;
           }
 
@@ -147,13 +168,20 @@
           }
 
           showInputToAssistiveTechnology();
-          input.focus({ preventScroll: true });
-          resetInput();
+
+          if (document.activeElement !== input) {
+            resetInput();
+            input.focus({ preventScroll: true });
+          }
         };
 
         const activateInput = () => {
           if (!ensureInput()) {
             return;
+          }
+
+          if (!active) {
+            clearSuppressedInput();
           }
 
           active = true;
@@ -163,18 +191,25 @@
         };
 
         const deactivateInput = () => {
-          active = false;
+          deactivating = true;
           lastShowAt = 0;
           clearRefocus();
-          clearPendingDelete();
+          clearPendingAction();
+          clearSuppressedInput();
 
           if (!input) {
+            active = false;
+            composing = false;
+            deactivating = false;
             return;
           }
 
           input.blur();
+          active = false;
+          composing = false;
           resetInput();
           hideInputFromAssistiveTechnology();
+          deactivating = false;
         };
 
         const scheduleRefocus = () => {
@@ -207,20 +242,54 @@
           }
         };
 
-        const handleInput = () => {
-          if (!input || composing) {
+        const inputAction = (inputType) => {
+          if (inputType === "insertLineBreak" || inputType === "insertParagraph") {
+            return "Enter";
+          }
+
+          if (inputType?.startsWith("delete") && inputType.endsWith("Backward")) {
+            return "Backspace";
+          }
+
+          if (inputType?.startsWith("delete") && inputType.endsWith("Forward")) {
+            return "Delete";
+          }
+
+          return null;
+        };
+
+        const compositionInput = (event) =>
+          event?.isComposing ||
+          event?.inputType === "insertCompositionText" ||
+          event?.inputType === "deleteCompositionText";
+
+        const handleInput = (event) => {
+          if (!input || !active || composing || compositionInput(event)) {
+            return;
+          }
+
+          if (suppressInput) {
+            clearSuppressedInput();
+            resetInput();
             return;
           }
 
           const value = input.value;
 
           if (value === SENTINEL) {
+            if (pendingAction) {
+              const action = pendingAction;
+              clearPendingAction();
+              sendKey(action);
+              resetInput();
+            }
+
             return;
           }
 
           if (value === "") {
-            sendKey(pendingDelete || "Backspace");
-            clearPendingDelete();
+            sendKey(pendingAction || inputAction(event?.inputType) || "Backspace");
+            clearPendingAction();
             resetInput();
             return;
           }
@@ -229,13 +298,27 @@
             ? value.slice(SENTINEL.length)
             : value;
 
-          clearPendingDelete();
+          clearPendingAction();
 
           if (text) {
             sendText(text);
           }
 
           resetInput();
+        };
+
+        const schedulePendingAction = (action) => {
+          clearPendingAction();
+          pendingAction = action;
+          pendingActionHandle = window.setTimeout(() => {
+            pendingActionHandle = 0;
+
+            if (active && !composing && pendingAction === action) {
+              pendingAction = null;
+              sendKey(action);
+              resetInput();
+            }
+          }, 0);
         };
 
         const canvasPoint = (event) => {
@@ -456,20 +539,17 @@
               return;
             }
 
+            if (
+              composing ||
+              event.isComposing ||
+              event.key === "Process" ||
+              event.keyCode === 229
+            ) {
+              return;
+            }
+
             if (event.key === "Backspace" || event.key === "Delete") {
-              pendingDelete = event.key;
-
-              if (pendingDeleteHandle) {
-                window.clearTimeout(pendingDeleteHandle);
-              }
-
-              pendingDeleteHandle = window.setTimeout(() => {
-                if (pendingDelete === event.key) {
-                  sendKey(event.key);
-                  clearPendingDelete();
-                  resetInput();
-                }
-              }, 0);
+              schedulePendingAction(event.key);
 
               return;
             }
@@ -490,21 +570,68 @@
             }
           });
 
+          input.addEventListener("beforeinput", (event) => {
+            if (!active || composing || compositionInput(event)) {
+              return;
+            }
+
+            const action = inputAction(event.inputType);
+            if (!action) {
+              return;
+            }
+
+            clearSuppressedInput();
+
+            if (event.cancelable) {
+              event.preventDefault();
+              clearPendingAction();
+              sendKey(action);
+              resetInput();
+            } else {
+              schedulePendingAction(action);
+            }
+          });
           input.addEventListener("input", handleInput);
           input.addEventListener("compositionstart", () => {
+            clearPendingAction();
+            clearSuppressedInput();
             composing = true;
           });
-          input.addEventListener("compositionend", () => {
+          input.addEventListener("compositionend", (event) => {
             composing = false;
-            window.setTimeout(handleInput, 0);
+            clearPendingAction();
+
+            if (!active || !input) {
+              return;
+            }
+
+            const value = input.value;
+            const valueText = value.startsWith(SENTINEL)
+              ? value.slice(SENTINEL.length)
+              : value;
+            const text = event.data || valueText;
+
+            if (text) {
+              sendText(text);
+              suppressFollowingInput();
+            }
+
+            resetInput();
           });
           input.addEventListener("blur", () => {
-            clearPendingDelete();
+            clearPendingAction();
+            clearSuppressedInput();
+            const wasComposing = composing;
+            composing = false;
+
+            if (deactivating) {
+              return;
+            }
 
             const recentlyShown =
               Date.now() - lastShowAt <= REFOCUS_AFTER_SHOW_MS;
 
-            if (active && recentlyShown) {
+            if (active && recentlyShown && !wasComposing) {
               scheduleRefocus();
               return;
             }
@@ -532,9 +659,14 @@
         window.addEventListener("resize", invalidateTextRegions, {
           passive: true,
         });
-        window.visualViewport?.addEventListener("resize", invalidateTextRegions, {
-          passive: true,
-        });
+        window.visualViewport?.addEventListener(
+          "resize",
+          () => {
+            textActivation = null;
+            touchGesture = null;
+          },
+          { passive: true },
+        );
 
         if (document.readyState === "loading") {
           document.addEventListener("DOMContentLoaded", mountInput, {
@@ -556,7 +688,9 @@
               return;
             }
 
-            focusInput();
+            if (document.activeElement !== input) {
+              focusInput();
+            }
           });
         };
 
