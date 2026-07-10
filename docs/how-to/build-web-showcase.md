@@ -1,9 +1,10 @@
 # Build a WebAssembly App with Trunk
 
-`material-ui-rs` works with a normal Trunk host page. Mobile Android and iOS
-IME support is shipped inside the crate as a wasm-bindgen JavaScript module, so
-you do not need to copy a bridge script, add a hidden input, or define browser
-globals. [Trunk includes wasm-bindgen JavaScript snippets automatically][trunk-js].
+`material-ui-rs` works with a normal Trunk host page. Browser IME support for
+macOS desktop, Android, and iOS is shipped inside the crate as a wasm-bindgen
+JavaScript module, so you do not need to copy a bridge script, add a hidden
+input, or define browser globals. [Trunk includes wasm-bindgen JavaScript
+snippets automatically][trunk-js].
 
 ## Use a Minimal Host Page
 
@@ -74,7 +75,7 @@ slightly increases release build time, not download or startup time.
 
 ## Add CJK Fonts Without Embedding Them
 
-The mobile IME bridge and CJK fonts are separate concerns. IME input works
+The browser IME bridge and CJK fonts are separate concerns. IME input works
 automatically. The showcase starts its font tasks quietly from application
 startup with `fonts::load_web_font`; it never waits for a text control to receive
 CJK input. The downloaded fonts remain outside the `.wasm` file. See
@@ -110,7 +111,7 @@ feature flags:
 trunk build web/index.html --release --dist dist --public-url /
 ```
 
-Run the mobile input and font-asset regression tests with Node.js 24 or newer:
+Run the browser input and font-asset regression tests with Node.js 24 or newer:
 
 ```sh
 node --test web/*.test.mjs

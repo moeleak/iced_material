@@ -23,10 +23,74 @@ function mobileInput() {
   let textActivation = null;
   let bridgedCanvas = null;
   let bridgeAbort = null;
+  const desktopForwardedKeys = new Set();
+  let desktopModifiers = {
+    altKey: false,
+    ctrlKey: false,
+    metaKey: false,
+    shiftKey: false,
+  };
+  const MAC_CHINESE_INPUT_SOURCE_CODES = new Set([
+    "KeyC",
+    "KeyD",
+    "KeyE",
+    "KeyH",
+    "KeyP",
+    "KeyS",
+    "KeyW",
+    "KeyZ",
+  ]);
+  const IME_CODES = new Set([
+    "Convert",
+    "KanaMode",
+    "Lang1",
+    "Lang2",
+    "Lang3",
+    "Lang4",
+    "Lang5",
+    "NonConvert",
+  ]);
+  const IME_KEYS = new Set([
+    "AllCandidates",
+    "Alphanumeric",
+    "CodeInput",
+    "Compose",
+    "Convert",
+    "Eisu",
+    "FinalMode",
+    "GroupFirst",
+    "GroupLast",
+    "GroupNext",
+    "GroupPrevious",
+    "HangulMode",
+    "Hankaku",
+    "HanjaMode",
+    "Hiragana",
+    "HiraganaKatakana",
+    "JunjaMode",
+    "KanaMode",
+    "KanjiMode",
+    "Katakana",
+    "ModeChange",
+    "NextCandidate",
+    "NonConvert",
+    "PreviousCandidate",
+    "Romaji",
+    "SingleCandidate",
+    "Zenkaku",
+    "ZenkakuHankaku",
+  ]);
 
   const touchKeyboard = () =>
     navigator.maxTouchPoints > 0 ||
     window.matchMedia("(pointer: coarse)").matches;
+
+  const macOS = () => {
+    const platform =
+      navigator.userAgentData?.platform || navigator.platform || "";
+
+    return /^mac/i.test(platform);
+  };
 
   const canvas = () => document.querySelector("canvas");
 
@@ -77,7 +141,7 @@ function mobileInput() {
     }[key] || "";
   };
 
-  const sendKey = (key) => {
+  const sendKeyEvent = (type, key, source = {}) => {
     const target = canvas();
 
     if (!target) {
@@ -85,14 +149,32 @@ function mobileInput() {
     }
 
     target.dispatchEvent(
-      new KeyboardEvent("keydown", {
+      new KeyboardEvent(type, {
         key,
-        code: codeFor(key),
+        code: source.code || codeFor(key),
+        location: source.location || 0,
+        repeat: Boolean(source.repeat),
+        altKey: Boolean(source.altKey),
+        ctrlKey: Boolean(source.ctrlKey),
+        metaKey: Boolean(source.metaKey),
+        shiftKey: Boolean(source.shiftKey),
         bubbles: true,
         cancelable: true,
         composed: true,
       }),
     );
+  };
+
+  const sendKey = (key, source) => sendKeyEvent("keydown", key, source);
+
+  const signalCanvasFocus = (focused) => {
+    if (touchKeyboard()) {
+      return;
+    }
+
+    // The DOM input is part of the canvas app. Mirror its focus so iced keeps
+    // the focused field and caret visually active while the input hosts IME.
+    canvas()?.dispatchEvent(new FocusEvent(focused ? "focus" : "blur"));
   };
 
   const clearPendingAction = () => {
@@ -152,6 +234,10 @@ function mobileInput() {
       resetInput();
       input.focus({ preventScroll: true });
     }
+
+    if (document.activeElement === input) {
+      signalCanvasFocus(true);
+    }
   };
 
   const activateInput = () => {
@@ -175,6 +261,13 @@ function mobileInput() {
     clearRefocus();
     clearPendingAction();
     clearSuppressedInput();
+    desktopForwardedKeys.clear();
+    desktopModifiers = {
+      altKey: false,
+      ctrlKey: false,
+      metaKey: false,
+      shiftKey: false,
+    };
 
     if (!input) {
       active = false;
@@ -189,6 +282,17 @@ function mobileInput() {
     resetInput();
     hideInputFromAssistiveTechnology();
     deactivating = false;
+
+    if (!touchKeyboard()) {
+      const target = canvas();
+      const canvasWasFocused = document.activeElement === target;
+      signalCanvasFocus(false);
+      target?.focus({ preventScroll: true });
+
+      if (canvasWasFocused) {
+        signalCanvasFocus(true);
+      }
+    }
   };
 
   const scheduleRefocus = () => {
@@ -216,8 +320,10 @@ function mobileInput() {
   };
 
   const sendText = (text) => {
+    const source = touchKeyboard() ? undefined : desktopModifiers;
+
     for (const char of text) {
-      sendKey(char);
+      sendKey(char, source);
     }
   };
 
@@ -241,6 +347,61 @@ function mobileInput() {
     event?.isComposing ||
     event?.inputType === "insertCompositionText" ||
     event?.inputType === "deleteCompositionText";
+
+  const desktopKeyId = (event) =>
+    event.code || `${event.key}:${event.location || 0}`;
+
+  const modifierKey = (key) =>
+    key === "Alt" ||
+    key === "AltGraph" ||
+    key === "Control" ||
+    key === "Meta" ||
+    key === "Shift";
+
+  const macChineseInputMethodKey = (event) =>
+    macOS() &&
+    ((event.ctrlKey &&
+      event.shiftKey &&
+      !event.altKey &&
+      !event.metaKey &&
+      MAC_CHINESE_INPUT_SOURCE_CODES.has(event.code)) ||
+      (event.shiftKey &&
+        !event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        (event.key === "Backspace" || event.key === "Delete")) ||
+      (event.ctrlKey &&
+        event.shiftKey &&
+        event.metaKey &&
+        event.code === "KeyC"));
+
+  const nativeInputMethodKey = (event) =>
+    !touchKeyboard() &&
+    // Keep macOS input-source and system shortcuts native. Canceling their
+    // keydown can prevent a composition session from starting.
+    (event.key === "CapsLock" ||
+      event.key === "Fn" ||
+      event.key === "FnLock" ||
+      IME_CODES.has(event.code) ||
+      IME_KEYS.has(event.key) ||
+      (event.code === "Space" && (event.ctrlKey || event.metaKey)) ||
+      macChineseInputMethodKey(event));
+
+  const forwardDesktopKey = (event) =>
+    !touchKeyboard() &&
+    event.key !== "Dead" &&
+    (event.ctrlKey ||
+      event.metaKey ||
+      Array.from(event.key || "").length !== 1);
+
+  const rememberDesktopModifiers = (event) => {
+    desktopModifiers = {
+      altKey: Boolean(event.altKey),
+      ctrlKey: Boolean(event.ctrlKey),
+      metaKey: Boolean(event.metaKey),
+      shiftKey: Boolean(event.shiftKey),
+    };
+  };
 
   const handleInput = (event) => {
     if (!input || !active || composing || compositionInput(event)) {
@@ -518,12 +679,31 @@ function mobileInput() {
         return;
       }
 
+      if (!touchKeyboard()) {
+        rememberDesktopModifiers(event);
+      }
+
       if (
         composing ||
         event.isComposing ||
         event.key === "Process" ||
         event.keyCode === 229
       ) {
+        return;
+      }
+
+      if (nativeInputMethodKey(event)) {
+        return;
+      }
+
+      if (forwardDesktopKey(event)) {
+        desktopForwardedKeys.add(desktopKeyId(event));
+        sendKey(event.key, event);
+
+        if (!modifierKey(event.key)) {
+          event.preventDefault();
+        }
+
         return;
       }
 
@@ -546,6 +726,18 @@ function mobileInput() {
       ) {
         sendKey(event.key);
         event.preventDefault();
+      }
+    });
+
+    input.addEventListener("keyup", (event) => {
+      if (!active || touchKeyboard()) {
+        return;
+      }
+
+      rememberDesktopModifiers(event);
+
+      if (desktopForwardedKeys.delete(desktopKeyId(event))) {
+        sendKeyEvent("keyup", event.key, event);
       }
     });
 
@@ -601,12 +793,21 @@ function mobileInput() {
     input.addEventListener("blur", () => {
       clearPendingAction();
       clearSuppressedInput();
+      desktopForwardedKeys.clear();
+      desktopModifiers = {
+        altKey: false,
+        ctrlKey: false,
+        metaKey: false,
+        shiftKey: false,
+      };
       const wasComposing = composing;
       composing = false;
 
       if (deactivating) {
         return;
       }
+
+      signalCanvasFocus(false);
 
       const recentlyShown =
         Date.now() - lastShowAt <= REFOCUS_AFTER_SHOW_MS;
@@ -657,10 +858,6 @@ function mobileInput() {
   }
 
   const showMobileKeyboard = () => {
-    if (!touchKeyboard()) {
-      return;
-    }
-
     activateInput();
 
     window.requestAnimationFrame(() => {

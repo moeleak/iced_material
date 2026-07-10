@@ -181,6 +181,20 @@ fn press_is_over_prefers_translated_cursor_for_touch() {
 }
 
 #[test]
+fn text_field_keyboard_activation_requests_dom_input_on_mouse_press() {
+    let bounds = Rectangle::new(Point::new(10.0, 120.0), Size::new(100.0, 48.0));
+    let mut activation = None;
+
+    assert!(text_field_keyboard_activation(
+        &mut activation,
+        &Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)),
+        bounds,
+        mouse::Cursor::Available(Point::new(20.0, 130.0))
+    ));
+    assert!(activation.is_none());
+}
+
+#[test]
 fn text_field_keyboard_activation_waits_for_confirmed_touch_tap() {
     let bounds = Rectangle::new(Point::new(10.0, 120.0), Size::new(100.0, 48.0));
     let mut activation = None;
