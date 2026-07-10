@@ -30,12 +30,21 @@ Common font constants include:
 The Noto constants name the family only. Applications that use them must load
 that font family themselves.
 
+## Runtime Web Fonts
+
+`fonts::load_web_font(url)` returns an iced task that fetches a raw TTF, OTF, or
+TTC file and loads it into the renderer at runtime. This keeps large font bytes
+out of the WASM module. Map the task result to an application message and return
+it from boot or update. On native targets the task returns
+`WebFontError::UnsupportedPlatform`.
+
 ## Helpers
 
 - `roboto_for_type_scale`
 - `noto_sans_cjk_sc_for_type_scale`
 - `font_for_content_type_scale`
 - `contains_cjk`
+- `load_web_font`
 - `icon`
 - `filled_icon`
 

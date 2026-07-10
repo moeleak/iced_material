@@ -15,6 +15,28 @@ fn bundled_fonts_are_font_assets() {
 }
 
 #[test]
+fn web_font_loader_accepts_renderer_font_formats_only() {
+    assert!(is_supported_web_font(&[0x00, 0x01, 0x00, 0x00]));
+    assert!(is_supported_web_font(b"OTTO"));
+    assert!(is_supported_web_font(b"ttcf"));
+    assert!(!is_supported_web_font(b"wOFF"));
+    assert!(!is_supported_web_font(b"wOF2"));
+    assert!(!is_supported_web_font(b"<!doctype html>"));
+}
+
+#[test]
+fn web_font_errors_explain_external_loading_failures() {
+    assert_eq!(
+        WebFontError::HttpStatus(404).to_string(),
+        "the font server returned HTTP status 404"
+    );
+    assert_eq!(
+        WebFontError::UnsupportedFormat.to_string(),
+        "the downloaded file is not a TrueType, OpenType, or TrueType Collection font"
+    );
+}
+
+#[test]
 fn material_fonts_expose_expected_families_and_weights() {
     assert_eq!(ROBOTO.family, Family::Name(ROBOTO_FAMILY));
     assert_eq!(ROBOTO.weight, Weight::Normal);

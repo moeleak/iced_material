@@ -22,3 +22,6 @@ License, Version 2.0. The license text is included in
 Noto Sans CJK SC font family helpers are exposed for applications that provide
 that font themselves. The full CJK fonts are not bundled in the published crate
 because the compressed package would exceed the crates.io upload limit.
+WebAssembly applications can use `fonts::load_web_font` to fetch a raw font
+after startup, keeping its bytes out of the WASM module and browser startup
+download.

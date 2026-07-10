@@ -9,6 +9,11 @@ use iced_widget::text::{self, LineHeight};
 use crate::{Theme, tokens};
 
 use std::borrow::Cow;
+use std::fmt;
+
+#[cfg(target_arch = "wasm32")]
+#[path = "web_font.rs"]
+mod web_font;
 
 pub const ROBOTO_FAMILY: &str = "Roboto";
 pub const NOTO_SANS_CJK_SC_FAMILY: &str = "Noto Sans CJK SC";
@@ -44,6 +49,47 @@ pub const MATERIAL_SYMBOLS_ROUNDED_FILLED: Font = Font {
     style: Style::Normal,
 };
 
+/// An error produced while loading a web font from a URL.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WebFontError {
+    /// URL loading is only available in WebAssembly builds.
+    UnsupportedPlatform,
+    /// A browser API needed to fetch the font was not available.
+    MissingBrowserApi(&'static str),
+    /// The browser rejected the fetch request.
+    RequestFailed,
+    /// The server returned an unsuccessful HTTP status.
+    HttpStatus(u16),
+    /// The response body could not be read.
+    ReadFailed,
+    /// The response was not a TrueType, OpenType, or TrueType Collection font.
+    UnsupportedFormat,
+    /// The renderer could not load the downloaded font.
+    FontLoad(iced::font::Error),
+}
+
+impl fmt::Display for WebFontError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::UnsupportedPlatform => {
+                formatter.write_str("web fonts can only be fetched on WebAssembly")
+            }
+            Self::MissingBrowserApi(api) => write!(formatter, "browser API `{api}` is unavailable"),
+            Self::RequestFailed => formatter.write_str("the browser rejected the font request"),
+            Self::HttpStatus(status) => {
+                write!(formatter, "the font server returned HTTP status {status}")
+            }
+            Self::ReadFailed => formatter.write_str("the font response body could not be read"),
+            Self::UnsupportedFormat => formatter.write_str(
+                "the downloaded file is not a TrueType, OpenType, or TrueType Collection font",
+            ),
+            Self::FontLoad(_) => formatter.write_str("the renderer could not load the web font"),
+        }
+    }
+}
+
+impl std::error::Error for WebFontError {}
+
 pub fn all() -> [Cow<'static, [u8]>; 5] {
     [
         Cow::Borrowed(ROBOTO_REGULAR_BYTES),
@@ -52,6 +98,38 @@ pub fn all() -> [Cow<'static, [u8]>; 5] {
         Cow::Borrowed(MATERIAL_SYMBOLS_ROUNDED_BYTES),
         Cow::Borrowed(MATERIAL_SYMBOLS_ROUNDED_FILLED_BYTES),
     ]
+}
+
+/// Downloads and loads a font without embedding its bytes in the WASM binary.
+///
+/// The returned task starts the request when it is returned from application
+/// boot or update. The URL must serve a TrueType (`.ttf`), OpenType (`.otf`),
+/// or TrueType Collection (`.ttc`) file and must permit a browser CORS request.
+/// Web-only font formats such as WOFF2 are not accepted by the iced renderer.
+///
+/// On non-WASM targets, the task resolves to
+/// [`WebFontError::UnsupportedPlatform`].
+///
+/// ```no_run
+/// # use material_ui_rs::fonts;
+/// # #[derive(Debug, Clone)]
+/// # enum Message { FontLoaded(Result<(), fonts::WebFontError>) }
+/// let task = fonts::load_web_font("/fonts/NotoSansCJKsc-Regular.otf")
+///     .map(Message::FontLoaded);
+/// # let _ = task;
+/// ```
+pub fn load_web_font(url: impl Into<String>) -> iced::Task<Result<(), WebFontError>> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        web_font::load(url.into())
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let _ = url.into();
+
+        iced::Task::done(Err(WebFontError::UnsupportedPlatform))
+    }
 }
 
 pub const fn roboto_for_type_scale(scale: tokens::typography::TypeScale) -> Font {
@@ -142,6 +220,13 @@ fn is_cjk_codepoint(character: char) -> bool {
             | '\u{2CEB0}'..='\u{2EBEF}'
             | '\u{30000}'..='\u{323AF}'
     )
+}
+
+#[cfg(any(target_arch = "wasm32", test))]
+fn is_supported_web_font(bytes: &[u8]) -> bool {
+    bytes.starts_with(&[0x00, 0x01, 0x00, 0x00])
+        || bytes.starts_with(b"OTTO")
+        || bytes.starts_with(b"ttcf")
 }
 
 pub fn icon<'a, Renderer>(name: impl text::IntoFragment<'a>, size: f32) -> Text<'a, Theme, Renderer>

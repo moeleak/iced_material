@@ -44,10 +44,37 @@ Several common symbol names are mapped to codepoints. Other names are rendered
 through the Material Symbols Rounded font, so the exact output depends on the
 font's ligature support in the renderer.
 
+## Load CJK Fonts on WebAssembly
+
+Full CJK fonts are intentionally not embedded in the crate because they add
+many megabytes to the WASM module. Start the application immediately, then
+return a web-font task from boot so the browser downloads a font separately:
+
+```rust
+fn boot() -> (State, iced::Task<Message>) {
+    let load_font = material::fonts::load_web_font(
+        "/fonts/NotoSansCJKsc-Regular.otf",
+    )
+    .map(Message::CjkFontLoaded);
+
+    (State::default(), load_font)
+}
+```
+
+The URL should be same-origin when practical and served with long-lived cache
+headers. A cross-origin URL must allow CORS. Use a raw `.ttf`, `.otf`, or `.ttc`
+file; browser-oriented WOFF2 files and CSS `@font-face` rules cannot populate
+iced's renderer font database. For a smaller download, host a locale or glyph
+subset that matches the content your application supports.
+
+Handle `Message::CjkFontLoaded` to stop showing a loading fallback and redraw
+CJK content. The downloaded bytes remain outside the `.wasm` binary and can be
+cached independently by the browser.
+
 ## Use CJK Font Constants
 
 The crate exposes `Noto Sans CJK SC` font constants for applications that load
-that font themselves:
+that font family themselves:
 
 ```rust
 let scale = material::tokens::typography::BODY_LARGE;
@@ -55,5 +82,8 @@ let font = material::fonts::noto_sans_cjk_sc_for_type_scale(scale);
 ```
 
 `material::fonts::font_for_content_type_scale` chooses Roboto or Noto Sans CJK
-SC from the text content. The crate does not bundle Noto Sans CJK SC bytes, so
-load that family in your application if you depend on those constants.
+SC from the text content. Load a face whose internal family name is
+`Noto Sans CJK SC` before relying on those constants. Applications targeting
+Traditional Chinese, Japanese, or Korean should load and select the matching
+regional Noto Sans CJK family so shared Han characters use locale-appropriate
+glyph forms.

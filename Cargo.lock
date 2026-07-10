@@ -1809,6 +1809,7 @@ dependencies = [
  "num-traits",
  "serde",
  "wasm-bindgen",
+ "wasm-bindgen-futures",
 ]
 
 [[package]]
