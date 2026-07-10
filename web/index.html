@@ -584,12 +584,13 @@
 
             if (event.cancelable) {
               event.preventDefault();
-              clearPendingAction();
-              sendKey(action);
-              resetInput();
             } else {
-              schedulePendingAction(action);
+              suppressFollowingInput();
             }
+
+            clearPendingAction();
+            sendKey(action);
+            resetInput();
           });
           input.addEventListener("input", handleInput);
           input.addEventListener("compositionstart", () => {

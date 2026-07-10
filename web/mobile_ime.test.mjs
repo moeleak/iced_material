@@ -296,7 +296,7 @@ test("beforeinput forwards soft-keyboard delete and enter actions once", async (
   assert.deepEqual(bridge.canvas.keys, ["Backspace", "Delete", "Enter"]);
 });
 
-test("non-cancelable mobile deletion uses input or timer fallback", async () => {
+test("non-cancelable mobile deletion suppresses the following input duplicate", async () => {
   const bridge = createBridge();
   bridge.window.__icedMaterialShowMobileKeyboard();
 
