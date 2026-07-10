@@ -21,6 +21,11 @@ authors = [
 build = false
 exclude = [
     "assets/*",
+    "web/_headers",
+    "web/font_assets.test.mjs",
+    "web/fonts/*",
+    "web/index.html",
+    "web/subset_cjk_font.py",
     "Cargo.toml.orig",
     ".cargo/config.toml",
     ".build.yml",

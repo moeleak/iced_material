@@ -31,12 +31,15 @@
             clippy
             rust-analyzer
             cargo
+            curl
             lld
             trunk
             mdbook
             binaryen
             wasm-bindgen-cli
             nodejs_24
+            python3
+            python3Packages.fonttools
           ]
           ++ (lib.optionals pkgs.stdenv.isDarwin [ pkgs.libiconv ]);
       in

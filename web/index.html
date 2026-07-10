@@ -23,7 +23,7 @@
         display: block;
       }
     </style>
-    <link
+    <link data-trunk rel="copy-dir" href="fonts" /><link data-trunk rel="copy-file" href="_headers" /><link
       data-trunk
       rel="rust"
       href="../Cargo.toml"
@@ -31,7 +31,7 @@
       data-cargo-no-default-features
       data-cargo-features="canvas,svg,crisp,__showcase_web"
       data-wasm-opt="z"
-      data-wasm-opt-params="--enable-bulk-memory --enable-nontrapping-float-to-int --strip-debug --strip-producers"
+      data-wasm-opt-params="--converge --enable-bulk-memory --enable-nontrapping-float-to-int --strip-debug --strip-producers"
     />
   </head>
   <body></body>

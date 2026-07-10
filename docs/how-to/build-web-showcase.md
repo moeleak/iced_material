@@ -68,12 +68,38 @@ strip = true
 panic = "abort"
 ```
 
+This repository also passes `--converge` to `wasm-opt` in `web/index.html` so
+the size-oriented optimization passes repeat until the output stabilizes. This
+slightly increases release build time, not download or startup time.
+
 ## Add CJK Fonts Without Embedding Them
 
 The mobile IME bridge and CJK fonts are separate concerns. IME input works
-automatically; a CJK font should be fetched only when the content needs it.
-Follow [Use bundled and CJK fonts](use-fonts.md) to load a raw font with
-`fonts::load_web_font`. The downloaded font remains outside the `.wasm` file.
+automatically. The showcase starts its font tasks quietly from application
+startup with `fonts::load_web_font`; it never waits for a text control to receive
+CJK input. The downloaded fonts remain outside the `.wasm` file. See
+[Use bundled and CJK fonts](use-fonts.md).
+
+This repository's showcase uses a silent two-stage strategy:
+
+- After the application starts, it loads a 1.99 MB GB2312 core in the
+  background without inserting a visible loading-status element.
+- When the core request finishes, the complete official 8.33 MB Simplified
+  Chinese regional font starts automatically in the background. The common
+  core becomes usable first when available, and the official face then supplies
+  its full repertoire. Completion stays silent. Core failure does not block the
+  complete regional font; input events never start or retry either request.
+
+The normal raw font payload is 10.32 MB, down from the previous 16.44 MB font,
+and none of it is embedded in WASM. Versioned files are served from the same
+Cloudflare Worker with a one-year immutable browser cache. Noto's own download
+guide recommends [region-specific subset OTFs][noto-subsets] when only one
+region is needed.
+
+The showcase assets target Simplified Chinese (`Noto Sans SC`). Applications
+for Traditional Chinese, Japanese, or Korean should build the corresponding
+core and load the corresponding official regional font instead of reusing SC
+glyph forms.
 
 ## Build This Repository's Showcase
 
@@ -84,17 +110,14 @@ feature flags:
 trunk build web/index.html --release --dist dist --public-url /
 ```
 
-Run the mobile input bridge regression tests with Node.js 24 or newer:
+Run the mobile input and font-asset regression tests with Node.js 24 or newer:
 
 ```sh
-node --test web/mobile_ime.test.mjs
+node --test web/*.test.mjs
 ```
 
 The minimal downstream page above should not copy the showcase-only
 `__showcase_web` feature configuration.
 
-Pages built from the previous integration guide can remove their inline mobile
-IME bridge. The crate still recognizes the legacy `__icedMaterial*` hooks while
-applications migrate, so upgrading does not install a second bridge.
-
 [trunk-js]: https://trunk-rs.github.io/trunk/guide/assets/index.html#js-snippets
+[noto-subsets]: https://github.com/notofonts/noto-cjk/blob/main/Sans/README.md#region-specific-subset-otfs

@@ -11,6 +11,11 @@ keywords = ["gui", "ui", "graphics", "interface", "widgets"]
 rust-version = "1.88"
 exclude = [
   "assets/*",
+  "web/_headers",
+  "web/font_assets.test.mjs",
+  "web/fonts/*",
+  "web/index.html",
+  "web/subset_cjk_font.py",
   ".cargo/config.toml",
   ".build.yml",
   "rustfmt.toml",

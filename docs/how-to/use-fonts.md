@@ -47,59 +47,61 @@ font's ligature support in the renderer.
 ## Load CJK Fonts on WebAssembly
 
 Full CJK fonts are intentionally not embedded in the crate because they add
-many megabytes to the WASM module. Keep the application startup path small and
-return a web-font task only after content first needs CJK glyphs:
+many megabytes to the WASM module. Do not wait for the first CJK keystroke.
+Start a small common-glyph subset from `boot`, then start its official regional
+font automatically as soon as the subset request finishes:
 
 ```rust
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-enum CjkFontStatus {
-    #[default]
-    Idle,
-    Loading,
-    Loaded,
+const CJK_CORE: &str = "fonts/NotoSansSC-Core-0a7ff25a.otf";
+const CJK_REGIONAL: &str = "fonts/NotoSansSC-faa6c9df.otf";
+
+#[derive(Debug, Clone)]
+enum Message {
+    CjkCoreFontFinished,
+    CjkRegionalFontFinished,
+    TextChanged(String),
+}
+
+fn boot() -> (State, iced::Task<Message>) {
+    let load_core = material::fonts::load_web_font(CJK_CORE)
+        .map(|_| Message::CjkCoreFontFinished);
+
+    (State::default(), load_core)
 }
 
 fn update(state: &mut State, message: Message) -> iced::Task<Message> {
     match message {
-        Message::TextChanged(value) => {
-            let should_load = cfg!(target_arch = "wasm32")
-                && state.cjk_font == CjkFontStatus::Idle
-                && material::fonts::contains_cjk(&value);
-            state.text = value;
-
-            if should_load {
-                state.cjk_font = CjkFontStatus::Loading;
-
-                return material::fonts::load_web_font(
-                    "fonts/NotoSansCJKsc-Regular.otf",
-                )
-                .map(Message::CjkFontLoaded);
-            }
+        Message::CjkCoreFontFinished => {
+            material::fonts::load_web_font(CJK_REGIONAL)
+                .map(|_| Message::CjkRegionalFontFinished)
         }
-        Message::CjkFontLoaded(result) => {
-            state.cjk_font = if result.is_ok() {
-                CjkFontStatus::Loaded
-            } else {
-                CjkFontStatus::Idle
-            };
+        Message::CjkRegionalFontFinished => iced::Task::none(),
+        Message::TextChanged(value) => {
+            state.text = value;
+            iced::Task::none()
         }
     }
-
-    iced::Task::none()
 }
 ```
 
-The URL should be same-origin when practical and served with long-lived cache
-headers. A cross-origin URL must allow CORS. Use a raw `.ttf`, `.otf`, or `.ttc`
-file; browser-oriented WOFF2 files and CSS `@font-face` rules cannot populate
-iced's renderer font database. For a smaller download, host a locale or glyph
-subset that matches the content your application supports.
+Neither `TextChanged` nor any other input message participates in font loading.
+The first internal completion message starts the regional font even if the core
+request failed; the complete official font can work independently. The second
+message causes a redraw and ends the chain without adding visible state or
+retrying on every keystroke.
 
-Handle `Message::CjkFontLoaded` to stop showing a loading fallback and redraw
-CJK content. The downloaded bytes remain outside the `.wasm` binary and can be
-cached independently by the browser. `load_web_font` does not start until its
-task is returned from boot or update, so the example makes no font request at
-startup.
+The second stage is the byte-for-byte official 8.33 MB Simplified Chinese
+regional OTF. Together with the 1.99 MB core, the automatic background sequence
+transfers 10.32 MB. The full regional face intentionally overlaps the core: the
+core makes common glyphs available earlier, while the official face completes
+the repertoire. Both files stay outside the `.wasm` binary and can be cached
+independently by the browser.
+
+Keep these URLs same-origin and serve them with long-lived cache headers. A
+cross-origin URL must allow CORS. Use raw `.ttf`, `.otf`, or `.ttc` files;
+browser-oriented WOFF2 files and CSS `@font-face` rules cannot populate iced's
+renderer font database. Do not preload either multi-megabyte font alongside
+WASM, because that would move font traffic onto the initial critical path.
 
 To let Trunk copy a self-hosted `web/fonts/` directory, add this optional host
 page asset next to the Rust link:
@@ -124,3 +126,7 @@ SC from the text content. Load a face whose internal family name is
 Traditional Chinese, Japanese, or Korean should load and select the matching
 regional Noto Sans CJK family so shared Han characters use locale-appropriate
 glyph forms.
+
+The official region-specific file named `NotoSansSC-Regular.otf` uses the
+family name `Noto Sans SC`, not `Noto Sans CJK SC`. It works as a renderer
+fallback, but does not directly match the named constants above.

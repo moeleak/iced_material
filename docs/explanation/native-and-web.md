@@ -43,6 +43,17 @@ mirror surrounding application text or selection into the DOM, so browser IME
 preedit, reconversion, native selection handles, and surrounding-text
 autocorrection are not exposed through iced 0.14.
 
+The showcase keeps CJK font delivery separate from IME handling. A small common
+Simplified Chinese subset loads silently after application startup, followed by
+the complete official regional font automatically when the core request
+finishes. Core failure does not block the complete regional font, and no
+text-input message starts or retries either request. The core makes common
+glyphs available first when available, and the full regional face completes the
+repertoire. These versioned OTF assets stay outside WASM and are cached by the
+same-origin static asset service. Font completion never adds a status row or an
+application-driven layout branch, although text can naturally reflow when the
+new glyph metrics become available.
+
 ## Platform-Specific Behavior
 
 Platform-specific behavior should stay behind narrow adapters or `cfg`
