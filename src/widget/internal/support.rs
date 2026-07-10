@@ -3,6 +3,8 @@ use iced_widget::core::time::{Duration, Instant};
 use iced_widget::core::widget as core_widget;
 use iced_widget::core::{Background, Border, Color, Point, Rectangle, renderer, touch};
 
+use super::WebInputPositionState;
+
 use crate::tokens;
 
 const MILLIS_PER_SECOND: f64 = 1000.0;
@@ -700,6 +702,7 @@ pub(super) struct TextFieldState<Paragraph: core_text::Paragraph> {
     pub(super) is_focused: bool,
     pub(super) ime_preedit_active: bool,
     pub(super) touch_activation: Option<TextFieldTouchActivation>,
+    pub(super) web_input_position: WebInputPositionState,
 }
 
 impl<Paragraph: core_text::Paragraph> TextFieldState<Paragraph> {
@@ -711,6 +714,7 @@ impl<Paragraph: core_text::Paragraph> TextFieldState<Paragraph> {
             is_focused: false,
             ime_preedit_active: false,
             touch_activation: None,
+            web_input_position: WebInputPositionState::default(),
         }
     }
 

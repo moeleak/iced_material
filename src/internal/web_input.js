@@ -23,6 +23,7 @@ function mobileInput() {
   let textActivation = null;
   let bridgedCanvas = null;
   let bridgeAbort = null;
+  let inputAnchor = null;
   const desktopForwardedKeys = new Set();
   let desktopModifiers = {
     altKey: false,
@@ -211,6 +212,45 @@ function mobileInput() {
     }
   };
 
+  const positionInput = () => {
+    if (!input || !inputAnchor || touchKeyboard()) {
+      return;
+    }
+
+    const target = canvas();
+    if (!target) {
+      return;
+    }
+
+    const rect = target.getBoundingClientRect();
+    const clientWidth = target.clientWidth || rect.width;
+    const clientHeight = target.clientHeight || rect.height;
+    // Iced positions and DOM client sizes are both CSS pixels. The rect ratio
+    // accounts for a CSS transform without applying devicePixelRatio twice.
+    const scaleX = clientWidth > 0 ? rect.width / clientWidth : 1;
+    const scaleY = clientHeight > 0 ? rect.height / clientHeight : 1;
+    const anchorHeight = Math.max(1, inputAnchor.height * scaleY);
+    const left = rect.left + inputAnchor.x * scaleX;
+    const top = rect.top + inputAnchor.y * scaleY;
+    const viewportWidth =
+      document.documentElement.clientWidth || window.innerWidth;
+    const viewportHeight =
+      document.documentElement.clientHeight || window.innerHeight;
+    const positionedLeft = viewportWidth
+      ? Math.min(Math.max(0, left), Math.max(0, viewportWidth - 1))
+      : left;
+    const positionedTop = viewportHeight
+      ? Math.min(Math.max(0, top), Math.max(0, viewportHeight - anchorHeight))
+      : top;
+
+    input.style.left = `${positionedLeft}px`;
+    input.style.top = `${positionedTop}px`;
+    input.style.width = "1px";
+    input.style.height = `${anchorHeight}px`;
+    input.style.fontSize = `${anchorHeight}px`;
+    input.style.lineHeight = `${anchorHeight}px`;
+  };
+
   const resetInput = () => {
     if (!input || composing) {
       return;
@@ -228,6 +268,7 @@ function mobileInput() {
       return;
     }
 
+    positionInput();
     showInputToAssistiveTechnology();
 
     if (document.activeElement !== input) {
@@ -824,6 +865,7 @@ function mobileInput() {
     });
 
     document.body.appendChild(input);
+    positionInput();
     resetInput();
     hideInputFromAssistiveTechnology();
 
@@ -837,7 +879,18 @@ function mobileInput() {
     }
   };
 
-  window.addEventListener("resize", invalidateTextRegions, {
+  window.addEventListener(
+    "resize",
+    () => {
+      invalidateTextRegions();
+      positionInput();
+    },
+    {
+      passive: true,
+    },
+  );
+  window.addEventListener("scroll", positionInput, {
+    capture: true,
     passive: true,
   });
   window.visualViewport?.addEventListener(
@@ -845,9 +898,13 @@ function mobileInput() {
     () => {
       textActivation = null;
       touchGesture = null;
+      positionInput();
     },
     { passive: true },
   );
+  window.visualViewport?.addEventListener("scroll", positionInput, {
+    passive: true,
+  });
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", mountInput, {
@@ -869,6 +926,20 @@ function mobileInput() {
         focusInput();
       }
     });
+  };
+
+  const positionMobileKeyboard = (x, y, width, height) => {
+    if (![x, y, width, height].every(Number.isFinite)) {
+      return;
+    }
+
+    inputAnchor = {
+      x,
+      y,
+      width: Math.max(1, width),
+      height: Math.max(1, height),
+    };
+    positionInput();
   };
 
   const registerTextRegion = (x, y, width, height) => {
@@ -893,13 +964,22 @@ function mobileInput() {
     deactivateInput();
   };
 
-  bridge = { hideMobileKeyboard, registerTextRegion, showMobileKeyboard };
+  bridge = {
+    hideMobileKeyboard,
+    positionMobileKeyboard,
+    registerTextRegion,
+    showMobileKeyboard,
+  };
 
   return bridge;
 }
 
 export function showMobileKeyboard() {
   mobileInput().showMobileKeyboard();
+}
+
+export function positionMobileKeyboard(x, y, width, height) {
+  mobileInput().positionMobileKeyboard(x, y, width, height);
 }
 
 export function registerTextRegion(x, y, width, height) {

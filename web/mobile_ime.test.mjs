@@ -47,11 +47,21 @@ class FakeEventTarget {
 }
 
 class FakeCanvas extends FakeEventTarget {
-  constructor() {
+  constructor({
+    left = 0,
+    top = 0,
+    width = 800,
+    height = 600,
+    clientWidth = width,
+    clientHeight = height,
+  } = {}) {
     super();
     this.keys = [];
     this.keyboardEvents = [];
     this.focusEvents = [];
+    this.clientWidth = clientWidth;
+    this.clientHeight = clientHeight;
+    this.rect = { left, top, width, height };
   }
 
   dispatchEvent(event) {
@@ -97,7 +107,7 @@ class FakeCanvas extends FakeEventTarget {
   }
 
   getBoundingClientRect() {
-    return { left: 0, top: 0 };
+    return this.rect;
   }
 }
 
@@ -108,6 +118,8 @@ class FakeInput extends FakeEventTarget {
     this.attributes = new Map();
     this.style = {};
     this.value = "";
+    this.focusCount = 0;
+    this.focusStyles = [];
   }
 
   setAttribute(name, value) {
@@ -135,6 +147,13 @@ class FakeInput extends FakeEventTarget {
       previous.dispatchEvent(fakeEvent("blur"));
     }
 
+    this.focusCount += 1;
+    this.focusStyles.push({
+      height: this.style.height,
+      left: this.style.left,
+      top: this.style.top,
+      width: this.style.width,
+    });
     this.dispatchEvent(fakeEvent("focus"));
   }
 
@@ -203,8 +222,11 @@ function createBridge({
   touch = true,
   coarsePointer = touch,
   platform = "MacIntel",
+  canvasMetrics = {},
+  viewportWidth = 1024,
+  viewportHeight = 768,
 } = {}) {
-  const canvas = new FakeCanvas();
+  const canvas = new FakeCanvas(canvasMetrics);
   const document = new FakeDocument(canvas);
   canvas.document = document;
   const visualViewport = new FakeEventTarget();
@@ -224,6 +246,8 @@ function createBridge({
       animationFrames.delete(handle);
     },
     clearTimeout,
+    innerHeight: viewportHeight,
+    innerWidth: viewportWidth,
     matchMedia: (query) => ({
       matches: query === "(pointer: coarse)" && coarsePointer,
     }),
@@ -249,7 +273,7 @@ function createBridge({
   });
   vm.runInContext(bridgeSource, context, { filename: "web/index.html" });
   const api = vm.runInContext(
-    "({ hideMobileKeyboard, registerTextRegion, showMobileKeyboard })",
+    "({ hideMobileKeyboard, positionMobileKeyboard, registerTextRegion, showMobileKeyboard })",
     context,
   );
 
@@ -304,6 +328,74 @@ test("desktop wasm focuses one editable DOM input without touch capabilities", (
   assert.equal(bridge.document.activeElement, input);
   assert.equal(input.value, SENTINEL);
   assert.deepEqual(bridge.canvas.focusEvents, ["focus", "focus"]);
+});
+
+test("desktop IME input is positioned at the caret before focus", () => {
+  const bridge = createBridge({
+    touch: false,
+    canvasMetrics: {
+      left: 40,
+      top: 60,
+      width: 800,
+      height: 600,
+      clientWidth: 400,
+      clientHeight: 300,
+    },
+  });
+
+  bridge.positionMobileKeyboard(120, 80, 1, 24);
+  bridge.showMobileKeyboard();
+
+  assert.deepEqual(bridge.input.focusStyles[0], {
+    height: "48px",
+    left: "280px",
+    top: "220px",
+    width: "1px",
+  });
+});
+
+test("desktop caret anchor moves without refocusing or resetting composition", () => {
+  const bridge = createBridge({
+    touch: false,
+    canvasMetrics: {
+      left: 40,
+      top: 60,
+      width: 800,
+      height: 600,
+      clientWidth: 400,
+      clientHeight: 300,
+    },
+  });
+  bridge.positionMobileKeyboard(120, 80, 1, 24);
+  bridge.showMobileKeyboard();
+  bridge.input.dispatchEvent(fakeEvent("compositionstart"));
+  bridge.input.value = `${SENTINEL}pin`;
+  const focusCount = bridge.input.focusCount;
+
+  bridge.positionMobileKeyboard(200, 100, 1, 20);
+
+  assert.equal(bridge.input.style.left, "440px");
+  assert.equal(bridge.input.style.top, "260px");
+  assert.equal(bridge.input.style.height, "40px");
+  assert.equal(bridge.input.focusCount, focusCount);
+  assert.equal(bridge.input.value, `${SENTINEL}pin`);
+
+  Object.assign(bridge.canvas.rect, {
+    left: 50,
+    top: 70,
+    width: 400,
+    height: 300,
+  });
+  bridge.window.dispatchEvent(fakeEvent("resize"));
+
+  assert.equal(bridge.input.style.left, "250px");
+  assert.equal(bridge.input.style.top, "170px");
+  assert.equal(bridge.input.style.height, "20px");
+  assert.equal(bridge.input.focusCount, focusCount);
+
+  bridge.input.dispatchEvent(fakeEvent("compositionend", { data: "拼" }));
+
+  assert.deepEqual(bridge.canvas.keys, ["拼"]);
 });
 
 test("desktop IME owns candidate keys and commits composition exactly once", async () => {
@@ -822,6 +914,32 @@ test("visual keyboard resize preserves registered text regions", () => {
     fakeEvent("pointerup", {
       clientX: 10,
       clientY: 10,
+      pointerId: 1,
+      pointerType: "touch",
+    }),
+  );
+
+  assert.equal(bridge.document.activeElement, bridge.input);
+});
+
+test("touch regions remain canvas-local when the canvas is offset", () => {
+  const bridge = createBridge({
+    canvasMetrics: { left: 80, top: 120, width: 800, height: 600 },
+  });
+  bridge.registerTextRegion(10, 20, 100, 48);
+
+  bridge.canvas.dispatchEvent(
+    fakeEvent("pointerdown", {
+      clientX: 110,
+      clientY: 150,
+      pointerId: 1,
+      pointerType: "touch",
+    }),
+  );
+  bridge.canvas.dispatchEvent(
+    fakeEvent("pointerup", {
+      clientX: 110,
+      clientY: 150,
       pointerId: 1,
       pointerType: "touch",
     }),

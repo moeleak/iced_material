@@ -20,7 +20,7 @@ use super::menu_overlay;
 use super::{
     MobileTextInputState, TextInputUpdateContext, absolute_line_height, draw_text_field_notched,
     mobile_text_input_activation, register_mobile_text_region, select, sync_mobile_keyboard,
-    text_field_floating_label_notch, update_mobile_text_input,
+    text_field_floating_label_notch, update_mobile_text_input, web_input_anchor,
 };
 use crate::style::{menu as menu_style, text_input as text_input_style};
 use crate::{Theme, tokens};
@@ -728,11 +728,12 @@ where
         let menu = tree
             .state
             .downcast_mut::<MenuState<T, Renderer::Paragraph>>();
+        let visible_bounds = layout.bounds().intersection(viewport);
         let activation = mobile_text_input_activation(
             true,
             &mut menu.mobile_input,
             event,
-            layout.bounds().intersection(viewport),
+            visible_bounds,
             cursor,
         );
 
@@ -915,11 +916,19 @@ where
 
             text_input_state.is_focused()
         };
+        let input_anchor = web_input_anchor(
+            shell.input_method(),
+            visible_bounds,
+            activation,
+            started_focused,
+            is_focused,
+        );
 
         sync_mobile_keyboard(
             started_focused,
             is_focused,
             activation.request_mobile_keyboard,
+            input_anchor,
         );
 
         if started_focused != is_focused {

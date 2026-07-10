@@ -137,6 +137,7 @@ where
 #[derive(Debug, Default)]
 struct TextEditorState {
     touch_activation: Option<TextFieldTouchActivation>,
+    web_input_position: WebInputPositionState,
 }
 
 impl<Message, Renderer> Widget<Message, Theme, Renderer> for TextEditor<'_, Message, Renderer>
@@ -220,6 +221,7 @@ where
             text_input_activation(
                 self.is_enabled,
                 &mut state.touch_activation,
+                &mut state.web_input_position,
                 event,
                 visible_bounds,
                 cursor,
@@ -298,21 +300,20 @@ where
             shell.request_redraw();
         }
 
-        if started_focused != is_focused {
-            sync_mobile_keyboard(
-                started_focused,
-                is_focused,
-                activation.request_mobile_keyboard,
-            );
-        }
+        let input_anchor = web_input_anchor(
+            shell.input_method(),
+            visible_bounds,
+            activation,
+            started_focused,
+            is_focused,
+        );
 
-        if started_focused == is_focused {
-            sync_mobile_keyboard(
-                started_focused,
-                is_focused,
-                activation.request_mobile_keyboard,
-            );
-        }
+        sync_mobile_keyboard(
+            started_focused,
+            is_focused,
+            activation.request_mobile_keyboard,
+            input_anchor,
+        );
     }
 
     fn mouse_interaction(

@@ -403,6 +403,7 @@ where
             let activation = text_input_activation(
                 self.is_enabled,
                 &mut state.touch_activation,
+                &mut state.web_input_position,
                 event,
                 visible_bounds,
                 cursor,
@@ -468,6 +469,13 @@ where
 
             input_state.is_focused()
         };
+        let input_anchor = web_input_anchor(
+            shell.input_method(),
+            visible_bounds,
+            activation,
+            was_focused,
+            is_focused,
+        );
 
         {
             let state = tree
@@ -476,8 +484,6 @@ where
             state.is_focused = is_focused;
 
             if was_focused != is_focused {
-                sync_mobile_keyboard(was_focused, is_focused, activation.request_mobile_keyboard);
-
                 shell.request_redraw();
             }
 
@@ -498,9 +504,12 @@ where
             }
         }
 
-        if was_focused == is_focused {
-            sync_mobile_keyboard(was_focused, is_focused, activation.request_mobile_keyboard);
-        }
+        sync_mobile_keyboard(
+            was_focused,
+            is_focused,
+            activation.request_mobile_keyboard,
+            input_anchor,
+        );
     }
 
     fn mouse_interaction(

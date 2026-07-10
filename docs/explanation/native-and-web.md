@@ -42,6 +42,11 @@ native to the browser. Composition-owned keys also stay inside the IME. The
 pointer-region gesture bridge that opens a soft keyboard remains limited to
 touch or coarse-pointer environments.
 
+On desktop browsers, the adapter moves its DOM input to iced's current caret
+rectangle before focusing it. It also reapplies the canvas offset and CSS scale
+when the caret, page, or viewport moves, so the native IME candidate window
+opens next to the active text cursor instead of at the page origin.
+
 This bridge provides committed-text input. The current sentinel model does not
 mirror surrounding application text or selection into the DOM, so browser IME
 preedit, reconversion, native selection handles, and surrounding-text

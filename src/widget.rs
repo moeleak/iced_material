@@ -353,12 +353,48 @@ impl TextFieldTouchContext<'_> {
 struct TextInputActivation {
     cursor: mouse::Cursor,
     request_mobile_keyboard: bool,
+    web_input_anchor: Option<Rectangle>,
+    web_input_translation: Vector,
     inner_touch_handling: TextFieldInnerTouchHandling,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+struct WebInputPositionState {
+    // Scrollable parents translate the cursor before child updates and only
+    // translate InputMethod::cursor back after the child returns. Remember the
+    // event-space pointer so the Web bridge can undo the cumulative offset now.
+    raw_pointer_position: Option<Point>,
+    translation: Vector,
+}
+
+impl WebInputPositionState {
+    fn update(&mut self, event: &Event, cursor: mouse::Cursor) {
+        let raw_pointer_position = match event {
+            Event::Mouse(mouse::Event::CursorMoved { position })
+            | Event::Touch(
+                touch::Event::FingerPressed { position, .. }
+                | touch::Event::FingerMoved { position, .. }
+                | touch::Event::FingerLifted { position, .. }
+                | touch::Event::FingerLost { position, .. },
+            ) => Some(*position),
+            _ => None,
+        };
+
+        if let Some(position) = raw_pointer_position {
+            self.raw_pointer_position = Some(position);
+        }
+
+        if let (Some(raw), Some(translated)) = (self.raw_pointer_position, cursor.land().position())
+        {
+            self.translation = translated - raw;
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default)]
 struct MobileTextInputState {
     touch_activation: Option<TextFieldTouchActivation>,
+    web_input_position: WebInputPositionState,
 }
 
 fn mobile_text_input_activation(
@@ -371,6 +407,7 @@ fn mobile_text_input_activation(
     text_input_activation(
         is_enabled,
         &mut state.touch_activation,
+        &mut state.web_input_position,
         event,
         visible_bounds,
         cursor,
@@ -380,10 +417,12 @@ fn mobile_text_input_activation(
 fn text_input_activation(
     is_enabled: bool,
     touch_activation: &mut Option<TextFieldTouchActivation>,
+    web_input_position: &mut WebInputPositionState,
     event: &Event,
     visible_bounds: Option<Rectangle>,
     cursor: mouse::Cursor,
 ) -> TextInputActivation {
+    web_input_position.update(event, cursor);
     let inner_cursor = text_field_touch_cursor(event, cursor);
     let touch = TextFieldTouchContext {
         is_enabled,
@@ -394,6 +433,15 @@ fn text_input_activation(
         confirmed_tap: false,
     };
     let request_mobile_keyboard = is_enabled && touch.keyboard_activation(touch_activation);
+    let web_input_anchor = if request_mobile_keyboard {
+        visible_bounds.map(|bounds| {
+            let position = inner_cursor.position().unwrap_or(bounds.position());
+
+            Rectangle::new(position, Size::UNIT)
+        })
+    } else {
+        None
+    };
     let inner_touch_handling = TextFieldTouchContext {
         confirmed_tap: request_mobile_keyboard,
         ..touch
@@ -403,11 +451,62 @@ fn text_input_activation(
     TextInputActivation {
         cursor: inner_cursor,
         request_mobile_keyboard,
+        web_input_anchor,
+        web_input_translation: web_input_position.translation,
         inner_touch_handling,
     }
 }
 
-fn sync_mobile_keyboard(started_focused: bool, is_focused: bool, request_mobile_keyboard: bool) {
+fn web_input_anchor(
+    input_method: &input_method::InputMethod,
+    visible_bounds: Option<Rectangle>,
+    activation: TextInputActivation,
+    started_focused: bool,
+    is_focused: bool,
+) -> Option<Rectangle> {
+    if !is_focused {
+        return None;
+    }
+
+    let anchor = match input_method {
+        input_method::InputMethod::Enabled { cursor, .. } => Some(*cursor),
+        input_method::InputMethod::Disabled if activation.web_input_anchor.is_some() => {
+            activation.web_input_anchor
+        }
+        input_method::InputMethod::Disabled if started_focused != is_focused => {
+            visible_bounds.map(|bounds| {
+                Rectangle::new(bounds.position(), Size::new(1.0, bounds.height.max(1.0)))
+            })
+        }
+        input_method::InputMethod::Disabled => None,
+    }?;
+
+    let anchor = visible_bounds.map_or(anchor, |bounds| {
+        let right = bounds.x + bounds.width;
+        let bottom = bounds.y + bounds.height;
+
+        Rectangle::new(
+            Point::new(
+                anchor.x.clamp(bounds.x, right),
+                anchor.y.clamp(bounds.y, bottom),
+            ),
+            Size::new(anchor.width.max(1.0), anchor.height.max(1.0)),
+        )
+    });
+
+    Some(anchor - activation.web_input_translation)
+}
+
+fn sync_mobile_keyboard(
+    started_focused: bool,
+    is_focused: bool,
+    request_mobile_keyboard: bool,
+    input_anchor: Option<Rectangle>,
+) {
+    if let Some(anchor) = input_anchor {
+        web_input::position_mobile_keyboard(anchor);
+    }
+
     if started_focused != is_focused {
         if is_focused {
             if !request_mobile_keyboard {
@@ -784,10 +883,19 @@ where
             state.is_focused()
         };
 
+        let input_anchor = web_input_anchor(
+            shell.input_method(),
+            visible_bounds,
+            activation,
+            started_focused,
+            is_focused,
+        );
+
         sync_mobile_keyboard(
             started_focused,
             is_focused,
             activation.request_mobile_keyboard,
+            input_anchor,
         );
     }
 

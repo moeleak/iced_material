@@ -195,6 +195,135 @@ fn text_field_keyboard_activation_requests_dom_input_on_mouse_press() {
 }
 
 #[test]
+fn web_input_anchor_uses_translated_click_before_iced_reports_a_caret() {
+    let bounds = Rectangle::new(Point::new(10.0, 120.0), Size::new(100.0, 48.0));
+    let click = Point::new(42.0, 136.0);
+    let mut touch_activation = None;
+    let mut web_input_position = WebInputPositionState::default();
+    let activation = text_input_activation(
+        true,
+        &mut touch_activation,
+        &mut web_input_position,
+        &Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)),
+        Some(bounds),
+        mouse::Cursor::Available(click),
+    );
+
+    assert_eq!(
+        activation.web_input_anchor,
+        Some(Rectangle::new(click, Size::UNIT))
+    );
+    assert_eq!(
+        web_input_anchor(
+            &input_method::InputMethod::Disabled,
+            Some(bounds),
+            activation,
+            false,
+            true,
+        ),
+        Some(Rectangle::new(click, Size::UNIT))
+    );
+}
+
+#[test]
+fn web_input_anchor_prefers_the_iced_caret_and_falls_back_for_tab_focus() {
+    let bounds = Rectangle::new(Point::new(10.0, 120.0), Size::new(180.0, 48.0));
+    let caret = Rectangle::new(Point::new(86.0, 132.0), Size::new(1.0, 24.0));
+    let activation = TextInputActivation {
+        cursor: mouse::Cursor::Unavailable,
+        request_mobile_keyboard: false,
+        web_input_anchor: None,
+        web_input_translation: Vector::new(0.0, 0.0),
+        inner_touch_handling: TextFieldInnerTouchHandling::Forward,
+    };
+    let enabled = input_method::InputMethod::Enabled {
+        cursor: caret,
+        purpose: input_method::Purpose::Normal,
+        preedit: None,
+    };
+
+    assert_eq!(
+        web_input_anchor(&enabled, Some(bounds), activation, true, true),
+        Some(caret)
+    );
+    assert_eq!(
+        web_input_anchor(
+            &input_method::InputMethod::Disabled,
+            Some(bounds),
+            activation,
+            false,
+            true,
+        ),
+        Some(Rectangle::new(
+            bounds.position(),
+            Size::new(1.0, bounds.height)
+        ))
+    );
+}
+
+#[test]
+fn web_input_anchor_removes_accumulated_scroll_translation() {
+    let raw_pointer = Point::new(40.0, 140.0);
+    let mut touch_activation = None;
+    let mut position_state = WebInputPositionState::default();
+    let first_bounds = Rectangle::new(Point::new(10.0, 320.0), Size::new(180.0, 48.0));
+    let first_activation = text_input_activation(
+        true,
+        &mut touch_activation,
+        &mut position_state,
+        &Event::Mouse(mouse::Event::CursorMoved {
+            position: raw_pointer,
+        }),
+        Some(first_bounds),
+        mouse::Cursor::Available(Point::new(40.0, 340.0)),
+    );
+    let first_caret = Rectangle::new(Point::new(86.0, 336.0), Size::new(1.0, 24.0));
+    let first_input_method = input_method::InputMethod::Enabled {
+        cursor: first_caret,
+        purpose: input_method::Purpose::Normal,
+        preedit: None,
+    };
+
+    assert_eq!(
+        web_input_anchor(
+            &first_input_method,
+            Some(first_bounds),
+            first_activation,
+            true,
+            true,
+        ),
+        Some(first_caret - Vector::new(0.0, 200.0))
+    );
+
+    let second_bounds = Rectangle::new(Point::new(10.0, 420.0), Size::new(180.0, 48.0));
+    let second_activation = text_input_activation(
+        true,
+        &mut touch_activation,
+        &mut position_state,
+        &Event::Window(window::Event::RedrawRequested(Instant::now())),
+        Some(second_bounds),
+        mouse::Cursor::Available(Point::new(40.0, 440.0)),
+    );
+    let second_caret = Rectangle::new(Point::new(86.0, 436.0), Size::new(1.0, 24.0));
+    let second_input_method = input_method::InputMethod::Enabled {
+        cursor: second_caret,
+        purpose: input_method::Purpose::Normal,
+        preedit: None,
+    };
+
+    assert_eq!(
+        web_input_anchor(
+            &second_input_method,
+            Some(second_bounds),
+            second_activation,
+            true,
+            true,
+        ),
+        Some(second_caret - Vector::new(0.0, 300.0))
+    );
+}
+
+#[test]
 fn text_field_keyboard_activation_waits_for_confirmed_touch_tap() {
     let bounds = Rectangle::new(Point::new(10.0, 120.0), Size::new(100.0, 48.0));
     let mut activation = None;
