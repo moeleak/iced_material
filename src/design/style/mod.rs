@@ -11,6 +11,7 @@ pub mod combobox;
 pub mod container;
 #[cfg(feature = "dialog")]
 pub mod dialog;
+mod float;
 pub mod list;
 #[cfg(feature = "markdown")]
 pub mod markdown;

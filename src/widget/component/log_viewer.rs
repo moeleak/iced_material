@@ -7,12 +7,12 @@ use iced_widget::core::text as core_text;
 use iced_widget::core::time::Instant;
 use iced_widget::core::widget;
 use iced_widget::core::{
-    Background, Border, Element, Font, Length, Padding, Shadow, alignment, border,
+    Background, Border, Element, Font, Length, Padding, Shadow, Vector, alignment, border,
 };
 use iced_widget::graphics::geometry;
 use iced_widget::renderer::wgpu::primitive;
 use iced_widget::text::{self, LineHeight};
-use iced_widget::{Column, Container, Row, Scrollable, Stack, Text, opaque};
+use iced_widget::{Column, Container, Float, Row, Scrollable, Stack, Text, opaque};
 
 use super::app_bar;
 use super::button::Button;
@@ -327,13 +327,16 @@ where
         } else {
             state.selection_bar_count
         };
+        let motion = selection_bar_motion(progress);
         let bar = selection_bar(
             count,
-            progress,
+            motion,
             on_action(Action::CloseSelection),
             on_action(Action::CopySelection),
         );
-        layers = layers.push(opaque(bar));
+        let bar =
+            Float::new(opaque(bar)).translate(move |_, _| Vector::new(0.0, motion.translation_y));
+        layers = layers.push(bar);
     }
 
     Column::new()
@@ -344,7 +347,7 @@ where
 
 fn selection_bar<'a, Message, Renderer>(
     selected_count: usize,
-    progress: f32,
+    motion: SelectionBarMotion,
     close: Message,
     copy: Message,
 ) -> Container<'a, Message, Theme, Renderer>
@@ -357,10 +360,9 @@ where
         + 'a,
     Font: Into<Renderer::Font>,
 {
-    let progress = progress.clamp(0.0, 1.0);
     let title_text = tokens::component::app_bar::SMALL_TITLE_TEXT;
-    let close = selection_icon_button("close", close, progress);
-    let copy = selection_icon_button("content_copy", copy, progress);
+    let close = selection_icon_button("close", close, motion.content_alpha);
+    let copy = selection_icon_button("content_copy", copy, motion.content_alpha);
     let content = Row::new()
         .push(close)
         .push(
@@ -369,7 +371,10 @@ where
                 .line_height(LineHeight::Absolute(title_text.line_height.into()))
                 .width(Length::Fill)
                 .style(move |theme: &Theme| iced_widget::text::Style {
-                    color: Some(alpha_color(theme.colors().surface.text, progress)),
+                    color: Some(alpha_color(
+                        theme.colors().surface.text,
+                        motion.content_alpha,
+                    )),
                 }),
         )
         .push(copy)
@@ -389,7 +394,37 @@ where
             tokens::component::log_viewer::SELECTION_BAR_HEIGHT,
         ))
         .align_y(alignment::Vertical::Center)
-        .style(move |theme| selection_bar_style(theme, progress))
+        .style(move |theme| selection_bar_style(theme, motion.surface_alpha))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct SelectionBarMotion {
+    translation_y: f32,
+    surface_alpha: f32,
+    content_alpha: f32,
+}
+
+fn selection_bar_motion(progress: f32) -> SelectionBarMotion {
+    let progress = progress.clamp(0.0, 1.0);
+
+    SelectionBarMotion {
+        translation_y: -tokens::component::log_viewer::SELECTION_BAR_ENTER_OFFSET
+            * (1.0 - progress),
+        surface_alpha: interval_progress(
+            progress,
+            0.0,
+            tokens::component::log_viewer::SELECTION_BAR_SURFACE_FADE_END,
+        ),
+        content_alpha: interval_progress(
+            progress,
+            tokens::component::log_viewer::SELECTION_BAR_CONTENT_FADE_START,
+            1.0,
+        ),
+    }
+}
+
+fn interval_progress(progress: f32, start: f32, end: f32) -> f32 {
+    ((progress - start) / (end - start)).clamp(0.0, 1.0)
 }
 
 fn selection_icon_button<'a, Message, Renderer>(

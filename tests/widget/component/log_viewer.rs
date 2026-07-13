@@ -106,6 +106,48 @@ fn selection_bar_animates_without_changing_selection_state() {
 }
 
 #[test]
+fn selection_bar_reverses_from_its_current_progress() {
+    let start = Instant::now();
+    let mut state = State::new();
+
+    assert!(state.toggle_at(10, start));
+    assert!(state.advance(start + Duration::from_millis(100)));
+    let entering = state.selection_bar_progress();
+
+    state.clear_selection_at(start + Duration::from_millis(100));
+    assert_eq!(state.selection_bar_progress(), entering);
+    assert!(state.advance(start + Duration::from_millis(150)));
+    let exiting = state.selection_bar_progress();
+    assert!(exiting < entering);
+
+    assert!(state.toggle_at(10, start + Duration::from_millis(150)));
+    assert_eq!(state.selection_bar_progress(), exiting);
+    assert!(state.advance(start + Duration::from_millis(175)));
+    assert!(state.selection_bar_progress() > exiting);
+}
+
+#[test]
+fn selection_bar_motion_slides_and_stages_android_fades() {
+    let hidden = selection_bar_motion(0.0);
+    let middle = selection_bar_motion(0.5);
+    let shown = selection_bar_motion(1.0);
+
+    assert_eq!(
+        hidden.translation_y,
+        -tokens::component::log_viewer::SELECTION_BAR_ENTER_OFFSET
+    );
+    assert_eq!(hidden.surface_alpha, 0.0);
+    assert_eq!(hidden.content_alpha, 0.0);
+    assert!(middle.translation_y < 0.0);
+    assert!(middle.surface_alpha > middle.content_alpha);
+    assert_eq!(shown.translation_y, 0.0);
+    assert_eq!(shown.surface_alpha, 1.0);
+    assert_eq!(shown.content_alpha, 1.0);
+    assert_eq!(selection_bar_motion(-1.0), hidden);
+    assert_eq!(selection_bar_motion(2.0), shown);
+}
+
+#[test]
 fn selection_bar_fades_surface_without_shadow_padding() {
     let theme = Theme::Dark;
     let hidden = selection_bar_style(&theme, 0.0);
