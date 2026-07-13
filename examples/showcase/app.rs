@@ -459,6 +459,106 @@ fn sample_log_entries() -> Vec<material::widget::log_viewer::LogEntry<u64>> {
             LogLevel::Trace,
             "[0005] [83404445 0ms] router: matching route rules",
         ),
+        LogEntry::new(
+            11,
+            LogLevel::Trace,
+            "[0005] [83404445 0ms] router: rule[3] domain_suffix=.example.com did not match",
+        ),
+        LogEntry::new(
+            12,
+            LogLevel::Debug,
+            "[0005] [83404445 1ms] router: rule[7] ip_cidr=198.18.0.0/15 matched outbound/proxy[edge]",
+        ),
+        LogEntry::new(
+            13,
+            LogLevel::Info,
+            "[0005] [83404445 1ms] outbound/proxy[edge]: dialing 198.18.0.16:443 through 203.0.113.8:8443",
+        ),
+        LogEntry::new(
+            14,
+            LogLevel::Debug,
+            "[0006] dns: query A api.example.com from 172.19.0.1:53044",
+        ),
+        LogEntry::new(
+            15,
+            LogLevel::Trace,
+            "[0006] dns: cache miss for api.example.com IN A",
+        ),
+        LogEntry::new(
+            16,
+            LogLevel::Info,
+            "[0006] dns/doh[remote]: exchange query with https://dns.example/dns-query",
+        ),
+        LogEntry::new(
+            17,
+            LogLevel::Info,
+            "[0006] dns: resolved api.example.com to 198.51.100.42 ttl=300",
+        ),
+        LogEntry::new(
+            18,
+            LogLevel::Debug,
+            "[0005] [83404445 42ms] outbound/proxy[edge]: tunnel established with cipher aes-256-gcm",
+        ),
+        LogEntry::new(
+            19,
+            LogLevel::Info,
+            "[0005] [83404445 43ms] connection: connected to 198.18.0.16:443",
+        ),
+        LogEntry::new(
+            20,
+            LogLevel::Trace,
+            "[0005] [83404445 44ms] connection: uploaded 517 bytes, downloaded 1.8 KiB",
+        ),
+        LogEntry::new(
+            21,
+            LogLevel::Warn,
+            "[0007] inbound/tun[tun-in]: TCP handshake from 172.19.0.1:49102 exceeded 750ms",
+        ),
+        LogEntry::new(
+            22,
+            LogLevel::Info,
+            "[0007] [1653028021 811ms] inbound/tun[tun-in]: inbound connection to 192.0.2.80:80",
+        ),
+        LogEntry::new(
+            23,
+            LogLevel::Debug,
+            "[0007] [1653028021 812ms] router: protocol=http host=updates.example.com method=GET",
+        ),
+        LogEntry::new(
+            24,
+            LogLevel::Info,
+            "[0007] [1653028021 814ms] outbound/direct[direct]: outbound connection to 192.0.2.80:80",
+        ),
+        LogEntry::new(
+            25,
+            LogLevel::Warn,
+            "[0008] inbound/tun[tun-in]: dropped malformed UDP packet from 172.19.0.1:60418",
+        ),
+        LogEntry::new(
+            26,
+            LogLevel::Error,
+            "[0009] outbound/proxy[edge]: authentication failed for 203.0.113.8:8443: invalid server response",
+        ),
+        LogEntry::new(
+            27,
+            LogLevel::Info,
+            "[0009] outbound/proxy[edge]: retrying with secondary endpoint 203.0.113.9:8443",
+        ),
+        LogEntry::new(
+            28,
+            LogLevel::Debug,
+            "[0009] outbound/proxy[edge]: secondary endpoint connected in 68ms",
+        ),
+        LogEntry::new(
+            29,
+            LogLevel::Info,
+            "[0009] connection: traffic recovered after 1 retry",
+        ),
+        LogEntry::new(
+            30,
+            LogLevel::Trace,
+            "[0000] stats: connections=12 upload=4.2 MiB download=38.7 MiB memory=24.6 MiB goroutines=31",
+        ),
     ]
 }
 
