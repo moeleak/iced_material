@@ -150,6 +150,19 @@ fn selected_item_style_uses_outline_without_changing_surface() {
 }
 
 #[test]
+fn row_button_uses_one_rounded_state_layer() {
+    let theme = Theme::Light;
+    let style = item_button_style(&theme, ButtonStatus::Hovered);
+
+    assert_eq!(style.background, None);
+    assert_eq!(style.border.width, 0.0);
+    assert_eq!(
+        style.border.radius,
+        border::radius(tokens::component::log_viewer::ITEM_SHAPE)
+    );
+}
+
+#[test]
 fn levels_use_theme_semantic_colors() {
     let theme = Theme::Light;
     let colors = theme.colors();

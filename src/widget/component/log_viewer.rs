@@ -450,22 +450,15 @@ where
     let selected = state.is_selected(entry.id());
     let checkbox = super::checkbox::control(selected)
         .style(move |theme, _status| checkbox_visual_style(theme, selected));
-    let checkbox_button = Button::new(
-        Container::new(checkbox)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .align_x(alignment::Horizontal::Center)
-            .align_y(alignment::Vertical::Center),
-    )
-    .width(Length::Fixed(
-        tokens::component::log_viewer::CHECKBOX_SLOT_WIDTH,
-    ))
-    .height(Length::Fixed(
-        tokens::component::log_viewer::ITEM_MIN_HEIGHT,
-    ))
-    .padding(Padding::ZERO)
-    .style(item_button_style)
-    .on_press(toggle.clone());
+    let checkbox_slot = Container::new(checkbox)
+        .width(Length::Fixed(
+            tokens::component::log_viewer::CHECKBOX_SLOT_WIDTH,
+        ))
+        .height(Length::Fixed(
+            tokens::component::log_viewer::ITEM_MIN_HEIGHT,
+        ))
+        .align_x(alignment::Horizontal::Center)
+        .align_y(alignment::Vertical::Center);
 
     let scale = tokens::component::log_viewer::LOG_TEXT;
     let line = Text::new(entry.line())
@@ -485,27 +478,30 @@ where
         .push(line)
         .push(colored_level)
         .width(Length::Fill);
-    let text_button = Button::new(log_text)
+    let text = Container::new(log_text)
         .width(Length::Fill)
         .padding(Padding {
             top: tokens::component::log_viewer::ITEM_VERTICAL_SPACE,
             right: tokens::component::log_viewer::ITEM_TRAILING_SPACE,
             bottom: tokens::component::log_viewer::ITEM_VERTICAL_SPACE,
             left: 0.0,
-        })
-        .style(item_button_style)
-        .on_press(toggle);
-
-    Container::new(
+        });
+    let row_button = Button::new(
         Row::new()
-            .push(checkbox_button)
-            .push(text_button)
+            .push(checkbox_slot)
+            .push(text)
             .align_y(alignment::Vertical::Center)
             .width(Length::Fill),
     )
     .width(Length::Fill)
-    .style(move |theme| item_container_style(theme, selected))
-    .into()
+    .padding(Padding::ZERO)
+    .style(item_button_style)
+    .on_press(toggle);
+
+    Container::new(row_button)
+        .width(Length::Fill)
+        .style(move |theme| item_container_style(theme, selected))
+        .into()
 }
 
 fn checkbox_visual_style(theme: &Theme, selected: bool) -> CheckboxStyle {
@@ -521,7 +517,7 @@ fn item_button_style(theme: &Theme, _status: ButtonStatus) -> ButtonStyle {
     ButtonStyle {
         background: None,
         text_color: theme.colors().surface.text,
-        border: Border::default(),
+        border: border::rounded(tokens::component::log_viewer::ITEM_SHAPE),
         shadow: Shadow::default(),
         snap: cfg!(feature = "crisp"),
     }
