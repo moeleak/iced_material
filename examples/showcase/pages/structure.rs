@@ -6,6 +6,7 @@ use super::super::{Message, Showcase};
 
 pub(super) fn view(state: &Showcase) -> material::Element<'_, Message> {
     page::sections([
+        page::section("Log viewer", log_viewer(state)).into(),
         page::section("Top app bars", top_app_bars()).into(),
         page::section("Search view", search_view(state)).into(),
         page::section("Toolbars", toolbars()).into(),
@@ -14,6 +15,36 @@ pub(super) fn view(state: &Showcase) -> material::Element<'_, Message> {
         page::section("Side sheets", side_sheets(state)).into(),
     ])
     .into()
+}
+
+fn log_viewer(state: &Showcase) -> material::Element<'_, Message> {
+    use iced::Length;
+    use iced::widget::{Column, Container};
+    use material::widget::{app_bar, log_viewer};
+
+    let header: material::Element<'_, Message> = app_bar::large(
+        "Logs",
+        None,
+        std::iter::empty::<material::Element<'_, Message>>(),
+    )
+    .into();
+    let screen = Column::new()
+        .push(header)
+        .push(log_viewer::view(
+            &state.log_entries,
+            &state.log_viewer,
+            Message::LogViewer,
+        ))
+        .width(Length::Fill)
+        .height(Length::Fill);
+    let preview = Container::new(screen)
+        .width(Length::Fill)
+        .height(Length::Fixed(620.0))
+        .style(material::style::container::surface);
+
+    let width = page::preview_width(state.window_size.width).min(480.0);
+
+    page::centered_preview(width, preview).into()
 }
 
 fn top_app_bars() -> material::Element<'static, Message> {

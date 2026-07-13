@@ -49,6 +49,8 @@ pub mod data_table;
 pub mod dialog;
 #[path = "widget/component/list.rs"]
 pub mod list;
+#[path = "widget/component/log_viewer.rs"]
+pub mod log_viewer;
 #[path = "widget/internal/menu_overlay.rs"]
 mod menu_overlay;
 #[path = "widget/component/navigation.rs"]

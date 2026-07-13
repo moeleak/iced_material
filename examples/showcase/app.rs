@@ -65,6 +65,7 @@ enum Message {
     SegmentSelected(SegmentChoice),
     PrimaryTabSelected(TabChoice),
     SecondaryTabSelected(TabChoice),
+    LogViewer(material::widget::log_viewer::Action<u64>),
     MenuPressed,
     DialogOpened,
     DialogDismissed,
@@ -184,6 +185,8 @@ struct Showcase {
     primary_tab_state: material::widget::tabs::State,
     secondary_tab: TabChoice,
     secondary_tab_state: material::widget::tabs::State,
+    log_viewer: material::widget::log_viewer::State<u64>,
+    log_entries: Vec<material::widget::log_viewer::LogEntry<u64>>,
     progress_animation: material::widget::progress_bar::IndeterminateState,
     alert_dialog: material::widget::dialog::Transition,
     snackbar: material::widget::snackbar::Transition,
@@ -227,6 +230,8 @@ impl Default for Showcase {
             primary_tab_state: material::widget::tabs::State::new(TabChoice::Inputs.index()),
             secondary_tab: TabChoice::Controls,
             secondary_tab_state: material::widget::tabs::State::new(TabChoice::Controls.index()),
+            log_viewer: material::widget::log_viewer::State::new(),
+            log_entries: sample_log_entries(),
             progress_animation: material::widget::progress_bar::IndeterminateState::new(
                 Instant::now(),
             ),
@@ -342,6 +347,7 @@ fn update(state: &mut Showcase, message: Message) -> Task<Message> {
             );
             Task::none()
         }
+        Message::LogViewer(action) => state.log_viewer.update(action, &state.log_entries),
         Message::MenuPressed => {
             state.navigation.toggle_menu_now();
             Task::none()
@@ -396,6 +402,63 @@ fn update(state: &mut Showcase, message: Message) -> Task<Message> {
             Task::none()
         }
     }
+}
+
+fn sample_log_entries() -> Vec<material::widget::log_viewer::LogEntry<u64>> {
+    use material::widget::log_viewer::{LogEntry, LogLevel};
+
+    vec![
+        LogEntry::new(
+            1,
+            LogLevel::Info,
+            "[0005] [354884390 0ms] inbound/tun[tun-in]: inbound redirect connection from 172.19.0.1:47892",
+        ),
+        LogEntry::new(
+            2,
+            LogLevel::Info,
+            "[0005] [354884390 0ms] inbound/tun[tun-in]: inbound connection to 81.69.216.240:443",
+        ),
+        LogEntry::new(
+            3,
+            LogLevel::Info,
+            "[0005] [354884390 0ms] router: found user id: 10404",
+        ),
+        LogEntry::new(
+            4,
+            LogLevel::Info,
+            "[0005] [354884390 6ms] outbound/direct[direct]: outbound connection to 81.69.216.240:443",
+        ),
+        LogEntry::new(
+            5,
+            LogLevel::Error,
+            "[0005] [953254993 5.0s] connection: open connection to 172.19.0.2:853 using outbound/direct[direct]: dial tcp 172.19.0.2:853: i/o timeout",
+        ),
+        LogEntry::new(
+            6,
+            LogLevel::Error,
+            "[0005] [2920815984 5.4s] connection: open connection to 172.19.0.2:853 using outbound/direct[direct]: dial tcp 172.19.0.2:853: i/o timeout",
+        ),
+        LogEntry::new(
+            7,
+            LogLevel::Warn,
+            "[0005] router: fallback route selected for user id: 10325",
+        ),
+        LogEntry::new(
+            8,
+            LogLevel::Debug,
+            "[0005] [83404445 0ms] inbound/tun[tun-in]: inbound packet connection from 172.19.0.1:55755",
+        ),
+        LogEntry::new(
+            9,
+            LogLevel::Info,
+            "[0005] [83404445 0ms] inbound/tun[tun-in]: inbound packet connection to 198.18.0.16:443",
+        ),
+        LogEntry::new(
+            10,
+            LogLevel::Trace,
+            "[0005] [83404445 0ms] router: matching route rules",
+        ),
+    ]
 }
 
 #[cfg(any(target_arch = "wasm32", test))]

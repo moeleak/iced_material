@@ -16,6 +16,7 @@ pub mod icon_button;
 pub mod linear_progress;
 pub mod list;
 pub mod loading_indicator;
+pub mod log_viewer;
 pub mod menu;
 pub mod navigation_bar;
 pub mod navigation_drawer;

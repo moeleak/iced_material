@@ -34,6 +34,9 @@ modules.
 - `progress_bar` provides determinate and indeterminate progress indicators.
 - `badge`, `tooltip`, `card`, `list`, `data_table`, and `rule` provide common
   display components.
+- `log_viewer` provides structured severity rows, selection state, contextual
+  close/copy actions, and bottom-anchored scrolling. Page titles remain the
+  responsibility of an existing `app_bar` constructor.
 - `theme_picker` provides a floating Material color picker and animated theme
   reveal helpers.
 
