@@ -1,3 +1,5 @@
+use std::cell::Cell;
+
 use iced_widget::core::alignment;
 use iced_widget::core::layout::{self, Layout};
 use iced_widget::core::mouse;
@@ -15,9 +17,11 @@ use iced_widget::core::{
 };
 use iced_widget::scrollable::{self, Scrollable};
 
-use super::support::{AnimatedScalar, alpha_border, alpha_color};
+use super::reveal::{RevealAnimation, RevealFrame};
+use super::support::{alpha_border, alpha_color};
 use crate::tokens;
 
+#[cfg(test)]
 const CLOSED_ALPHA_TARGET: f32 = 0.0;
 const EXPANDED_ALPHA_TARGET: f32 = 1.0;
 
@@ -36,6 +40,7 @@ where
     hovered_option: &'a mut Option<usize>,
     on_selected: Box<dyn FnMut(T) -> Message + 'a>,
     on_option_hovered: Option<&'a dyn Fn(T) -> Message>,
+    on_dismiss: Option<Box<dyn FnMut(Instant) + 'a>>,
     width: f32,
     padding: Padding,
     text_size: Option<Pixels>,
@@ -67,6 +72,7 @@ where
             hovered_option,
             on_selected: Box::new(on_selected),
             on_option_hovered,
+            on_dismiss: None,
             width: 0.0,
             padding: Padding::ZERO,
             text_size: None,
@@ -107,6 +113,11 @@ where
         self
     }
 
+    pub(super) fn on_dismiss(mut self, on_dismiss: impl FnMut(Instant) + 'a) -> Self {
+        self.on_dismiss = Some(Box::new(on_dismiss));
+        self
+    }
+
     pub(super) fn overlay(
         self,
         position: Point,
@@ -127,19 +138,45 @@ where
 #[derive(Debug)]
 pub(super) struct State {
     tree: Tree,
-    animation: MenuAnimation,
+    animation: RevealAnimation,
+    dismiss_requested: Cell<bool>,
 }
 
 impl State {
     pub(super) fn new() -> Self {
         Self {
             tree: Tree::empty(),
-            animation: MenuAnimation::closed(),
+            animation: RevealAnimation::closed(),
+            dismiss_requested: Cell::new(false),
         }
     }
 
     pub(super) fn start_open(&mut self, _item_count: usize, now: Instant) {
-        self.animation.start_open(now);
+        self.dismiss_requested.set(false);
+        self.animation = RevealAnimation::closed();
+        self.animation.open(now);
+    }
+
+    pub(super) fn reverse_open(&mut self, now: Instant) {
+        self.dismiss_requested.set(false);
+        self.animation.open(now);
+    }
+
+    pub(super) fn start_close(&mut self, now: Instant) {
+        self.dismiss_requested.set(false);
+        self.animation.close(now);
+    }
+
+    pub(super) fn advance(&mut self, now: Instant) -> bool {
+        self.animation.advance(now)
+    }
+
+    pub(super) fn is_animating(&self) -> bool {
+        self.animation.is_animating()
+    }
+
+    pub(super) fn is_visible(&self) -> bool {
+        self.animation.is_visible()
     }
 }
 
@@ -156,7 +193,8 @@ where
 {
     position: Point,
     viewport: Rectangle,
-    animation: &'a mut MenuAnimation,
+    animation: &'a mut RevealAnimation,
+    dismiss_requested: &'a Cell<bool>,
     tree: &'a mut Tree,
     list: Scrollable<'a, Message, Theme, Renderer>,
     width: f32,
@@ -187,6 +225,7 @@ where
             hovered_option,
             on_selected,
             on_option_hovered,
+            on_dismiss,
             width,
             padding,
             font,
@@ -198,13 +237,15 @@ where
 
         let opens_down = opens_down(position, target_height, viewport.height);
         let _ = state.animation.advance(Instant::now());
-        let frame = state.animation.frame(opens_down);
+        let frame = MenuAnimationFrame::new(state.animation.frame(), opens_down);
 
         let list = Scrollable::new(List {
             options,
             hovered_option,
             on_selected,
             on_option_hovered,
+            on_dismiss,
+            dismiss_requested: &state.dismiss_requested,
             font,
             text_size,
             text_line_height,
@@ -221,6 +262,7 @@ where
             position,
             viewport,
             animation: &mut state.animation,
+            dismiss_requested: &state.dismiss_requested,
             tree: &mut state.tree,
             list,
             width,
@@ -298,6 +340,11 @@ where
             &bounds,
         );
 
+        if self.dismiss_requested.replace(false) {
+            self.animation.close(Instant::now());
+            shell.request_redraw();
+        }
+
         if let Event::Window(window::Event::RedrawRequested(now)) = event
             && self.animation.advance(*now)
         {
@@ -331,11 +378,10 @@ where
             return;
         };
         let bounds = content_layout.bounds();
-        let frame = self.animation.frame(opens_down(
-            self.position,
-            self.target_height,
-            self.viewport.height,
-        ));
+        let frame = MenuAnimationFrame::new(
+            self.animation.frame(),
+            opens_down(self.position, self.target_height, self.viewport.height),
+        );
         let alpha = frame.alpha();
 
         if alpha <= 0.001 {
@@ -384,6 +430,8 @@ where
     hovered_option: &'a mut Option<usize>,
     on_selected: Box<dyn FnMut(T) -> Message + 'a>,
     on_option_hovered: Option<&'a dyn Fn(T) -> Message>,
+    on_dismiss: Option<Box<dyn FnMut(Instant) + 'a>>,
+    dismiss_requested: &'a Cell<bool>,
     padding: Padding,
     text_size: Option<Pixels>,
     text_line_height: text::LineHeight,
@@ -454,6 +502,11 @@ where
                     && let Some(index) = *self.hovered_option
                     && let Some(option) = self.options.get(index)
                 {
+                    if let Some(on_dismiss) = &mut self.on_dismiss {
+                        on_dismiss(Instant::now());
+                        self.dismiss_requested.set(true);
+                    }
+
                     shell.publish((self.on_selected)(option.clone()));
                     shell.capture_event();
                     shell.request_redraw();
@@ -493,6 +546,11 @@ where
                     *self.hovered_option = Some(index);
 
                     if let Some(option) = self.options.get(index) {
+                        if let Some(on_dismiss) = &mut self.on_dismiss {
+                            on_dismiss(Instant::now());
+                            self.dismiss_requested.set(true);
+                        }
+
                         shell.publish((self.on_selected)(option.clone()));
                         shell.capture_event();
                         shell.request_redraw();
@@ -622,62 +680,24 @@ where
     }
 }
 
-#[derive(Debug)]
-struct MenuAnimation {
-    reveal: AnimatedScalar,
-    alpha: AnimatedScalar,
-}
-
-impl MenuAnimation {
-    fn closed() -> Self {
-        Self {
-            reveal: AnimatedScalar::new(CLOSED_ALPHA_TARGET),
-            alpha: AnimatedScalar::new(CLOSED_ALPHA_TARGET),
-        }
-    }
-
-    fn start_open(&mut self, now: Instant) {
-        self.reveal = AnimatedScalar::new(CLOSED_ALPHA_TARGET);
-        self.alpha = AnimatedScalar::new(CLOSED_ALPHA_TARGET);
-        self.reveal.set_spring_target(
-            EXPANDED_ALPHA_TARGET,
-            now,
-            tokens::motion::EXPRESSIVE_SLOW_SPATIAL,
-        );
-        self.alpha.set_spring_target(
-            EXPANDED_ALPHA_TARGET,
-            now,
-            tokens::motion::EXPRESSIVE_FAST_EFFECTS,
-        );
-    }
-
-    fn advance(&mut self, now: Instant) -> bool {
-        self.reveal.advance(now) | self.alpha.advance(now)
-    }
-
-    fn frame(&self, opens_down: bool) -> MenuAnimationFrame {
-        MenuAnimationFrame {
-            reveal: self
-                .reveal
-                .value
-                .clamp(CLOSED_ALPHA_TARGET, EXPANDED_ALPHA_TARGET),
-            alpha: self
-                .alpha
-                .value
-                .clamp(CLOSED_ALPHA_TARGET, EXPANDED_ALPHA_TARGET),
-            opens_down,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy)]
 struct MenuAnimationFrame {
     reveal: f32,
     alpha: f32,
     opens_down: bool,
+    is_closing: bool,
 }
 
 impl MenuAnimationFrame {
+    fn new(frame: RevealFrame, opens_down: bool) -> Self {
+        Self {
+            reveal: frame.reveal,
+            alpha: frame.alpha,
+            opens_down,
+            is_closing: frame.is_closing,
+        }
+    }
+
     fn alpha(&self) -> f32 {
         self.alpha
     }
@@ -697,6 +717,10 @@ impl MenuAnimationFrame {
     }
 
     fn cursor_visible(&self, cursor: mouse::Cursor, bounds: Rectangle) -> bool {
+        if self.is_closing {
+            return false;
+        }
+
         let Some(position) = cursor.position_in(bounds) else {
             return false;
         };

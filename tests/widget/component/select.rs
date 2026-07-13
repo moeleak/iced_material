@@ -1,4 +1,5 @@
 use super::*;
+use iced_widget::core::time::{Duration, Instant};
 
 #[test]
 fn material_menu_height_uses_five_visible_options_max() {
@@ -36,6 +37,22 @@ fn select_status_tracks_open_state_before_hover_state() {
         select_status(true, true),
         Status::Opened { is_hovered: true }
     );
+}
+
+#[test]
+fn select_menu_remains_visible_during_close_animation() {
+    let start = Instant::now();
+    let mut menu = menu_overlay::State::new();
+
+    menu.start_open(3, start);
+    assert!(!menu.advance(start + Duration::from_secs(2)));
+    menu.start_close(start + Duration::from_secs(2));
+
+    assert!(menu.is_visible());
+    assert!(menu.is_animating());
+
+    assert!(!menu.advance(start + Duration::from_secs(4)));
+    assert!(!menu.is_visible());
 }
 
 #[test]

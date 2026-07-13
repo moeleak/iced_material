@@ -21,15 +21,6 @@ fn menu_reveal_uses_expressive_motion_scheme_springs() {
 }
 
 #[test]
-fn menu_open_targets_full_reveal_and_alpha() {
-    let mut animation = MenuAnimation::closed();
-    animation.start_open(Instant::now());
-
-    assert_eq!(animation.reveal.to, EXPANDED_ALPHA_TARGET);
-    assert_eq!(animation.alpha.to, EXPANDED_ALPHA_TARGET);
-}
-
-#[test]
 fn selected_option_background_uses_square_corners() {
     let border = selected_option_border();
 
@@ -46,17 +37,32 @@ fn reveal_bounds_expand_from_anchor_edge() {
         reveal: 0.25,
         alpha: 1.0,
         opens_down: true,
+        is_closing: false,
     };
     let up = MenuAnimationFrame {
         reveal: 0.25,
         alpha: 1.0,
         opens_down: false,
+        is_closing: false,
     };
 
     assert_eq!(down.reveal_bounds(bounds).y, 16.0);
     assert_eq!(down.reveal_bounds(bounds).height, 75.0);
     assert_eq!(up.reveal_bounds(bounds).y, 241.0);
     assert_eq!(up.reveal_bounds(bounds).height, 75.0);
+}
+
+#[test]
+fn closing_menu_disables_option_hit_testing() {
+    let bounds = Rectangle::new(Point::ORIGIN, Size::new(200.0, 300.0));
+    let frame = MenuAnimationFrame {
+        reveal: 0.75,
+        alpha: 0.75,
+        opens_down: true,
+        is_closing: true,
+    };
+
+    assert!(!frame.cursor_visible(mouse::Cursor::Available(Point::new(100.0, 100.0)), bounds));
 }
 
 #[test]

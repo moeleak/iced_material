@@ -410,7 +410,6 @@ where
                         .borrow()
                         .iter()
                         .position(|option| Some(option) == selected);
-                    state.menu.start_open(self.options.borrow().len(), now);
 
                     if let Some(on_open) = &self.on_open {
                         shell.publish(on_open.clone());
@@ -668,7 +667,7 @@ where
         let state = tree.state.downcast_mut::<State<Renderer::Paragraph>>();
         let font = self.font.unwrap_or_else(|| renderer.default_font());
 
-        if state.is_open {
+        if state.menu.is_visible() {
             let bounds = layout.bounds();
             let on_select = &self.on_select;
             let menu_state = &mut state.menu;
@@ -681,16 +680,13 @@ where
                 menu_state,
                 self.options.borrow(),
                 hovered_option,
-                |option| {
-                    let now = Instant::now();
-
-                    set_menu_open(open_state, handle_rotation, last_status, false, now);
-
-                    (on_select)(option)
-                },
+                on_select,
                 None,
                 &self.menu_class,
             )
+            .on_dismiss(move |now| {
+                set_menu_open(open_state, handle_rotation, last_status, false, now);
+            })
             .width(bounds.width)
             .padding(self.option_padding)
             .font(font)
@@ -773,14 +769,20 @@ impl<P: text::Paragraph> State<P> {
             is_open,
             now,
         );
+
+        if is_open {
+            self.menu.reverse_open(now);
+        } else {
+            self.menu.start_close(now);
+        }
     }
 
     fn is_animating(&self) -> bool {
-        self.handle_rotation.is_animating()
+        self.handle_rotation.is_animating() || self.menu.is_animating()
     }
 
     fn advance(&mut self, now: Instant) -> bool {
-        self.handle_rotation.advance(now)
+        self.handle_rotation.advance(now) | self.menu.advance(now)
     }
 }
 

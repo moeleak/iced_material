@@ -61,6 +61,8 @@ pub mod page;
 pub mod picker;
 #[path = "widget/component/progress_bar.rs"]
 pub mod progress_bar;
+#[path = "widget/internal/reveal.rs"]
+mod reveal;
 #[path = "widget/internal/ripple.rs"]
 mod ripple;
 #[path = "widget/component/search.rs"]
