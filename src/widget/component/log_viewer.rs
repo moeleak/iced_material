@@ -7,16 +7,18 @@ use iced_widget::core::text as core_text;
 use iced_widget::core::time::Instant;
 use iced_widget::core::widget;
 use iced_widget::core::{
-    Background, Border, Element, Font, Length, Padding, Shadow, Vector, alignment, border,
+    Background, Border, Element, Font, Length, Padding, Shadow, alignment, border,
 };
 use iced_widget::graphics::geometry;
 use iced_widget::renderer::wgpu::primitive;
 use iced_widget::text::{self, LineHeight};
-use iced_widget::{Column, Container, Float, Row, Scrollable, Stack, Text, opaque};
+use iced_widget::{Column, Container, Row, Scrollable, Stack, Text, opaque};
 
 use super::app_bar;
 use super::button::Button;
-use super::support::{AnimatedScalar, alpha_color, duration_ms};
+use super::reveal::{RevealAnimation, RevealFrame};
+use super::support::alpha_color;
+use super::viewport::Viewport;
 use crate::style::{button as button_style, checkbox as checkbox_style};
 use crate::{Theme, text as text_style, tokens};
 
@@ -109,7 +111,7 @@ pub enum Action<Id> {
 pub struct State<Id> {
     selected: Vec<Id>,
     scrollable_id: widget::Id,
-    selection_bar_visibility: AnimatedScalar,
+    selection_bar: RevealAnimation,
     selection_bar_count: usize,
 }
 
@@ -125,7 +127,7 @@ impl<Id> State<Id> {
         Self {
             selected: Vec::new(),
             scrollable_id: widget::Id::unique(),
-            selection_bar_visibility: AnimatedScalar::new(0.0),
+            selection_bar: RevealAnimation::closed(),
             selection_bar_count: 0,
         }
     }
@@ -144,12 +146,9 @@ impl<Id> State<Id> {
     ///
     /// Call this from window frame events while [`Self::is_animating`] is true.
     pub fn advance(&mut self, now: Instant) -> bool {
-        let animating = self.selection_bar_visibility.advance(now);
+        let animating = self.selection_bar.advance(now);
 
-        if !animating
-            && self.selection_bar_visibility.value <= f32::EPSILON
-            && self.selected.is_empty()
-        {
+        if !self.selection_bar.is_visible() && self.selected.is_empty() {
             self.selection_bar_count = 0;
         }
 
@@ -158,12 +157,12 @@ impl<Id> State<Id> {
 
     /// Returns whether the contextual selection bar is animating.
     pub fn is_animating(&self) -> bool {
-        self.selection_bar_visibility.is_animating()
+        self.selection_bar.is_animating()
     }
 
     /// Returns the contextual selection bar visibility progress.
     pub fn selection_bar_progress(&self) -> f32 {
-        self.selection_bar_visibility.value.clamp(0.0, 1.0)
+        self.selection_bar.frame().reveal
     }
 
     fn clear_selection_at(&mut self, now: Instant) {
@@ -176,19 +175,9 @@ impl<Id> State<Id> {
 
         if count > 0 {
             self.selection_bar_count = count;
-            self.selection_bar_visibility.set_target(
-                1.0,
-                now,
-                duration_ms(tokens::component::log_viewer::SELECTION_BAR_ENTER_DURATION_MS),
-                tokens::component::log_viewer::SELECTION_BAR_ENTER_EASING,
-            );
+            self.selection_bar.open(now);
         } else {
-            self.selection_bar_visibility.set_target(
-                0.0,
-                now,
-                duration_ms(tokens::component::log_viewer::SELECTION_BAR_EXIT_DURATION_MS),
-                tokens::component::log_viewer::SELECTION_BAR_EXIT_EASING,
-            );
+            self.selection_bar.close(now);
         }
     }
 }
@@ -315,28 +304,31 @@ where
         .width(Length::Fill)
         .height(Length::Fill)
         .into();
-    let progress = state.selection_bar_progress();
+    let frame = state.selection_bar.frame();
     let mut layers = Stack::new()
         .push(logs)
         .width(Length::Fill)
         .height(Length::Fill);
 
-    if selected_count > 0 || progress > f32::EPSILON {
+    if selected_count > 0 || state.selection_bar.is_visible() {
         let count = if selected_count > 0 {
             selected_count
         } else {
             state.selection_bar_count
         };
-        let motion = selection_bar_motion(progress);
         let bar = selection_bar(
             count,
-            motion,
+            frame.alpha,
             on_action(Action::CloseSelection),
             on_action(Action::CopySelection),
         );
-        let bar =
-            Float::new(opaque(bar)).translate(move |_, _| Vector::new(0.0, motion.translation_y));
-        layers = layers.push(bar);
+        let bar = Viewport::fixed_height(
+            bar,
+            selection_bar_visible_height(frame),
+            tokens::component::log_viewer::SELECTION_BAR_HEIGHT,
+        )
+        .width(Length::Fill);
+        layers = layers.push(opaque(bar));
     }
 
     Column::new()
@@ -347,7 +339,7 @@ where
 
 fn selection_bar<'a, Message, Renderer>(
     selected_count: usize,
-    motion: SelectionBarMotion,
+    alpha: f32,
     close: Message,
     copy: Message,
 ) -> Container<'a, Message, Theme, Renderer>
@@ -360,9 +352,10 @@ where
         + 'a,
     Font: Into<Renderer::Font>,
 {
+    let alpha = alpha.clamp(0.0, 1.0);
     let title_text = tokens::component::app_bar::SMALL_TITLE_TEXT;
-    let close = selection_icon_button("close", close, motion.content_alpha);
-    let copy = selection_icon_button("content_copy", copy, motion.content_alpha);
+    let close = selection_icon_button("close", close, alpha);
+    let copy = selection_icon_button("content_copy", copy, alpha);
     let content = Row::new()
         .push(close)
         .push(
@@ -371,10 +364,7 @@ where
                 .line_height(LineHeight::Absolute(title_text.line_height.into()))
                 .width(Length::Fill)
                 .style(move |theme: &Theme| iced_widget::text::Style {
-                    color: Some(alpha_color(
-                        theme.colors().surface.text,
-                        motion.content_alpha,
-                    )),
+                    color: Some(alpha_color(theme.colors().surface.text, alpha)),
                 }),
         )
         .push(copy)
@@ -394,37 +384,11 @@ where
             tokens::component::log_viewer::SELECTION_BAR_HEIGHT,
         ))
         .align_y(alignment::Vertical::Center)
-        .style(move |theme| selection_bar_style(theme, motion.surface_alpha))
+        .style(move |theme| selection_bar_style(theme, alpha))
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct SelectionBarMotion {
-    translation_y: f32,
-    surface_alpha: f32,
-    content_alpha: f32,
-}
-
-fn selection_bar_motion(progress: f32) -> SelectionBarMotion {
-    let progress = progress.clamp(0.0, 1.0);
-
-    SelectionBarMotion {
-        translation_y: -tokens::component::log_viewer::SELECTION_BAR_ENTER_OFFSET
-            * (1.0 - progress),
-        surface_alpha: interval_progress(
-            progress,
-            0.0,
-            tokens::component::log_viewer::SELECTION_BAR_SURFACE_FADE_END,
-        ),
-        content_alpha: interval_progress(
-            progress,
-            tokens::component::log_viewer::SELECTION_BAR_CONTENT_FADE_START,
-            1.0,
-        ),
-    }
-}
-
-fn interval_progress(progress: f32, start: f32, end: f32) -> f32 {
-    ((progress - start) / (end - start)).clamp(0.0, 1.0)
+fn selection_bar_visible_height(frame: RevealFrame) -> f32 {
+    tokens::component::log_viewer::SELECTION_BAR_HEIGHT * frame.reveal.clamp(0.0, 1.0)
 }
 
 fn selection_icon_button<'a, Message, Renderer>(

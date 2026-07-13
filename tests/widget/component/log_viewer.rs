@@ -92,16 +92,16 @@ fn selection_bar_animates_without_changing_selection_state() {
     assert!(state.selection_bar_progress() > 0.0);
     assert!(state.selection_bar_progress() < 1.0);
 
-    assert!(!state.advance(start + Duration::from_millis(250)));
+    assert!(!state.advance(start + Duration::from_secs(2)));
     assert_eq!(state.selection_bar_progress(), 1.0);
 
-    state.clear_selection_at(start + Duration::from_millis(250));
+    state.clear_selection_at(start + Duration::from_secs(2));
     assert!(state.is_animating());
     assert!(state.selected_ids().is_empty());
-    assert!(state.advance(start + Duration::from_millis(350)));
+    assert!(state.advance(start + Duration::from_millis(2050)));
     assert!(state.selection_bar_progress() > 0.0);
     assert!(state.selection_bar_progress() < 1.0);
-    assert!(!state.advance(start + Duration::from_millis(450)));
+    assert!(!state.advance(start + Duration::from_secs(4)));
     assert_eq!(state.selection_bar_progress(), 0.0);
 }
 
@@ -122,29 +122,27 @@ fn selection_bar_reverses_from_its_current_progress() {
 
     assert!(state.toggle_at(10, start + Duration::from_millis(150)));
     assert_eq!(state.selection_bar_progress(), exiting);
-    assert!(state.advance(start + Duration::from_millis(175)));
-    assert!(state.selection_bar_progress() > exiting);
+    assert!(!state.advance(start + Duration::from_secs(2)));
+    assert_eq!(state.selection_bar_progress(), 1.0);
 }
 
 #[test]
-fn selection_bar_motion_slides_and_stages_android_fades() {
-    let hidden = selection_bar_motion(0.0);
-    let middle = selection_bar_motion(0.5);
-    let shown = selection_bar_motion(1.0);
+fn selection_bar_reveals_from_the_top_like_a_selection_field() {
+    let frame = |reveal| RevealFrame {
+        reveal,
+        alpha: reveal,
+        is_closing: false,
+    };
 
+    assert_eq!(selection_bar_visible_height(frame(-1.0)), 0.0);
     assert_eq!(
-        hidden.translation_y,
-        -tokens::component::log_viewer::SELECTION_BAR_ENTER_OFFSET
+        selection_bar_visible_height(frame(0.5)),
+        tokens::component::log_viewer::SELECTION_BAR_HEIGHT / 2.0
     );
-    assert_eq!(hidden.surface_alpha, 0.0);
-    assert_eq!(hidden.content_alpha, 0.0);
-    assert!(middle.translation_y < 0.0);
-    assert!(middle.surface_alpha > middle.content_alpha);
-    assert_eq!(shown.translation_y, 0.0);
-    assert_eq!(shown.surface_alpha, 1.0);
-    assert_eq!(shown.content_alpha, 1.0);
-    assert_eq!(selection_bar_motion(-1.0), hidden);
-    assert_eq!(selection_bar_motion(2.0), shown);
+    assert_eq!(
+        selection_bar_visible_height(frame(2.0)),
+        tokens::component::log_viewer::SELECTION_BAR_HEIGHT
+    );
 }
 
 #[test]
